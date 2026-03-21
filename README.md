@@ -105,10 +105,6 @@ Missing translations fall back to English automatically.
 
 ---
 
-## Project Structure
-
----
-
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
