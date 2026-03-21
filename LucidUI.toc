@@ -1,0 +1,37 @@
+## Interface: 120001, 120000
+## Title: LucidUI
+## Notes: Complete chat replacement, loot tracking, session stats & QoL features
+## Version: 1.0
+## SavedVariables: LucidUIDB
+## IconTexture: Interface\AddOns\LucidUI\Assets\Logo.png
+
+## Category-enUS: Chat
+## Category-deDE: Chat
+
+HyperlinkHandler.xml
+Locales.lua
+Core.lua
+
+Chat\Messages.lua
+Chat\ChatFormat.lua
+Chat\ChatMessageArea.lua
+Chat\ChatComponents.lua
+Chat\ChatBar.lua
+Chat\ChatFrame.lua
+Chat\ChatOptions.lua
+
+Loot\LootHandlers.lua
+Loot\LootRolls.lua
+Loot\LootTracker.lua
+Loot\SessionStats.lua
+
+Debug\Main.lua
+
+QoL\Main.lua
+QoL\MouseRing.lua
+QoL\CombatTimer.lua
+QoL\CombatAlert.lua
+QoL\SystemOpt.lua
+QoL\AutoVendor.lua
+QoL\SkipCinematics.lua
+QoL\Misc.lua
