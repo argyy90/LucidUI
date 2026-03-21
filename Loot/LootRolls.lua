@@ -83,9 +83,6 @@ local HEADER_H = 20
 local PAD      = 6
 local ICON_SZ  = 34
 
--- Roll type identifiers (Retail: CHAT_MSG_SYSTEM parsed; kept for completeness)
-local rollTypes = {[0]="pass", [1]="need", [2]="greed", [3]="disenchant", [4]="transmog"}
-
 -- Need > Greed/Disenchant/Transmog > Pass (lower = higher priority = wins)
 local ROLL_PRIORITY = {need=1, greed=2, disenchant=2, transmog=2, pass=3}
 
@@ -145,20 +142,6 @@ local function GetPlayerClass(name)
   end
 end
 
-local function ParseRollLine(msg)
-  if type(msg) ~= "string" then return nil, nil end
-  local ok, n, v = pcall(function()
-    -- English: "PlayerName rolls 42 (1-100)"
-    local n, v = msg:match("^(.+) rolls (%d+) %(1%-100%)$")
-    -- German: "PlayerName würfelt. Ergebnis: 42 (1-100)"
-    if not n then n, v = msg:match("^(.+) w%C+rfelt%. Ergebnis: (%d+) %(1%-100%)$") end
-    -- Fallback broad pattern
-    if not n then n, v = msg:match("^(.+) w%a+ (%d+) %(1%-100%)$") end
-    return n, tonumber(v)
-  end)
-  if not ok then return nil, nil end
-  return n, v
-end
 
 -- Sort: Need > Greed > Pass, then by roll value descending within same type
 local function SortedRollers(rollers)
@@ -169,6 +152,7 @@ local function SortedRollers(rollers)
       val      = data.val or data,
       rollType = data.rollType or "need",
       class    = data.class,
+      winner   = data.winner,
     })
   end
   table.sort(t, function(a, b)
@@ -406,15 +390,22 @@ local function BuildItemRow(parent, session, yOffset)
     elseif session.done then
       -- Show only the winner in the row; all rollers visible in tooltip
       local winner = nil
+      -- Prefer explicitly marked winner
       for _, r in ipairs(sorted) do
-        if r.rollType ~= "pass" then winner = r; break end
+        if r.winner then winner = r; break end
+      end
+      if not winner then
+        for _, r in ipairs(sorted) do
+          if r.rollType ~= "pass" then winner = r; break end
+        end
       end
       if winner then
         local cr, cg, cb = CCR(winner.class)
         local rc = ROLL_COLORS[winner.rollType] or ROLL_COLORS.need
+        local shortName = winner.name:match("^([^%-]+)") or winner.name
         statusLbl:SetText(string.format(
           "|TInterface/AddOns/LucidUI/Assets/Star.png:13:13|t |cff%02x%02x%02x%s|r  |cff%02x%02x%02x%d|r",
-          math.floor(cr*255), math.floor(cg*255), math.floor(cb*255), winner.name,
+          math.floor(cr*255), math.floor(cg*255), math.floor(cb*255), shortName,
           math.floor(rc[1]*255), math.floor(rc[2]*255), math.floor(rc[3]*255), winner.val))
       else
         statusLbl:SetText("|cff555555"..L["All passed"].."|r")
@@ -454,27 +445,29 @@ local function BuildItemRow(parent, session, yOffset)
     local sorted = SortedRollers(session.rollers)
     if #sorted > 0 then
       GameTooltip:AddLine(" ")
-      local hdr = session.done and "|cffFFD700Winner:|r" or "|cff3bd2edRolls:|r"
-      GameTooltip:AddLine(hdr)
+      GameTooltip:AddLine("|cff3bd2edLoot Rolls|r")
 
-      local foundWinner = false
-      for i, r in ipairs(sorted) do
+      -- Determine winner (first non-pass roller, or explicit .winner flag)
+      local winnerName = nil
+      for _, r in ipairs(sorted) do
+        if r.winner then winnerName = r.name; break end
+      end
+      if not winnerName and session.done then
+        for _, r in ipairs(sorted) do
+          if r.rollType ~= "pass" then winnerName = r.name; break end
+        end
+      end
+
+      for _, r in ipairs(sorted) do
         local cr, cg, cb = CCR(r.class)
-        local rc = ROLL_COLORS[r.rollType] or ROLL_COLORS.need
-        local isWinner = (not foundWinner) and (r.rollType ~= "pass")
-        if isWinner then foundWinner = true end
-
-        local prefix = isWinner and "|TInterface/AddOns/LucidUI/Assets/Star.png:12:12|t " or "    "
-        -- Inline icon via |T|t
         local icoPath = ROLL_ICONS[r.rollType] or ROLL_ICONS.need
         local ico = "|T" .. icoPath .. ":12:12|t"
-
         local valStr = (r.rollType == "pass" or r.val == 0) and "–" or tostring(r.val)
-        GameTooltip:AddDoubleLine(
-          prefix .. ico .. " " .. r.name,
-          valStr,
-          cr, cg, cb,
-          rc[1], rc[2], rc[3])
+        local shortName = r.name:match("^([^%-]+)") or r.name
+        local isWinner = (r.name == winnerName)
+        local winIco = isWinner and " |TInterface/RaidFrame/ReadyCheck-Ready:12:12|t" or ""
+        local nameColored = string.format("|cff%02x%02x%02x%s|r", cr*255, cg*255, cb*255, shortName)
+        GameTooltip:AddLine(ico .. "  " .. valStr .. "  " .. nameColored .. winIco)
       end
     else
       GameTooltip:AddLine(" ")
@@ -915,12 +908,11 @@ local rollFrame = CreateFrame("Frame", "LucidUIRollFrame")
 rollFrame:RegisterEvent("START_LOOT_ROLL")
 rollFrame:RegisterEvent("CANCEL_LOOT_ROLL")
 rollFrame:RegisterEvent("CANCEL_ALL_LOOT_ROLLS")
-rollFrame:RegisterEvent("CHAT_MSG_SYSTEM")
 rollFrame:RegisterEvent("PLAYER_LOGIN")
 rollFrame:RegisterEvent("LOOT_ROLLS_COMPLETE")
 rollFrame:RegisterEvent("ENCOUNTER_START")
 rollFrame:RegisterEvent("CHAT_MSG_LOOT")
-
+rollFrame:RegisterEvent("LOOT_HISTORY_UPDATE_DROP")
 rollFrame:SetScript("OnEvent", function(self, event, ...)
   if event == "ENCOUNTER_START" then
     local _, encounterName = ...
@@ -1000,118 +992,80 @@ rollFrame:SetScript("OnEvent", function(self, event, ...)
     NS.RollWindowRedraw()
     ScheduleAutoClose()
 
-  elseif event == "CHAT_MSG_SYSTEM" then
-    local msg = ...
-    -- Guard against tainted strings
-    if msg then
-      local ok2, safe2 = pcall(tostring, msg)
-      if not ok2 then return end
-      msg = safe2
-    end
-
-    -- Parse roll value: "Player rolls 89 (1-100)"
-    local pname, rollVal = ParseRollLine(msg)
-    if pname and rollVal then
-      if NS.DebugLog then NS.DebugLog("ROLL parsed: "..tostring(pname).."="..tostring(rollVal)) end
-      -- Search ALL recent sessions (including recently-done) to handle event ordering
-      local bestTime, bestID = 0, nil
-      local now = GetTime()
-      for id, s in pairs(NS.rollSessions) do
-        local recent = (not s.done) or (s._doneTime and (now - s._doneTime) < 10)
-        if recent and (s.time or 0) > bestTime then
-          bestTime = s.time; bestID = id
-        end
-      end
-      if bestID then
-        local existing = NS.rollSessions[bestID].rollers[pname]
-        local rtype = existing and existing.rollType or "need"
-        local cls   = existing and existing.class or GetPlayerClass(pname)
-        if cls then classCache[pname] = cls end
-        NS.rollSessions[bestID].rollers[pname] = {val=rollVal, rollType=rtype, class=cls}
-        if NS.rollSessions[bestID]._refreshStatus then
-          NS.rollSessions[bestID]._refreshStatus()
-        end
-        NS.RollWindowRedraw()
-      end
-    end
-
-    -- Parse roll type (locale patterns)
-    if type(msg) == "string" then
-      local patterns = {
-        -- English
-        {pat="^(.+) rolls? Need on ",        rtype="need"},
-        {pat="^(.+) rolls? Greed on ",       rtype="greed"},
-        {pat="^(.+) rolls? Disenchant on ",  rtype="disenchant"},
-        {pat="^(.+) rolls? Transmog on ",    rtype="transmog"},
-        {pat="^(.+) pass[e]?[sd]? on ",      rtype="pass"},
-        -- German
-        {pat="^(.+) w\195\188rfelt 'Bedarf' f\195\188r ",  rtype="need"},
-        {pat="^(.+) w\195\188rfelt 'Gier' f\195\188r ",    rtype="greed"},
-        {pat="^(.+) w\195\188rfelt 'Entzauberung' f\195\188r ", rtype="disenchant"},
-        {pat="^(.+) w\195\188rfelt 'Transmog' f\195\188r ", rtype="transmog"},
-        {pat="^(.+) passt bei ",             rtype="pass"},
-        -- French
-        {pat="^(.+) lance un jet de Besoin pour ", rtype="need"},
-        {pat="^(.+) lance un jet de Cupidit\195\169 pour ", rtype="greed"},
-        {pat="^(.+) passe pour ",            rtype="pass"},
-      }
-      local changed = false
-      for _, p in ipairs(patterns) do
-        local ok, n = pcall(function() return msg:match(p.pat) end)
-        if ok and n then
-          local cls = GetPlayerClass(n)
-          if cls then classCache[n] = cls end
-          -- Create entries for ALL roll types (not just pass)
-          for _, s in pairs(NS.rollSessions) do
-            if not s.done or (s._doneTime and (GetTime() - s._doneTime) < 10) then
-              if s.rollers[n] then
-                s.rollers[n].rollType = p.rtype
-                if cls then s.rollers[n].class = cls end
-              else
-                -- Create new entry for this roller
-                local val = (p.rtype == "pass") and 0 or 0
-                s.rollers[n] = {val=val, rollType=p.rtype, class=cls}
-              end
+  elseif event == "LOOT_HISTORY_UPDATE_DROP" then
+    -- Retail 11.0.8+: get roll data from C_LootHistory API
+    local encounterID, lootListID = ...
+    pcall(function()
+      if not C_LootHistory or not C_LootHistory.GetSortedInfoForDrop then return end
+      local dropInfo = C_LootHistory.GetSortedInfoForDrop(encounterID, lootListID)
+      if not dropInfo or not dropInfo.rollInfos then return end
+      -- Match drop to our session via item link
+      local dropItemID = dropInfo.itemHyperlink and dropInfo.itemHyperlink:match("item:(%d+)")
+      if not dropItemID then return end
+      for _, s in pairs(NS.rollSessions) do
+        local sessionItemID = s.link and s.link:match("item:(%d+)")
+        if sessionItemID and sessionItemID == dropItemID then
+          -- EncounterLootDropRollState: 0=NeedMainSpec, 1=NeedOffSpec, 2=Transmog, 3=Greed, 4=NoRoll, 5=Pass
+          local STATE_MAP = {[0]="need", [1]="need", [2]="transmog", [3]="greed", [5]="pass"}
+          for _, ri in ipairs(dropInfo.rollInfos) do
+            if ri.playerName and ri.state ~= 4 then -- skip NoRoll
+              local shortName = ri.playerName:match("^([^%-]+)") or ri.playerName
+              local rtype = STATE_MAP[ri.state] or "need"
+              if ri.playerClass then classCache[shortName] = ri.playerClass end
+              s.rollers[shortName] = {
+                val = ri.roll or 0, rollType = rtype, class = ri.playerClass,
+                winner = ri.isWinner or nil,
+              }
             end
           end
-          changed = true
+          if dropInfo.winner then
+            s.done = true
+            s._doneTime = s._doneTime or GetTime()
+          end
+          if s._refreshStatus then s._refreshStatus() end
+          NS.RollWindowRedraw()
+          break
         end
       end
-      if changed then NS.RollWindowRedraw() end
-    end
+    end)
 
   elseif event == "CHAT_MSG_LOOT" then
     -- Detect roll winners from loot messages
-    local msg, sender = ...
-    if type(msg) == "string" then
+    -- Entire block wrapped in pcall to guard against tainted strings in combat
+    pcall(function(...)
+      local msg, sender = ...
+      if type(msg) ~= "string" then return end
       local itemLink = msg:match("|H[^|]+|h%[.-%]|h")
-      if itemLink and sender then
-        for id, s in pairs(NS.rollSessions) do
-          if s.link then
-            local sessionItemID = s.link:match("item:(%d+)")
-            local msgItemID = itemLink:match("item:(%d+)")
-            if sessionItemID and msgItemID and sessionItemID == msgItemID then
-              local senderShort = sender:match("^([^%-]+)") or sender
-              local cls = GetPlayerClass(senderShort) or GetPlayerClass(sender)
-              -- Don't override real roll value if we already have one
-              if not s.rollers[sender] then
-                s.rollers[sender] = {val=0, rollType="need", class=cls}
-              end
-              if s.rollers[sender].val == 0 then
-                s.rollers[sender].val = 100
-              end
-              s.rollers[sender].class = s.rollers[sender].class or cls
-              s.rollers[sender].winner = true
-              s.done = true
-              s._doneTime = GetTime()
-              if NS.DebugLog then NS.DebugLog("ROLL WINNER: "..tostring(sender).." won "..tostring(s.name)) end
-              NS.RollWindowRedraw()
-              break
+      if not itemLink or not sender then return end
+      sender = tostring(sender)
+      for id, s in pairs(NS.rollSessions) do
+        if s.link then
+          local sessionItemID = s.link:match("item:(%d+)")
+          local msgItemID = itemLink:match("item:(%d+)")
+          if sessionItemID and msgItemID and sessionItemID == msgItemID then
+            local senderShort = sender:match("^([^%-]+)") or sender
+            local cls = GetPlayerClass(senderShort) or GetPlayerClass(sender)
+            -- Find existing roller entry by short name (CHAT_MSG_SYSTEM uses short names)
+            local rollerKey = nil
+            for rname in pairs(s.rollers) do
+              local rShort = rname:match("^([^%-]+)") or rname
+              if rShort == senderShort then rollerKey = rname; break end
             end
+            if not rollerKey then
+              rollerKey = senderShort
+              s.rollers[rollerKey] = {val=0, rollType="need", class=cls}
+            end
+            s.rollers[rollerKey].class = s.rollers[rollerKey].class or cls
+            s.rollers[rollerKey].winner = true
+            s.done = true
+            s._doneTime = GetTime()
+            if NS.DebugLog then NS.DebugLog("ROLL WINNER: "..tostring(sender).." won "..tostring(s.name)) end
+            NS.RollWindowRedraw()
+            break
           end
         end
       end
-    end
+    end, ...)
   end
 end)
 

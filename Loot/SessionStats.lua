@@ -528,6 +528,7 @@ NS.BuildStatsWindow = function()
   statsCollapseTex:SetSize(13, 13); statsCollapseTex:SetPoint("CENTER")
   statsCollapseTex:SetVertexColor(0.6, 0.6, 0.6, 1)
   local scrollFrameRef  -- will be set below
+  local resetBtnRef     -- will be set below
   local function UpdateStatsCollapse()
     if statsCollapsed then
       statsCollapseTex:SetTexCoord(0,1, 1,0)
@@ -537,6 +538,7 @@ NS.BuildStatsWindow = function()
       NS.statsWin:SetHeight(NS.statsWin._expandedH or WIN_H)
     end
     if scrollFrameRef then scrollFrameRef:SetShown(not statsCollapsed) end
+    if resetBtnRef then resetBtnRef:SetShown(not statsCollapsed) end
   end
   statsCollapseBtn:SetScript("OnEnter", function()
     statsCollapseTex:SetVertexColor(CYAN[1], CYAN[2], CYAN[3], 1)
@@ -572,6 +574,7 @@ NS.BuildStatsWindow = function()
   resetBtn:SetScript("OnEnter", function() resetBtn:SetBackdropBorderColor(CYAN[1], CYAN[2], CYAN[3], 1) end)
   resetBtn:SetScript("OnLeave", function() resetBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1) end)
   resetBtn:SetScript("OnClick", NS.ResetSession)
+  resetBtnRef = resetBtn
 
   -- Scroll frame + EditBox
   local scrollFrame = CreateFrame("ScrollFrame", nil, NS.statsWin, "UIPanelScrollFrameTemplate")
