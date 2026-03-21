@@ -107,39 +107,6 @@ Missing translations fall back to English automatically.
 
 ## Project Structure
 
-```
-LucidUI/
-├── Locales.lua          # Auto-detected localization
-├── Core.lua             # Namespace, constants, database, themes
-├── Options.lua          # Main settings window (4 tabs)
-├── HyperlinkHandler.xml
-├── Chat/
-│   ├── ChatFrame.lua    # Chat window, tabs, editbox, event hooking
-│   ├── ChatFormat.lua   # Timestamps, class colors, URLs, channel shortening
-│   ├── ChatMessageArea.lua  # Custom slot-based message display
-│   ├── ChatComponents.lua   # Reusable UI components
-│   ├── ChatBar.lua      # Vertical button bar
-│   ├── ChatOptions.lua  # Chat settings dialog (7 tabs)
-│   └── Messages.lua     # Message storage, history, formatting
-├── Loot/
-│   ├── LootTracker.lua  # Main loot window, events, slash commands
-│   ├── LootHandlers.lua # CHAT_MSG_LOOT / CHAT_MSG_MONEY processing
-│   ├── LootRolls.lua    # Loot roll tracking window
-│   └── SessionStats.lua # Session statistics tracking
-├── QoL/
-│   ├── Main.lua         # QoL initialization
-│   ├── CombatTimer.lua  # Combat duration timer
-│   ├── CombatAlert.lua  # Combat enter/exit alerts
-│   ├── MouseRing.lua    # Cursor ring overlay
-│   ├── AutoVendor.lua   # Auto-repair & auto-sell
-│   ├── SkipCinematics.lua
-│   ├── SystemOpt.lua    # FPS optimizer
-│   └── Misc.lua         # Faster loot, suppress warnings, auto keystone
-├── Debug/
-│   └── Main.lua         # Debug log window
-└── Assets/              # Icons, textures, sounds
-```
-
 ---
 
 ## License
