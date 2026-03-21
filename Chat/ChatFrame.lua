@@ -51,6 +51,7 @@ local FILTER_CATS = {
       "CHAT_MSG_PARTY","CHAT_MSG_PARTY_LEADER",
       "CHAT_MSG_RAID","CHAT_MSG_RAID_LEADER","CHAT_MSG_RAID_WARNING",
       "CHAT_MSG_INSTANCE_CHAT","CHAT_MSG_INSTANCE_CHAT_LEADER",
+      "CHAT_MSG_VOICE_TEXT",
   }},
   { key="CREATURE", label = "Creature", events = {
       "CHAT_MSG_MONSTER_SAY","CHAT_MSG_MONSTER_EMOTE","CHAT_MSG_MONSTER_YELL",
@@ -61,6 +62,8 @@ local FILTER_CATS = {
       "CHAT_MSG_COMBAT_HONOR_GAIN","CHAT_MSG_COMBAT_FACTION_CHANGE",
       "CHAT_MSG_SKILL","CHAT_MSG_LOOT","CHAT_MSG_CURRENCY","CHAT_MSG_MONEY",
       "CHAT_MSG_COMBAT_XP_GAIN",
+      "CHAT_MSG_TRADESKILLS","CHAT_MSG_OPENING",
+      "CHAT_MSG_PET_INFO","CHAT_MSG_COMBAT_MISC_INFO",
   }},
   { key="PVP", label = "PvP", events = {
       "CHAT_MSG_BG_SYSTEM_HORDE","CHAT_MSG_BG_SYSTEM_ALLIANCE","CHAT_MSG_BG_SYSTEM_NEUTRAL",
@@ -69,6 +72,8 @@ local FILTER_CATS = {
       "CHAT_MSG_SYSTEM","CHAT_MSG_CHANNEL","CHAT_MSG_AFK","CHAT_MSG_DND",
       "CHAT_MSG_FILTERED","CHAT_MSG_RESTRICTED","CHAT_MSG_IGNORED",
       "CHAT_MSG_BN_INLINE_TOAST_ALERT",
+      "CHAT_MSG_PET_BATTLE_COMBAT_LOG","CHAT_MSG_PET_BATTLE_INFO",
+      "CHAT_MSG_PING",
   }},
   { key="ADDONS", label = "Addons", events = {
       "LUI_ADDON",
@@ -192,6 +197,16 @@ local function LoadTabData()
   for _, td in ipairs(tabData) do
     if not td.eventSet then
       td.eventSet = BuildFullEventSet()
+    end
+    -- Migrate: enable newly added events by default in existing eventSets
+    if td.eventSet then
+      local NEW_EVENTS = {
+        "CHAT_MSG_TRADESKILLS","CHAT_MSG_OPENING","CHAT_MSG_PET_INFO","CHAT_MSG_COMBAT_MISC_INFO",
+        "CHAT_MSG_PET_BATTLE_COMBAT_LOG","CHAT_MSG_PET_BATTLE_INFO","CHAT_MSG_PING",
+      }
+      for _, ev in ipairs(NEW_EVENTS) do
+        if td.eventSet[ev] == nil then td.eventSet[ev] = true end
+      end
     end
     -- Clean up INFORM keys from eventSet (they are controlled by parent event)
     if td.eventSet then
@@ -351,6 +366,10 @@ RedrawDisplay = function(quickMode)
       else
         show = true  -- no filter = show all
       end
+      -- Block messages from channels the tab has blocked
+      if show and entry.channelName and td and td.channelBlocked and td.channelBlocked[entry.channelName] then
+        show = false
+      end
       if show then
         if not entry._clean then
           local rawMsg = entry.msg or ""
@@ -407,6 +426,10 @@ local ALL_CACHED_EVENTS = {
   "CHAT_MSG_ACHIEVEMENT","CHAT_MSG_GUILD_ACHIEVEMENT","CHAT_MSG_GUILD_ITEM_LOOTED",
   "CHAT_MSG_BN_INLINE_TOAST_ALERT",
   "CHAT_MSG_FILTERED","CHAT_MSG_RESTRICTED","CHAT_MSG_IGNORED",
+  "CHAT_MSG_VOICE_TEXT",
+  "CHAT_MSG_TRADESKILLS","CHAT_MSG_OPENING","CHAT_MSG_PET_INFO","CHAT_MSG_COMBAT_MISC_INFO",
+  "CHAT_MSG_PET_BATTLE_COMBAT_LOG","CHAT_MSG_PET_BATTLE_INFO",
+  "CHAT_MSG_PING",
 }
 for _, ev in ipairs(ALL_CACHED_EVENTS) do
   ChatFrame_AddMessageEventFilter(ev, function(_, event2)
@@ -494,6 +517,10 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName)
         if show and td.createdAt and t < td.createdAt then show = false end
         -- Suppress loot events from non-loot tabs
         if show and lootActive and isLootEvent and not td._isLootTab then
+          show = false
+        end
+        -- Block messages from channels the tab has blocked
+        if show and channelName and td.channelBlocked and td.channelBlocked[channelName] then
           show = false
         end
         if show then

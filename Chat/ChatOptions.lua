@@ -1263,19 +1263,25 @@ local MC_ORDER = {
 local EVENT_LABELS = {
   SAY="Say", EMOTE="Emote", YELL="Yell", TEXT_EMOTE="Text Emote",
   GUILD="Guild", OFFICER="Officer",
-  GUILD_ACHIEVEMENT="Guild Achievement", ACHIEVEMENT="Achievement",
+  GUILD_ACHIEVEMENT="Guild Achievement", GUILD_ITEM_LOOTED="Guild Loot", ACHIEVEMENT="Achievement",
   WHISPER="Whisper", BN_WHISPER="BNet Whisper",
   PARTY="Party", PARTY_LEADER="Party Leader",
   RAID="Raid", RAID_LEADER="Raid Leader", RAID_WARNING="Raid Warning",
   INSTANCE_CHAT="Instance", INSTANCE_CHAT_LEADER="Instance Leader",
+  VOICE_TEXT="Voice Chat",
   MONSTER_SAY="Say", MONSTER_EMOTE="Emote", MONSTER_YELL="Yell",
   MONSTER_WHISPER="Whisper", MONSTER_BOSS_EMOTE="Boss Emote", MONSTER_BOSS_WHISPER="Boss Whisper",
+  RAID_BOSS_EMOTE="Raid Boss Emote", RAID_BOSS_WHISPER="Raid Boss Whisper",
   COMBAT_XP_GAIN="XP Gain", COMBAT_HONOR_GAIN="Honor", COMBAT_FACTION_CHANGE="Reputation",
   SKILL="Skill-ups", LOOT="Item Loot", CURRENCY="Currency", MONEY="Money Loot",
+  TRADESKILLS="Tradeskills", OPENING="Opening", PET_INFO="Pet Info", COMBAT_MISC_INFO="Misc Info",
   BG_SYSTEM_HORDE="BG Horde", BG_SYSTEM_ALLIANCE="BG Alliance", BG_SYSTEM_NEUTRAL="BG Neutral",
   SYSTEM="System", CHANNEL="Channel", AFK="AFK", DND="DND",
   FILTERED="Filtered", RESTRICTED="Restricted", IGNORED="Ignored",
   BN_INLINE_TOAST_ALERT="BNet Toast",
+  PET_BATTLE_COMBAT_LOG="Pet Battle Combat", PET_BATTLE_INFO="Pet Battle Info",
+  PING="Ping",
+  LUI_ADDON="Addon Messages",
 }
 
 local function SetupMessageColors(parent)
