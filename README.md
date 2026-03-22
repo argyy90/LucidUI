@@ -3,7 +3,7 @@
 A complete chat replacement, loot tracking, damage meter, session statistics and quality-of-life addon for World of Warcraft (Retail).
 
 ![Interface](https://img.shields.io/badge/Interface-12.0.x-blue)
-![Version](https://img.shields.io/badge/Version-1.0-green)
+![Version](https://img.shields.io/badge/Version-1.6-green)
 
 ---
 
