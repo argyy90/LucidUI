@@ -187,7 +187,7 @@ function NS.ChatGetDropdown(parent, labelText, isSelectedCb, onSelectionCb)
     ddBackdrop:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
   end)
 
-  frame.Init = function(_, entryLabels, values)
+  frame.Init = function(_, entryLabels, values, scrollHeight)
     dropdown:SetupMenu(function(_, rootDescription)
       for i = 1, #entryLabels do
         local val = values[i]
@@ -197,6 +197,7 @@ function NS.ChatGetDropdown(parent, labelText, isSelectedCb, onSelectionCb)
         )
         NS.SkinMenuElement(radio)
       end
+      if scrollHeight then rootDescription:SetScrollMode(scrollHeight) end
     end)
   end
 

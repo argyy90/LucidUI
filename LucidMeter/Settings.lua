@@ -90,13 +90,20 @@ function DM.SetupSettings(parent)
   )
   table.insert(allFrames, row1)
 
-  -- Show Rank checkbox
-  local rankCB = NS.ChatGetCheckbox(scrollChild, "Show Rank", 28, function(state)
-    DBSet("dmShowRank", state)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end, "Show position numbers and a crown for #1")
-  rankCB.option = "dmShowRank"
-  table.insert(allFrames, rankCB)
+  -- Show Rank + Show Percent
+  local row2g = MakeDualCheckboxRow(scrollChild,
+    "Show Rank", "dmShowRank", function(state)
+      DBSet("dmShowRank", state)
+      if DM.UpdateDisplay then DM.UpdateDisplay() end
+    end,
+    "Show %", "dmShowPercent", function(state)
+      DBSet("dmShowPercent", state)
+      if DM.UpdateDisplay then DM.UpdateDisplay() end
+    end,
+    "Show position numbers and a crown for #1",
+    "Show each player's percentage of total on the right side"
+  )
+  table.insert(allFrames, row2g)
 
   -- Auto Reset dropdown (own row)
   local resetRow = CreateFrame("Frame", nil, scrollChild); resetRow:SetHeight(58)
@@ -112,6 +119,39 @@ function DM.SetupSettings(parent)
   -- ══ Text ═════════════════════════════════════════════════════════
   local hdrText = NS.ChatGetHeader(scrollChild, "Text")
   table.insert(allFrames, hdrText)
+
+  -- Helper: compact color picker row (14x14 swatch + label) — defined early for Text section
+  local function MakeColorRow(parent2, label, dbKey, defaultColor, applyFunc)
+    local row = CreateFrame("Frame", nil, parent2); row:SetHeight(24)
+    local btn = CreateFrame("Button", nil, row)
+    btn:SetAllPoints()
+    local swatch = btn:CreateTexture(nil, "OVERLAY")
+    swatch:SetSize(13, 13); swatch:SetPoint("LEFT", 4, 0)
+    local cur = DB(dbKey) or defaultColor
+    swatch:SetColorTexture(cur.r, cur.g, cur.b, 1)
+    local lbl = btn:CreateFontString(nil, "OVERLAY")
+    lbl:SetFont("Fonts/FRIZQT__.TTF", 11, ""); lbl:SetPoint("LEFT", swatch, "RIGHT", 6, 0)
+    lbl:SetTextColor(0.78, 0.78, 0.78); lbl:SetText(label)
+    btn:SetScript("OnEnter", function() local a,b,c = NS.ChatGetAccentRGB(); lbl:SetTextColor(a,b,c) end)
+    btn:SetScript("OnLeave", function() lbl:SetTextColor(0.78, 0.78, 0.78) end)
+    btn:SetScript("OnClick", function()
+      local c = DB(dbKey) or defaultColor
+      ColorPickerFrame:SetupColorPickerAndShow({
+        r = c.r, g = c.g, b = c.b,
+        swatchFunc = function()
+          local r, g, b = ColorPickerFrame:GetColorRGB()
+          DBSet(dbKey, {r=r, g=g, b=b}); swatch:SetColorTexture(r, g, b, 1)
+          if applyFunc then applyFunc(r, g, b) end
+        end,
+        cancelFunc = function(prev)
+          DBSet(dbKey, {r=prev.r, g=prev.g, b=prev.b}); swatch:SetColorTexture(prev.r, prev.g, prev.b, 1)
+          if applyFunc then applyFunc(prev.r, prev.g, prev.b) end
+        end,
+      })
+    end)
+    row._swatch = swatch
+    return row
+  end
 
   -- Font Shadow slider
   local fontShadow = NS.ChatGetSlider(scrollChild, "Font Shadow", 0, 3, "%.1f", function(value)
@@ -153,6 +193,35 @@ function DM.SetupSettings(parent)
     "Show realm names for other players (your own name stays short)"
   )
   table.insert(allFrames, textRow)
+
+  -- Title Color + Text Color + Bar Color in one row (under Text section)
+  local txtColorRow = CreateFrame("Frame", nil, scrollChild); txtColorRow:SetHeight(24)
+  local COL_W_T = 170
+  local COL_GAP_T = 5
+  local TOTAL_W_T = COL_W_T * 3 + COL_GAP_T * 2
+  local COL1_T = -TOTAL_W_T / 2
+  local COL2_T = COL1_T + COL_W_T + COL_GAP_T
+  local COL3_T = COL2_T + COL_W_T + COL_GAP_T
+
+  local titleColorPicker = MakeColorRow(txtColorRow, "Title Color", "dmTitleColor", {r=1, g=1, b=1}, function(r, g, b)
+    if DM.windows then for _, w in ipairs(DM.windows) do if w.titleText then w.titleText:SetTextColor(r, g, b) end end end
+  end)
+  titleColorPicker:ClearAllPoints()
+  titleColorPicker:SetPoint("LEFT", txtColorRow, "CENTER", COL1_T, 0); titleColorPicker:SetSize(COL_W_T, 24)
+
+  local textColorPicker = MakeColorRow(txtColorRow, "Text Color", "dmTextColor", {r=1, g=1, b=1}, function()
+    if DM.UpdateDisplay then DM.UpdateDisplay() end
+  end)
+  textColorPicker:ClearAllPoints()
+  textColorPicker:SetPoint("LEFT", txtColorRow, "CENTER", COL2_T, 0); textColorPicker:SetSize(COL_W_T, 24)
+
+  local barColorPicker = MakeColorRow(txtColorRow, "Bar Color", "dmBarColor", {r=0.5, g=0.5, b=0.5}, function()
+    if DM.UpdateDisplay then DM.UpdateDisplay() end
+  end)
+  barColorPicker:ClearAllPoints()
+  barColorPicker:SetPoint("LEFT", txtColorRow, "CENTER", COL3_T, 0); barColorPicker:SetSize(COL_W_T, 24)
+
+  table.insert(allFrames, txtColorRow)
 
   -- ══ Windows ══════════════════════════════════════════════════════════
   local hdrWindows = NS.ChatGetHeader(scrollChild, "Windows")
@@ -297,7 +366,7 @@ function DM.SetupSettings(parent)
     if DM.windows then for _, w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp, NS.DB("dmTitleFontSize") or 10, "") end end end
     if DM.UpdateDisplay then DM.UpdateDisplay() end
   end)
-  fontDD:Init(fontNames, fontValues)
+  fontDD:Init(fontNames, fontValues, 20 * 15)
   local COL_W = 170
   local COL_GAP = 5
   local TOTAL_W = COL_W * 3 + COL_GAP * 2
@@ -337,7 +406,7 @@ function DM.SetupSettings(parent)
     DBSet("dmBarTexture", value)
     if DM.UpdateDisplay then DM.UpdateDisplay() end
   end)
-  barTexDD:Init(barTexNames, barTexValues)
+  barTexDD:Init(barTexNames, barTexValues, 20 * 15)
   barTexDD:ClearAllPoints(); barTexDD:SetPoint("LEFT", ddRow2, "CENTER", COL1, 0); barTexDD:SetWidth(COL_W)
 
   local highlightDD = NS.ChatGetDropdown(ddRow2, "Bar Highlight", function(value)
@@ -348,66 +417,24 @@ function DM.SetupSettings(parent)
   end)
   highlightDD:Init({"None", "Border", "Bar"}, {"none", "border", "bar"})
   highlightDD:ClearAllPoints(); highlightDD:SetPoint("LEFT", ddRow2, "CENTER", COL2, 0); highlightDD:SetWidth(COL_W)
+
+  local barBgDD = NS.ChatGetDropdown(ddRow2, "Bar Background", function(value)
+    return (DB("dmBarBgTexture") or "Flat") == value
+  end, function(value)
+    DBSet("dmBarBgTexture", value)
+    if DM.UpdateDisplay then DM.UpdateDisplay() end
+  end)
+  barBgDD:Init(barTexNames, barTexValues, 20 * 15)
+  barBgDD:ClearAllPoints(); barBgDD:SetPoint("LEFT", ddRow2, "CENTER", COL3, 0); barBgDD:SetWidth(COL_W)
   table.insert(allFrames, ddRow2)
 
-  -- Helper: compact color picker row (14x14 swatch + label)
-  local function MakeColorRow(parent2, label, dbKey, defaultColor, applyFunc)
-    local row = CreateFrame("Frame", nil, parent2); row:SetHeight(24)
-    local btn = CreateFrame("Button", nil, row)
-    btn:SetPoint("TOPLEFT", 20, 0); btn:SetSize(200, 24)
-    local swatch = btn:CreateTexture(nil, "OVERLAY")
-    swatch:SetSize(13, 13); swatch:SetPoint("LEFT", 0, 0)
-    local cur = DB(dbKey) or defaultColor
-    swatch:SetColorTexture(cur.r, cur.g, cur.b, 1)
-    local lbl = btn:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 11, ""); lbl:SetPoint("LEFT", 20, 0)
-    lbl:SetTextColor(0.78, 0.78, 0.78); lbl:SetText(label)
-    btn:SetScript("OnEnter", function() local a,b,c = NS.ChatGetAccentRGB(); lbl:SetTextColor(a,b,c) end)
-    btn:SetScript("OnLeave", function() lbl:SetTextColor(0.78, 0.78, 0.78) end)
-    btn:SetScript("OnClick", function()
-      local c = DB(dbKey) or defaultColor
-      ColorPickerFrame:SetupColorPickerAndShow({
-        r = c.r, g = c.g, b = c.b,
-        swatchFunc = function()
-          local r, g, b = ColorPickerFrame:GetColorRGB()
-          DBSet(dbKey, {r=r, g=g, b=b}); swatch:SetColorTexture(r, g, b, 1)
-          if applyFunc then applyFunc(r, g, b) end
-        end,
-        cancelFunc = function(prev)
-          DBSet(dbKey, {r=prev.r, g=prev.g, b=prev.b}); swatch:SetColorTexture(prev.r, prev.g, prev.b, 1)
-          if applyFunc then applyFunc(prev.r, prev.g, prev.b) end
-        end,
-      })
-    end)
-    row._swatch = swatch
-    return row
-  end
-
-  -- Class colors + Bar Color + Title Color in one row
-  local colorRow = CreateFrame("Frame", nil, scrollChild); colorRow:SetHeight(24)
-
-  local classColorCB = NS.ChatGetCheckbox(colorRow, "Class colors", 24, function(state)
+  -- Class colors checkbox (standalone)
+  local classColorCB = NS.ChatGetCheckbox(scrollChild, "Class colors", 24, function(state)
     DBSet("dmClassColors", state)
     if DM.UpdateDisplay then DM.UpdateDisplay() end
   end, "Color bars by player class instead of a fixed color")
-  classColorCB.option = "dmClassColors"; classColorCB:ClearAllPoints()
-  classColorCB:SetPoint("LEFT", colorRow, "CENTER", COL1, 0); classColorCB:SetSize(COL_W, 24)
-
-  local barColorPicker = MakeColorRow(colorRow, "Bar Color", "dmBarColor", {r=0.5, g=0.5, b=0.5}, function()
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  barColorPicker:ClearAllPoints()
-  barColorPicker:SetPoint("LEFT", colorRow, "CENTER", COL2, 0); barColorPicker:SetSize(COL_W, 24)
-
-  local titleColorPicker = MakeColorRow(colorRow, "Title Color", "dmTitleColor", {r=1, g=1, b=1}, function(r, g, b)
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.titleText then w.titleText:SetTextColor(r, g, b) end end end
-  end)
-  titleColorPicker:ClearAllPoints()
-  titleColorPicker:SetPoint("LEFT", colorRow, "CENTER", COL3, 0); titleColorPicker:SetSize(COL_W, 24)
-
-  local tcSwatch = titleColorPicker._swatch
-  colorRow._classColorCB = classColorCB; colorRow._barColorPicker = barColorPicker
-  table.insert(allFrames, colorRow)
+  classColorCB.option = "dmClassColors"
+  table.insert(allFrames, classColorCB)
 
   -- Borders + Accent line: 3 checkboxes in a row
   local row2 = CreateFrame("Frame", nil, scrollChild); row2:SetHeight(28)
@@ -516,16 +543,21 @@ function DM.SetupSettings(parent)
     row0._right:SetValue(DB("dmLocked") == true)
     row1._left:SetValue(DB("dmShowInCombatOnly") == true)
     row1._right:SetValue(DB("dmAlwaysShowSelf") ~= false)
-    rankCB:SetValue(DB("dmShowRank") == true)
+    row2g._left:SetValue(DB("dmShowRank") == true)
+    row2g._right:SetValue(DB("dmShowPercent") == true)
     if resetDD.SetValue then resetDD:SetValue() end
     local fsVal = DB("dmFontShadow") or 0
     if type(fsVal) == "boolean" then fsVal = fsVal and 1.5 or 0 end
     if fontShadow.SetValue then fontShadow:SetValue(fsVal) end
     textRow._left:SetValue(DB("dmTextOutline") == true)
     textRow._right:SetValue(DB("dmShowRealm") == true)
-    colorRow._classColorCB:SetValue(DB("dmClassColors") ~= false)
+    classColorCB:SetValue(DB("dmClassColors") ~= false)
+    local tcCur = DB("dmTitleColor") or {r=1, g=1, b=1}
+    if titleColorPicker._swatch then titleColorPicker._swatch:SetColorTexture(tcCur.r, tcCur.g, tcCur.b, 1) end
+    local txCur = DB("dmTextColor") or {r=1, g=1, b=1}
+    if textColorPicker._swatch then textColorPicker._swatch:SetColorTexture(txCur.r, txCur.g, txCur.b, 1) end
     local bcCur = DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
-    if colorRow._barColorPicker._swatch then colorRow._barColorPicker._swatch:SetColorTexture(bcCur.r, bcCur.g, bcCur.b, 1) end
+    if barColorPicker._swatch then barColorPicker._swatch:SetColorTexture(bcCur.r, bcCur.g, bcCur.b, 1) end
     accentCB:SetValue(DB("dmAccentLine") ~= false)
     winBorderCB:SetValue(DB("dmWindowBorder") ~= false)
     titleBorderCB:SetValue(DB("dmTitleBorder") ~= false)
@@ -537,10 +569,9 @@ function DM.SetupSettings(parent)
     if updateInt.SetValue then updateInt:SetValue((DB("dmUpdateInterval") or 0.3) * 1000) end
     if bgAlpha.SetValue then bgAlpha:SetValue((DB("dmBgAlpha") or 0.92) * 100) end
     if titleAlpha.SetValue then titleAlpha:SetValue((DB("dmTitleAlpha") or 1) * 100) end
-    local tc = DB("dmTitleColor") or {r=1, g=1, b=1}
-    tcSwatch:SetColorTexture(tc.r, tc.g, tc.b, 1)
     if highlightDD.SetValue then highlightDD:SetValue() end
     if barTexDD.SetValue then barTexDD:SetValue() end
+    if barBgDD.SetValue then barBgDD:SetValue() end
   end)
 
   return container

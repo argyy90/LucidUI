@@ -222,6 +222,7 @@ NS.DB_DEFAULTS = {
   dmTitleAlpha         = 0.50,
   dmIconMode           = "spec",  -- "spec", "class", "none"
   dmValueFormat        = "both",  -- "total", "persec", "both"
+  dmTextColor          = {r=1, g=1, b=1},
   dmTitleColor         = nil,  -- nil = use accent color
   dmFont               = "Friz Quadrata",
   dmTitleFontSize      = 14,
@@ -234,6 +235,8 @@ NS.DB_DEFAULTS = {
   dmBarBrightness      = 1.0,
   dmAlwaysShowSelf     = true,
   dmShowRank           = false,
+  dmShowPercent        = false,
+  dmBarBgTexture       = "Flat",
   dmAccentLine         = true,
   dmWindowBorder       = true,
   dmTitleBorder        = true,

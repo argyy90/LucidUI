@@ -61,6 +61,13 @@ local function CreateBar(parent, index)
   name:SetJustifyH("LEFT")
   bar._name = name
 
+  local pct = bar:CreateFontString(nil, "OVERLAY")
+  pct:SetFont("Fonts/FRIZQT__.TTF", NS.DB("dmFontSize") or 11, "")
+  pct:SetPoint("RIGHT", -4, 0)
+  pct:SetJustifyH("RIGHT")
+  pct:Hide()
+  bar._pct = pct
+
   local value = bar:CreateFontString(nil, "OVERLAY")
   value:SetFont("Fonts/FRIZQT__.TTF", NS.DB("dmFontSize") or 11, "")
   value:SetPoint("RIGHT", -4, 0)
@@ -616,6 +623,7 @@ local function CreateWindow(windowID, config)
   -- helper: select a meter type for this window
   local function SelectMeterType(id)
     w.meterType = id
+    w.scrollOffset = 0
     SaveWindowState(w)
     RefreshWindowData(w)
     DM.UpdateWindowDisplay(w)
@@ -624,6 +632,7 @@ local function CreateWindow(windowID, config)
   local function SelectSessionType(stype)
     w.sessionID = nil
     w.sessionType = stype
+    w.scrollOffset = 0
     SaveWindowState(w)
     RefreshWindowData(w)
     DM.UpdateWindowDisplay(w)
@@ -766,6 +775,15 @@ local function CreateWindow(windowID, config)
   barContainer:SetPoint("BOTTOMRIGHT", -2, 2)
   frame._barContainer = barContainer
   w.barContainer = barContainer
+  w.scrollOffset = 0
+
+  -- Scroll support
+  barContainer:EnableMouseWheel(true)
+  barContainer:SetScript("OnMouseWheel", function(_, delta)
+    local maxOffset = math.max(0, (w._totalSources or 0) - math.floor(barContainer:GetHeight() / ((NS.DB("dmBarHeight") or 24) + (NS.DB("dmBarSpacing") or 1))))
+    w.scrollOffset = math.max(0, math.min(w.scrollOffset - delta, maxOffset))
+    DM.UpdateWindowDisplay(w)
+  end)
 
   -- Pre-create bars
   for i = 1, MAX_BARS do
@@ -983,7 +1001,10 @@ function DM.UpdateWindowDisplay(w)
   local fontSize = NS.DB("dmFontSize") or 11
   local iconMode = NS.DB("dmIconMode") or "spec"
   local valFormat = NS.DB("dmValueFormat") or "both"
+  local txtCol = NS.DB("dmTextColor") or {r=1, g=1, b=1}
+  local tr, tg, tb = txtCol.r, txtCol.g, txtCol.b
   local barTexture = NS.GetBarTexturePath(NS.DB("dmBarTexture"))
+  local barBgTexture = NS.GetBarTexturePath(NS.DB("dmBarBgTexture"))
   local fontShadowVal = NS.DB("dmFontShadow") or 0
   if type(fontShadowVal) == "boolean" then fontShadowVal = fontShadowVal and 1.5 or 0 end
   local fontFlags = NS.DB("dmTextOutline") and "OUTLINE" or ""
@@ -991,9 +1012,12 @@ function DM.UpdateWindowDisplay(w)
   local hasIcon = (iconMode ~= "none")
   local nameOffset = hasIcon and (iconSize + 4) or 4
 
+  w._totalSources = #sources
+  local offset = w.scrollOffset or 0
+
   for i = 1, MAX_BARS do
     local bar = w.bars[i]
-    local src = sources[i]
+    local src = sources[i + offset]
     if src then
       local cr, cg, cb
       if NS.DB("dmClassColors") ~= false then
@@ -1040,17 +1064,18 @@ function DM.UpdateWindowDisplay(w)
       end
       -- Rank prefix (crown for #1, numbers for rest)
       local rankPrefix = ""
+      local actualRank = i + offset
       if NS.DB("dmShowRank") then
-        if i == 1 then
+        if actualRank == 1 then
           rankPrefix = "|TInterface/AddOns/LucidUI/Assets/Crown.png:20:18|t "
         else
-          rankPrefix = "|cff808080" .. i .. ".|r "
+          rankPrefix = "|cffffffff" .. actualRank .. ".|r "
         end
       end
       bar._name:ClearAllPoints()
       bar._name:SetPoint("LEFT", nameOffset, 0)
       bar._name:SetText(rankPrefix .. (srcName or "?"))
-      bar._name:SetTextColor(1, 1, 1)
+      bar._name:SetTextColor(tr, tg, tb)
       bar._name:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
       if fontShadowVal > 0 then
         bar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._name:SetShadowColor(0, 0, 0, 1)
@@ -1069,12 +1094,41 @@ function DM.UpdateWindowDisplay(w)
       else
         bar._value:SetText(fmtTotal)
       end
-      bar._value:SetTextColor(1, 1, 1)
+      bar._value:SetTextColor(tr, tg, tb)
       bar._value:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
       if fontShadowVal > 0 then
         bar._value:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._value:SetShadowColor(0, 0, 0, 1)
       else
         bar._value:SetShadowOffset(0, 0)
+      end
+
+      -- Percent display
+      if NS.DB("dmShowPercent") and not isSecret(total) and maxVal and not isSecret(maxVal) then
+        local pctVal = 0
+        -- Calculate % of total across all sources
+        local totalAll = 0
+        for _, s in ipairs(sources) do
+          local amt = s.totalAmount or 0
+          if not isSecret(amt) then totalAll = totalAll + amt end
+        end
+        if totalAll > 0 then pctVal = total / totalAll * 100 end
+        bar._pct:SetText("| " .. string.format("%.1f%%", pctVal))
+        bar._pct:SetTextColor(tr, tg, tb)
+        bar._pct:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
+        if fontShadowVal > 0 then
+          bar._pct:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._pct:SetShadowColor(0, 0, 0, 1)
+        else
+          bar._pct:SetShadowOffset(0, 0)
+        end
+        bar._pct:ClearAllPoints()
+        bar._pct:SetPoint("RIGHT", -4, 0)
+        bar._pct:Show()
+        bar._value:ClearAllPoints()
+        bar._value:SetPoint("RIGHT", bar._pct, "LEFT", -4, 0)
+      else
+        bar._pct:Hide()
+        bar._value:ClearAllPoints()
+        bar._value:SetPoint("RIGHT", -4, 0)
       end
 
       bar:SetHeight(barH)
@@ -1083,7 +1137,8 @@ function DM.UpdateWindowDisplay(w)
       bar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
       bar:Show()
 
-      bar._bg:SetColorTexture(0.05, 0.05, 0.05, 0.8)
+      bar._bg:SetTexture(barBgTexture)
+      bar._bg:SetVertexColor(0.05, 0.05, 0.05, 0.8)
 
       -- Bar highlight on hover
       if not bar._hlBorder then
@@ -1223,7 +1278,7 @@ function DM.UpdateWindowDisplay(w)
       local selfName = selfSrc.name
       if not isSecret(selfName) and selfName then selfName = selfName:match("^([^%-]+)") or selfName end
       sbar._name:ClearAllPoints(); sbar._name:SetPoint("LEFT", nameOffset, 0)
-      sbar._name:SetText(selfName or "?"); sbar._name:SetTextColor(1, 1, 1)
+      sbar._name:SetText(selfName or "?"); sbar._name:SetTextColor(tr, tg, tb)
       sbar._name:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
       if fontShadowVal > 0 then
         sbar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._name:SetShadowColor(0, 0, 0, 1)
@@ -1237,13 +1292,14 @@ function DM.UpdateWindowDisplay(w)
       if valFormat == "both" then sbar._value:SetFormattedText("%s | %s", fTotal, fPerSec)
       elseif valFormat == "persec" then sbar._value:SetText(fPerSec)
       else sbar._value:SetText(fTotal) end
-      sbar._value:SetTextColor(1, 1, 1)
+      sbar._value:SetTextColor(tr, tg, tb)
       sbar._value:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
       if fontShadowVal > 0 then
         sbar._value:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._value:SetShadowColor(0, 0, 0, 1)
       else sbar._value:SetShadowOffset(0, 0) end
 
-      sbar._bg:SetColorTexture(0.05, 0.05, 0.05, 0.8)
+      sbar._bg:SetTexture(barBgTexture)
+      sbar._bg:SetVertexColor(0.05, 0.05, 0.05, 0.8)
 
       -- Position: below last visible bar + separator
       local selfY = barsShown * (barH + barSpacing) + 4
