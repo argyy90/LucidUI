@@ -1484,6 +1484,7 @@ local function SetupLoot(parent)
 
   local allFrames = {}
   local lootSettingsItems = {}
+  local RefreshLootSettingsVisibility  -- forward declaration
 
   local function RepositionAll()
     local y = 0
@@ -1541,6 +1542,7 @@ local function SetupLoot(parent)
         if NS.chatRedraw then NS.chatRedraw() end
       end
     end
+    RefreshLootSettingsVisibility()
   end, "Create a Loot tab in the chat window")
   enableLoot.option = "lootInChatTab"
   table.insert(allFrames, enableLoot)
@@ -1568,6 +1570,7 @@ local function SetupLoot(parent)
       if NS.SyncLootEvents then NS.SyncLootEvents() end
       if NS.win then NS.win:Hide() end
     end
+    RefreshLootSettingsVisibility()
   end, "Show loot in a standalone draggable window")
   ownWinCB.option = "lootOwnWindow"
   ownWinCB:SetParent(ownWinRow); ownWinCB:ClearAllPoints()
@@ -1674,64 +1677,46 @@ local function SetupLoot(parent)
   rollDelay:SetShown((DB("rollCloseMode") or "timer") == "timer")
   table.insert(allFrames, rollDelay)
 
-  -- ── Loot Settings (collapsible) ──────────────────
-  local lootSettingsHeader = CreateFrame("Button", nil, scrollChild)
-  lootSettingsHeader:SetHeight(28)
-  local lsText = lootSettingsHeader:CreateFontString(nil, "OVERLAY")
-  lsText:SetFont("Fonts/FRIZQT__.TTF", 11, ""); lsText:SetPoint("LEFT", 40, 0)
-  lsText:SetText("|cff"..NS.ChatGetAccentHex()..">|r |cffffffff"..L["Loot Settings"].."|r")
-  table.insert(NS.chatOptAccentLabels, {fs=lsText, rawText="Loot Settings", white=true})
-  local lsLine = lootSettingsHeader:CreateTexture(nil, "ARTWORK")
-  lsLine:SetColorTexture(0.18,0.18,0.18,1); lsLine:SetHeight(1)
-  lsLine:SetPoint("BOTTOMLEFT", 40, 0); lsLine:SetPoint("BOTTOMRIGHT", -10, 0)
-  local lsHL = lootSettingsHeader:CreateTexture(nil, "BACKGROUND")
-  lsHL:SetPoint("TOPLEFT", 38, 0); lsHL:SetPoint("BOTTOMRIGHT", -10, 0)
-  lsHL:SetColorTexture(1,1,1,0.03); lsHL:Hide()
-  lootSettingsHeader:SetScript("OnEnter", function() lsHL:Show() end)
-  lootSettingsHeader:SetScript("OnLeave", function() lsHL:Hide() end)
+  -- ── Loot Settings (visible only when loot tracker is active) ──────────────────
+  local lootSettingsHeader = NS.ChatGetHeader(scrollChild, "Loot Settings")
   table.insert(allFrames, lootSettingsHeader)
+  table.insert(lootSettingsItems, lootSettingsHeader)
 
-  local lootInner = CreateFrame("Frame", nil, scrollChild)
-  lootInner:SetClipsChildren(true); lootInner:SetHeight(0)
-  table.insert(allFrames, lootInner)
-
-  local lootExpanded = false
-  local iy = -4
-
-  -- Loot settings checkboxes inside collapsible
-  local showMoney = NS.ChatGetCheckbox(lootInner, "Show gold / silver / copper", 28, function(state) DBSet("showMoney", state) end, "Show gold loot")
+  local showMoney = NS.ChatGetCheckbox(scrollChild, "Show gold / silver / copper", 28, function(state) DBSet("showMoney", state) end, "Show gold loot")
   showMoney.option = "showMoney"
-  showMoney:SetPoint("TOPLEFT", lootInner, "TOPLEFT", 0, iy); showMoney:SetPoint("TOPRIGHT", lootInner, "TOPRIGHT", 0, iy)
-  iy = iy - 22; table.insert(lootSettingsItems, showMoney)
+  table.insert(allFrames, showMoney); table.insert(lootSettingsItems, showMoney)
 
-  local showCurrency = NS.ChatGetCheckbox(lootInner, "Show currency", 28, function(state) DBSet("showCurrency", state) end)
+  local showCurrency = NS.ChatGetCheckbox(scrollChild, "Show currency", 28, function(state) DBSet("showCurrency", state) end)
   showCurrency.option = "showCurrency"
-  showCurrency:SetPoint("TOPLEFT", lootInner, "TOPLEFT", 0, iy); showCurrency:SetPoint("TOPRIGHT", lootInner, "TOPRIGHT", 0, iy)
-  iy = iy - 22; table.insert(lootSettingsItems, showCurrency)
+  table.insert(allFrames, showCurrency); table.insert(lootSettingsItems, showCurrency)
 
   local showGroup, onlyOwn
-  showGroup = NS.ChatGetCheckbox(lootInner, "Show group loot", 28, function(state)
+  showGroup = NS.ChatGetCheckbox(scrollChild, "Show group loot", 28, function(state)
     DBSet("showGroupLoot", state)
     if state then DBSet("showOnlyOwnLoot", false); onlyOwn:SetValue(false) end
   end)
   showGroup.option = "showGroupLoot"
-  showGroup:SetPoint("TOPLEFT", lootInner, "TOPLEFT", 0, iy); showGroup:SetPoint("TOPRIGHT", lootInner, "TOPRIGHT", 0, iy)
-  iy = iy - 22; table.insert(lootSettingsItems, showGroup)
+  table.insert(allFrames, showGroup); table.insert(lootSettingsItems, showGroup)
 
-  onlyOwn = NS.ChatGetCheckbox(lootInner, "Only my own loot", 28, function(state)
+  onlyOwn = NS.ChatGetCheckbox(scrollChild, "Only my own loot", 28, function(state)
     DBSet("showOnlyOwnLoot", state)
     if state then DBSet("showGroupLoot", false); showGroup:SetValue(false) end
   end)
   onlyOwn.option = "showOnlyOwnLoot"
-  onlyOwn:SetPoint("TOPLEFT", lootInner, "TOPLEFT", 0, iy); onlyOwn:SetPoint("TOPRIGHT", lootInner, "TOPRIGHT", 0, iy)
-  iy = iy - 22; table.insert(lootSettingsItems, onlyOwn)
+  table.insert(allFrames, onlyOwn); table.insert(lootSettingsItems, onlyOwn)
 
-  local showRealm = NS.ChatGetCheckbox(lootInner, "Show realm name", 28, function(state) DBSet("showRealmName", state) end)
+  local showRealm = NS.ChatGetCheckbox(scrollChild, "Show realm name", 28, function(state) DBSet("showRealmName", state) end)
   showRealm.option = "showRealmName"
-  showRealm:SetPoint("TOPLEFT", lootInner, "TOPLEFT", 0, iy); showRealm:SetPoint("TOPRIGHT", lootInner, "TOPRIGHT", 0, iy)
-  iy = iy - 27; table.insert(lootSettingsItems, showRealm)
+  table.insert(allFrames, showRealm); table.insert(lootSettingsItems, showRealm)
 
-  -- Quality filter buttons
+  -- Quality filter header + buttons
+  local qualHeader = NS.ChatGetHeader(scrollChild, "Minimum Quality")
+  table.insert(allFrames, qualHeader); table.insert(lootSettingsItems, qualHeader)
+
+  local qualHolder = CreateFrame("Frame", nil, scrollChild)
+  qualHolder:SetHeight(28)
+  table.insert(allFrames, qualHolder); table.insert(lootSettingsItems, qualHolder)
+
   local qualNames = {"All", "Common+", "Uncommon+", "Rare+", "Epic+", "Legendary+"}
   local qualColors = {{1,1,1},{0.62,0.62,0.62},{0.12,1,0},{0,0.44,0.87},{0.64,0.21,0.93},{1,0.5,0}}
   local qualBtns = {}
@@ -1747,9 +1732,9 @@ local function SetupLoot(parent)
   end
   for qi = 0, 5 do
     local qc = qualColors[qi+1]
-    local qb = CreateFrame("Button", nil, lootInner, "BackdropTemplate")
+    local qb = CreateFrame("Button", nil, qualHolder, "BackdropTemplate")
     qb:SetSize(qualBtnW, 20)
-    qb:SetPoint("TOPLEFT", lootInner, "TOPLEFT", qualStartX + qi * (qualBtnW + qualGap), iy)
+    qb:SetPoint("TOPLEFT", qualHolder, "TOPLEFT", qualStartX + qi * (qualBtnW + qualGap), -4)
     qb:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
     qb:SetBackdropColor(0.08,0.08,0.08,1); qb:SetBackdropBorderColor(0.22,0.22,0.22,1)
     local ql = qb:CreateFontString(nil,"OVERLAY")
@@ -1760,10 +1745,8 @@ local function SetupLoot(parent)
     qb:SetScript("OnClick", function() DBSet("minQuality", capQ); RefreshQualButtons() end)
     table.insert(qualBtns, {btn=qb, q=capQ})
   end
-  iy = iy - 28
 
-  -- Clear mode dropdown inside collapsible
-  local clearDD = NS.ChatGetDropdown(lootInner, "Clear loot history", function(value)
+  local clearDD = NS.ChatGetDropdown(scrollChild, "Clear loot history", function(value)
     if value == "reload" then return DB("clearOnReload") == true
     elseif value == "login" then return DB("clearOnLogin") == true
     else return not DB("clearOnReload") and not DB("clearOnLogin") end
@@ -1772,23 +1755,13 @@ local function SetupLoot(parent)
     DBSet("clearOnLogin", value == "login")
   end)
   clearDD:Init({"Never", "On reload", "On login"}, {"never", "reload", "login"})
-  clearDD:SetPoint("TOPLEFT", lootInner, "TOPLEFT", 0, iy)
-  clearDD:SetPoint("TOPRIGHT", lootInner, "TOPRIGHT", 0, iy)
+  table.insert(allFrames, clearDD); table.insert(lootSettingsItems, clearDD)
 
-  local LOOT_INNER_H = math.abs(iy) + 55
-
-  lootSettingsHeader:SetScript("OnClick", function()
-    lootExpanded = not lootExpanded
-    local targetH = lootExpanded and LOOT_INNER_H or 0
-    lootInner:SetScript("OnUpdate", function(self, elapsed)
-      local curH = self:GetHeight(); local diff = targetH - curH
-      if math.abs(diff) < 1 then
-        self:SetHeight(targetH); self:SetScript("OnUpdate", nil); RepositionAll(); return
-      end
-      self:SetHeight(curH + (diff > 0 and math.min(400*elapsed, diff) or math.max(-400*elapsed, diff)))
-      RepositionAll()
-    end)
-  end)
+  RefreshLootSettingsVisibility = function()
+    local lootActive = DB("lootInChatTab") == true or DB("lootOwnWindow") == true
+    for _, f in ipairs(lootSettingsItems) do f:SetShown(lootActive) end
+    RepositionAll()
+  end
 
   C_Timer.After(0, RepositionAll)
 
@@ -1827,7 +1800,7 @@ local function SetupLoot(parent)
     end
     rollDelay:SetShown((DB("rollCloseMode") or "timer") == "timer")
     RefreshQualButtons()
-    RepositionAll()
+    RefreshLootSettingsVisibility()
   end)
 
   return container
@@ -2649,13 +2622,9 @@ NS.BuildChatOptionsWindow = function()
     local wasVisible = chatOptWin:IsVisible()
     chatOptWin:SetShown(not wasVisible)
     -- When reopening, if Tab Settings was active, fall back to tab 1
-    if not wasVisible and chatOptWin.containers and chatOptWin._tabSettingsContainer then
+    if not wasVisible and chatOptWin._selectTab and chatOptWin._tabSettingsContainer then
       if chatOptWin._tabSettingsContainer:IsShown() then
-        for _, c in ipairs(chatOptWin.containers) do
-          PanelTemplates_DeselectTab(c.button); c:Hide()
-        end
-        PanelTemplates_SelectTab(chatOptWin.containers[1].button)
-        chatOptWin.containers[1]:Show()
+        chatOptWin._selectTab(1)
       end
     end
     return
@@ -2665,7 +2634,7 @@ NS.BuildChatOptionsWindow = function()
 
   chatOptWin = CreateFrame("Frame", "LUIChatSettingsDialog", UIParent, "ButtonFrameTemplate")
   chatOptWin:SetToplevel(true)
-  chatOptWin:SetSize(700, 500)
+  chatOptWin:SetSize(800, 550)
   chatOptWin:SetPoint("CENTER")
   chatOptWin:Raise()
   chatOptWin:SetMovable(true); chatOptWin:SetClampedToScreen(true)
@@ -2703,34 +2672,95 @@ NS.BuildChatOptionsWindow = function()
   debugBtn:SetScript("OnClick", function() if NS.BuildDebugWindow then NS.BuildDebugWindow() end end)
 
   -- Tabs
+  local SIDEBAR_W = 130
   local TabSetups = {
     {name="Display",        callback=SetupDisplay},
     {name="Appearance",     callback=SetupAppearance},
     {name="Text",           callback=SetupText},
     {name="Advanced",       callback=SetupAdvanced},
-    {name="Chat Colors", callback=SetupMessageColors},
+    {name="Chat Colors",    callback=SetupMessageColors},
     {name="Loot",           callback=SetupLoot},
     {name="QoL",            callback=SetupQoL},
+    {name="LucidMeter",     callback=NS.LucidMeter.SetupSettings},
     {name="Tab Settings",   callback=SetupTabSettings, hidden=true},
   }
 
-  local containers = {}
-  local tabs = {}         -- all tab buttons (including hidden)
-  local visibleTabs = {}  -- only visible tab buttons (for centering)
+  -- Sidebar background
+  local sidebar = CreateFrame("Frame", nil, chatOptWin)
+  sidebar:SetPoint("TOPLEFT", 0, 0)
+  sidebar:SetPoint("BOTTOMLEFT", 0, 0)
+  sidebar:SetWidth(SIDEBAR_W)
+  local sidebarBg = sidebar:CreateTexture(nil, "BACKGROUND", nil, 1)
+  sidebarBg:SetAllPoints()
+  sidebarBg:SetColorTexture(0.08, 0.08, 0.08, 0.95)
+  local sidebarLine = sidebar:CreateTexture(nil, "OVERLAY")
+  sidebarLine:SetWidth(1)
+  sidebarLine:SetPoint("TOPRIGHT", 0, -38)
+  sidebarLine:SetPoint("BOTTOMRIGHT", 0, 0)
+  sidebarLine:SetColorTexture(ar, ag, ab, 0.4)
+  chatOptWin._ltSidebarLine = sidebarLine
+  -- Horizontal accent line inside sidebar (matches header line)
+  local sidebarHLine = sidebar:CreateTexture(nil, "OVERLAY")
+  sidebarHLine:SetHeight(1)
+  sidebarHLine:SetPoint("TOPLEFT", 0, -38)
+  sidebarHLine:SetPoint("TOPRIGHT", 0, -38)
+  sidebarHLine:SetColorTexture(ar, ag, ab, 0.6)
+  chatOptWin._ltSidebarHLine = sidebarHLine
 
-  for _, setup in ipairs(TabSetups) do
+  local containers = {}
+  local tabs = {}
+  local visibleTabs = {}
+  local TAB_H = 30
+
+  local function SelectTab(idx)
+    for i, c in ipairs(containers) do
+      c:Hide()
+      if tabs[i] then
+        tabs[i]._selected = false
+        tabs[i].label:SetTextColor(0.78, 0.78, 0.78)
+        tabs[i].selBg:Hide()
+        if tabs[i].selLine then tabs[i].selLine:Hide() end
+      end
+    end
+    containers[idx]:Show()
+    if tabs[idx] then
+      tabs[idx]._selected = true
+      local cr5, cg5, cb5 = NS.ChatGetAccentRGB()
+      tabs[idx].label:SetTextColor(cr5, cg5, cb5)
+      if tabs[idx].selLine then tabs[idx].selLine:Show() end
+      tabs[idx].selBg:Show()
+    end
+  end
+
+  for i, setup in ipairs(TabSetups) do
     local tabContainer = setup.callback(chatOptWin)
     tabContainer:ClearAllPoints()
-    tabContainer:SetPoint("TOPLEFT", chatOptWin, "TOPLEFT", 0, -70)
+    tabContainer:SetPoint("TOPLEFT", chatOptWin, "TOPLEFT", SIDEBAR_W, -46)
     tabContainer:SetPoint("BOTTOMRIGHT", chatOptWin, "BOTTOMRIGHT")
 
-    local tabButton = CreateFrame("Button", nil, chatOptWin, "PanelTopTabButtonTemplate")
-    tabButton:SetText(setup.name)
-    tabButton:SetScript("OnShow", function(self)
-      PanelTemplates_TabResize(self, 15, nil, 10)
-      PanelTemplates_DeselectTab(self)
-    end)
-    tabButton:GetScript("OnShow")(tabButton)
+    local tabButton = CreateFrame("Button", nil, sidebar)
+    tabButton:SetSize(SIDEBAR_W, TAB_H)
+
+    local selBg = tabButton:CreateTexture(nil, "BACKGROUND", nil, 2)
+    selBg:SetAllPoints()
+    selBg:SetColorTexture(0.12, 0.12, 0.12, 1)
+    selBg:Hide()
+    tabButton.selBg = selBg
+
+    local selLine = tabButton:CreateTexture(nil, "OVERLAY", nil, 7)
+    selLine:SetWidth(2)
+    selLine:SetPoint("TOPRIGHT", 0, 0)
+    selLine:SetPoint("BOTTOMRIGHT", 0, 0)
+    selLine:SetColorTexture(ar, ag, ab, 1)
+    selLine:Hide()
+    tabButton.selLine = selLine
+
+    local label = tabButton:CreateFontString(nil, "OVERLAY")
+    label:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+    label:SetPoint("LEFT", 12, 0)
+    label:SetTextColor(0.78, 0.78, 0.78)
+    label:SetText(setup.name)
+    tabButton.label = label
 
     if setup.hidden then
       tabButton:Hide()
@@ -2738,32 +2768,33 @@ NS.BuildChatOptionsWindow = function()
       table.insert(visibleTabs, tabButton)
     end
 
-    tabContainer.button = tabButton
-    tabButton:SetScript("OnClick", function()
-      for _, c in ipairs(containers) do PanelTemplates_DeselectTab(c.button); c:Hide() end
-      PanelTemplates_SelectTab(tabButton)
-      tabContainer:Show()
+    local capturedIdx = i
+    tabButton:SetScript("OnClick", function() SelectTab(capturedIdx) end)
+    tabButton:SetScript("OnEnter", function()
+      if not tabButton._selected then
+        local cr5, cg5, cb5 = NS.ChatGetAccentRGB()
+        label:SetTextColor(cr5, cg5, cb5)
+      end
+    end)
+    tabButton:SetScript("OnLeave", function()
+      if not tabButton._selected then label:SetTextColor(0.78, 0.78, 0.78) end
     end)
 
+    tabContainer.button = tabButton
     tabContainer:Hide()
     if setup.hidden then
       chatOptWin._tabSettingsContainer = tabContainer
       chatOptWin._tabSettingsButton = tabButton
+      chatOptWin._tabSettingsIdx = i
     end
     table.insert(tabs, tabButton)
     table.insert(containers, tabContainer)
   end
 
-  -- Center visible tabs (hidden tabs are not positioned)
-  local totalWidth = 0
+  -- Position visible tab buttons vertically
   for i, t in ipairs(visibleTabs) do
-    totalWidth = totalWidth + t:GetWidth()
-    if i > 1 then totalWidth = totalWidth + 5 end
-  end
-  local startX = (700 - totalWidth) / 2
-  for i, t in ipairs(visibleTabs) do
-    if i == 1 then t:SetPoint("TOPLEFT", startX, -25)
-    else t:SetPoint("LEFT", visibleTabs[i-1], "RIGHT", 5, 0) end
+    if i == 1 then t:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, -46)
+    else t:SetPoint("TOPLEFT", visibleTabs[i-1], "BOTTOMLEFT", 0, 0) end
   end
 
   -- Skin the dialog frame (dark theme) — BEFORE first tab click
@@ -2776,16 +2807,39 @@ NS.BuildChatOptionsWindow = function()
   end
   local bg = chatOptWin:CreateTexture(nil, "BACKGROUND")
   bg:SetColorTexture(0.08, 0.08, 0.08, 0.95); bg:SetAllPoints()
-  local tabLine = chatOptWin:CreateTexture(nil, "OVERLAY")
-  tabLine:SetHeight(1); tabLine:SetPoint("TOPLEFT", 0, -58); tabLine:SetPoint("TOPRIGHT", 0, -58)
-  tabLine:SetColorTexture(ar, ag, ab, 0.6)
-  chatOptWin._ltTabLine = tabLine
+  chatOptWin._ltTabLine = nil  -- sidebar replaces top tab line
 
   -- Style title
   if chatOptWin.TitleContainer and chatOptWin.TitleContainer.TitleText then
-    local hex = string.format("|cff%02x%02x%02x", ar*255, ag*255, ab*255)
-    chatOptWin.TitleContainer.TitleText:SetText(hex..">|r"..hex.." LucidUI Settings |r"..hex.."<|r")
+    chatOptWin.TitleContainer.TitleText:Hide()
   end
+  local addonVersion = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("LucidUI", "Version") or "?"
+  local hex = string.format("|cff%02x%02x%02x", ar*255, ag*255, ab*255)
+  -- Sidebar: addon name + version (parented to sidebar so they render above bg)
+  local titleName = sidebar:CreateFontString(nil, "OVERLAY")
+  titleName:SetFont("Fonts/FRIZQT__.TTF", 13, "")
+  titleName:SetPoint("TOPLEFT", 12, -6)
+  titleName:SetText(hex .. "LucidUI|r")
+  chatOptWin._ltTitleName = titleName
+  local titleVer = sidebar:CreateFontString(nil, "OVERLAY")
+  titleVer:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  titleVer:SetPoint("TOPLEFT", titleName, "BOTTOMLEFT", 0, -2)
+  titleVer:SetTextColor(0.45, 0.45, 0.45)
+  titleVer:SetText("Version v" .. addonVersion)
+  -- Accent line under version, full width
+  local headerLine = chatOptWin:CreateTexture(nil, "OVERLAY")
+  headerLine:SetHeight(1)
+  headerLine:SetPoint("TOPLEFT", chatOptWin, "TOPLEFT", 0, -38)
+  headerLine:SetPoint("TOPRIGHT", chatOptWin, "TOPRIGHT", 0, -38)
+  headerLine:SetColorTexture(ar, ag, ab, 0.6)
+  chatOptWin._ltHeaderLine = headerLine
+
+  -- Center: "> LucidUI Settings <"
+  local centerTitle = chatOptWin:CreateFontString(nil, "OVERLAY")
+  centerTitle:SetFont("Fonts/FRIZQT__.TTF", 12, "")
+  centerTitle:SetPoint("TOP", chatOptWin, "TOP", SIDEBAR_W / 2, -8)
+  centerTitle:SetText(hex .. ">|r |cffffffff" .. "LucidUI Settings" .. "|r " .. hex .. "<|r")
+  chatOptWin._ltCenterTitle = centerTitle
 
   -- Style close button (reads accent dynamically so it updates live)
   if chatOptWin.CloseButton and chatOptWin.CloseButton:GetNormalTexture() then
@@ -2799,47 +2853,10 @@ NS.BuildChatOptionsWindow = function()
     end)
   end
 
-  -- Style tab buttons (strip ALL default textures, no background, add underline)
-  for _, tab in ipairs(tabs) do
-    for _, texName in ipairs({"Left","Middle","Right","LeftActive","MiddleActive","RightActive",
-        "ActiveLeft","ActiveMiddle","ActiveRight","HighlightLeft","HighlightMiddle","HighlightRight",
-        "LeftDisabled","MiddleDisabled","RightDisabled"}) do
-      if tab[texName] and tab[texName].SetAlpha then tab[texName]:SetAlpha(0) end
-    end
-    if tab.SetNormalTexture then pcall(tab.SetNormalTexture, tab, nil) end
-    if tab.SetPushedTexture then pcall(tab.SetPushedTexture, tab, nil) end
-    if tab.SetHighlightTexture then pcall(tab.SetHighlightTexture, tab, nil) end
-    -- No background — fully transparent tabs
-
-    local underline = tab:CreateTexture(nil, "BORDER")
-    underline:SetHeight(2)
-    underline:SetPoint("BOTTOMLEFT", 2, 0); underline:SetPoint("BOTTOMRIGHT", -2, 0)
-    underline:SetColorTexture(ar, ag, ab, 1); underline:Hide()
-    tab._ltUnderline = underline
-
-    -- Set initial text color to gray (inactive)
-    if tab:GetFontString() then tab:GetFontString():SetTextColor(0.6, 0.6, 0.6) end
-
-    hooksecurefunc("PanelTemplates_SelectTab", function(t)
-      if t == tab then
-        local cr3, cg3, cb3 = NS.ChatGetAccentRGB()
-        underline:SetColorTexture(cr3, cg3, cb3, 1)
-        underline:Show()
-        if tab:GetFontString() then tab:GetFontString():SetTextColor(cr3, cg3, cb3) end
-      end
-    end)
-    hooksecurefunc("PanelTemplates_DeselectTab", function(t)
-      if t == tab then
-        underline:Hide()
-        if tab:GetFontString() then tab:GetFontString():SetTextColor(0.6, 0.6, 0.6) end
-      end
-    end)
-  end
-
-  -- Now click the first tab (skinning is already applied)
+  -- Select first tab
   chatOptWin.containers = containers
-  PanelTemplates_SetNumTabs(chatOptWin, #tabs)
-  containers[1].button:Click()
+  chatOptWin._selectTab = SelectTab
+  SelectTab(1)
 
   NS.chatOptWin = chatOptWin
 end
@@ -2853,9 +2870,9 @@ NS.OpenChatTabSettings = function(chatTabIdx)
   if not chatOptWin then return end
   chatOptWin:Show()
   chatOptWin:Raise()
-  -- Click the hidden Tab Settings button
-  if chatOptWin._tabSettingsButton then
-    chatOptWin._tabSettingsButton:Click()
+  -- Select the hidden Tab Settings tab
+  if chatOptWin._selectTab and chatOptWin._tabSettingsIdx then
+    chatOptWin._selectTab(chatOptWin._tabSettingsIdx)
   end
   -- Defer so OnShow settles, then show the correct chat tab's settings
   C_Timer.After(0, function()

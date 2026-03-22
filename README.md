@@ -1,6 +1,6 @@
 # LucidUI
 
-A complete chat replacement, loot tracking, session statistics and quality-of-life addon for World of Warcraft (Retail).
+A complete chat replacement, loot tracking, damage meter, session statistics and quality-of-life addon for World of Warcraft (Retail).
 
 ![Interface](https://img.shields.io/badge/Interface-12.0.x-blue)
 ![Version](https://img.shields.io/badge/Version-1.0-green)
@@ -19,6 +19,19 @@ Replaces WoW's default chat with a fully custom interface.
 - **Copy chat** window for easy text export
 - **Chat bar** with quick-access buttons (Social, Settings, Copy, Rolls, Stats, Voice Chat)
 - **Hyperlink tooltips** for items, spells, achievements, keystones and more
+
+### LucidMeter — Damage Meter
+A built-in damage meter powered by the native `C_DamageMeter` API (WoW 12.x+).
+
+- **10 meter types** — Damage Done, DPS, Healing Done, HPS, Absorbs, Interrupts, Dispels, Damage Taken, Avoidable Damage, Deaths
+- **Multiple windows** — open as many meter windows as you need, each with its own meter type and session
+- **Snap system** — drag windows to snap them together edge-to-edge (Details-style), they move and resize as a group
+- **Session selector** — switch between Current, Overall, and any saved combat session per window
+- **Spell breakdown tooltip** — hover over any player to see a per-spell breakdown with amounts, DPS and percentages
+- **Report Results** — send results to Say, Party, Raid, Instance, Guild or Whisper with configurable line count
+- **Class colors** and **spec/class icons** on each bar
+- **Auto reset** on entering or leaving instances
+- **Fully themeable** — bar texture, bar height, spacing, font, transparency, accent line, borders and more
 
 ### Loot Tracker
 A dedicated loot feed in its own window or as a chat tab.
@@ -92,10 +105,10 @@ LucidUI auto-detects your WoW client language. Supported languages:
 
 - English (default)
 - Deutsch
-- Fran&ccedil;ais
+- Français
 - Italiano
-- Espa&ntilde;ol
-- Portugu&ecirc;s (BR)
+- Español
+- Português (BR)
 - Русский
 - 한국어
 - 简体中文

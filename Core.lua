@@ -206,6 +206,32 @@ NS.DB_DEFAULTS = {
   qolCombatTimerPos    = nil,
   qolCombatAlertPos    = nil,
   qolFpsBackup         = nil,
+  -- Damage Meter
+  dmEnabled            = false,
+  dmLocked             = false,
+  dmWinPos             = nil,
+  dmMeterType          = 0,
+  dmSessionType        = 1,
+  dmShowInCombatOnly   = false,
+  dmBarHeight          = 18,
+  dmBarSpacing         = 1,
+  dmFontSize           = 11,
+  dmUpdateInterval     = 0.3,
+  dmBgAlpha            = 0.92,
+  dmTitleAlpha         = 1,
+  dmIconMode           = "spec",  -- "spec", "class", "none"
+  dmValueFormat        = "both",  -- "total", "persec", "both"
+  dmTitleColor         = nil,  -- nil = use accent color
+  dmFont               = "Friz Quadrata",
+  dmTitleFontSize      = 10,
+  dmFontShadow         = false,
+  dmIconsOnHover       = false,
+  dmClassColors        = true,
+  dmBarColor           = {r=0.5, g=0.5, b=0.5},
+  dmAccentLine         = true,
+  dmWindowBorder       = true,
+  dmTitleBorder        = true,
+
   debugHistory         = {},
   debugWinPos          = nil,
   debugWinSize         = nil,
@@ -291,6 +317,7 @@ NS.ApplyTheme = function(themeKey)
   if NS.rollWin and NS.rollWin._accentLine then
     NS.rollWin._accentLine:SetColorTexture(ar, ag, ab, 0.6)
   end
+  if NS.LucidMeter and NS.LucidMeter.ApplyTheme then NS.LucidMeter.ApplyTheme() end
   -- Update title brackets on stats + rolls windows
   if NS.statsWin and NS.statsWin._titleTxt then
     local hex2 = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))
@@ -377,6 +404,38 @@ NS.GetLSMFonts = function()
     table.sort(combined, function(a, b) return a.label:lower() < b.label:lower() end)
   end
   return combined
+end
+
+NS.GetLSMStatusBars = function()
+  local combined = {
+    {label="Flat", path="Interface/Buttons/WHITE8X8"},
+    {label="Blizzard", path="Interface/TargetingFrame/UI-StatusBar"},
+    {label="Blizzard Raid", path="Interface/RaidFrame/Raid-Bar-Hp-Fill"},
+    {label="Blizzard Skills", path="Interface/PaperDollInfoFrame/UI-Character-Skills-Bar"},
+  }
+  local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
+  if LSM then
+    for _, name in ipairs(LSM:List("statusbar")) do
+      local path = LSM:Fetch("statusbar", name, true)
+      if path then
+        local dup = false
+        for _, f in ipairs(combined) do
+          if f.label == name then dup = true; break end
+        end
+        if not dup then table.insert(combined, {label=name, path=path}) end
+      end
+    end
+    table.sort(combined, function(a, b) return a.label:lower() < b.label:lower() end)
+  end
+  return combined
+end
+
+NS.GetBarTexturePath = function(key)
+  if not key or key == "Flat" then return "Interface/Buttons/WHITE8X8" end
+  for _, f in ipairs(NS.GetLSMStatusBars()) do
+    if f.label == key then return f.path end
+  end
+  return "Interface/Buttons/WHITE8X8"
 end
 
 NS.GetFontPath = function(key)

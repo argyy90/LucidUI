@@ -375,27 +375,27 @@ function NS.RefreshSettingsAccent()
   if NS.chatOptWin then
     local win = NS.chatOptWin
 
-    -- Tab underlines + active tab text
+    -- Sidebar tabs: update selected tab accent color + selLine
     if win.containers then
       for _, c in ipairs(win.containers) do
-        if c.button and c.button._ltUnderline then
-          c.button._ltUnderline:SetColorTexture(ar, ag, ab, 1)
-          if c:IsShown() and c.button:GetFontString() then
-            c.button:GetFontString():SetTextColor(ar, ag, ab)
-          end
+        local btn = c.button
+        if btn then
+          if btn.selLine then btn.selLine:SetColorTexture(ar, ag, ab, 1) end
+          if btn._selected and btn.label then btn.label:SetTextColor(ar, ag, ab) end
         end
       end
     end
 
-    -- Title brackets
-    if win.TitleContainer and win.TitleContainer.TitleText then
-      local thex = string.format("|cff%02x%02x%02x", ar*255, ag*255, ab*255)
-      win.TitleContainer.TitleText:SetText(thex..">|r"..thex.." LucidUI Settings |r"..thex.."<|r")
-    end
+    -- Sidebar accent lines
+    if win._ltSidebarLine then win._ltSidebarLine:SetColorTexture(ar, ag, ab, 0.4) end
+    if win._ltHeaderLine then win._ltHeaderLine:SetColorTexture(ar, ag, ab, 0.6) end
+    if win._ltSidebarHLine then win._ltSidebarHLine:SetColorTexture(ar, ag, ab, 0.6) end
 
-    -- Tab divider line
-    if win._ltTabLine then
-      win._ltTabLine:SetColorTexture(ar, ag, ab, 0.6)
+    -- Title: "LucidUI" + "> LucidUI Settings <"
+    local thex = string.format("|cff%02x%02x%02x", ar*255, ag*255, ab*255)
+    if win._ltTitleName then win._ltTitleName:SetText(thex .. "LucidUI|r") end
+    if win._ltCenterTitle then
+      win._ltCenterTitle:SetText(thex .. ">|r |cffffffff" .. "LucidUI Settings" .. "|r " .. thex .. "<|r")
     end
 
     -- Close button hover color is handled by HookScript, nothing to update

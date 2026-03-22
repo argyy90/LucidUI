@@ -21,6 +21,7 @@ local tabData        = {}
 local addBtn         = nil
 local tabEndX        = 4
 local tabMsgs        = {}
+local restoringHistory = false
 local tabFlashing    = {}
 local tabBarFrame    = nil
 
@@ -523,6 +524,8 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName)
         if show and channelName and td.channelBlocked and td.channelBlocked[channelName] then
           show = false
         end
+        -- Skip whisper tabs for restored history (they only show live messages)
+        if show and td._isWhisperTab and restoringHistory then show = false end
         if show then
           if tabIdx == activeTab then
             d:AddMessage(cleanMsg, r, g, b, ts, t)
@@ -886,6 +889,7 @@ RebuildTabButtons = function()
         local oldTab = activeTab
         activeTab = capturedI
         StopTabFlash(capturedI)
+        if tabData[capturedI] then tabData[capturedI]._unread = nil; SaveTabData() end
         local d = customDisplays[1]
         if d and d.GetMessages then tabMsgs[oldTab] = d:GetMessages() end
         RefreshButtonVisuals()
@@ -1107,6 +1111,13 @@ local function BuildTabBar(bg)
 
   LoadTabData()
   RebuildTabButtons()
+
+  -- Restore flash for unread whisper tabs
+  for i, td in ipairs(tabData) do
+    if td._unread and i ~= activeTab then
+      C_Timer.After(0.5, function() StartTabFlash(i) end)
+    end
+  end
 
   -- "+" button
   local ar2, ag2, ab2 = GetAccentColor()
@@ -1452,18 +1463,40 @@ NS.ChatShowCopyWindow = function()
 
   for _, entry in ipairs(h) do
     if entry.msg then
-      local show = not flt or flt[entry.event] or not entry.event
-          or (EVENT_PAIRS[entry.event] and flt[EVENT_PAIRS[entry.event]])
+      local show = true
+      if flt and entry.event then
+        show = flt[entry.event] or (EVENT_PAIRS[entry.event] and flt[EVENT_PAIRS[entry.event]]) or false
+      end
+      -- Respect channel blocked list
+      if show and entry.channelName and td.channelBlocked and td.channelBlocked[entry.channelName] then
+        show = false
+      end
+      -- Respect tab creation time
+      if show and td.createdAt and entry.t and entry.t < td.createdAt then
+        show = false
+      end
+      -- Skip loot events in non-loot tabs
+      local lootActive = NS.DB("lootInChatTab") or NS.DB("lootOwnWindow")
+      local isLootEvent = entry.event and (entry.event == "CHAT_MSG_LOOT"
+        or (entry.event == "CHAT_MSG_MONEY" and NS.DB("showMoney") ~= false)
+        or (entry.event == "CHAT_MSG_CURRENCY" and NS.DB("showCurrency") ~= false))
+      if show and lootActive and isLootEvent and not td._isLootTab then
+        show = false
+      end
       if show then
         local clean = entry.msg
-          :gsub("|H.-|h(.-)|h", "%1")
-          :gsub("|T.-|t", ""):gsub("|A.-|a", ""):gsub("|K.-|k", ""):gsub("|n", "\n")
+          :gsub("|H.-|h(.-)|h", "%1")  -- strip hyperlinks, keep text
+          :gsub("|T.-|t", ""):gsub("|A.-|a", ""):gsub("|K.-|k", ""):gsub("|n", "\n")  -- strip textures/atlas
+        -- Strip timestamp prefix (already adding our own)
         clean = clean
           :gsub("^|cff%x%x%x%x%x%x%d?%d?:?%d%d:?%d?%d?[APMapm ]*|r ", "")
           :gsub("^%d?%d?:?%d%d:?%d?%d?[APMapm ]* ", "")
-        clean = clean:gsub("|([^cr])", "%1"):gsub("|$", "")
+        -- Keep |cff color codes for colored display
         local ts = entry.t and date("%H:%M:%S", entry.t) or ""
-        lines[#lines+1] = (ts ~= "" and (ts .. " ") or "") .. clean
+        -- Wrap line with message color if no color codes present
+        local colorHex = string.format("%02x%02x%02x", (entry.r or 1) * 255, (entry.g or 1) * 255, (entry.b or 1) * 255)
+        local coloredLine = "|cff" .. colorHex .. ((ts ~= "" and (ts .. " ") or "") .. clean) .. "|r"
+        lines[#lines+1] = coloredLine
       end
     end
   end
@@ -1814,9 +1847,11 @@ local function InitChatSystem()
   if NS.DB("chatStoreMessages") then
     local saved = NS.DB("chatHistory")
     if saved and type(saved) == "table" and #saved > 0 then
+      restoringHistory = true
       for _, entry in ipairs(saved) do
         AddToDisplay(1, entry.msg, entry.r, entry.g, entry.b, entry.event, entry.channelName)
       end
+      restoringHistory = false
     end
   end
 
@@ -1948,7 +1983,11 @@ local function InitChatSystem()
         end
       end
       if whisperTabIdx ~= activeTab then
+        if tabData[whisperTabIdx] then tabData[whisperTabIdx]._unread = true; SaveTabData() end
         StartTabFlash(whisperTabIdx)
+      else
+        -- Active tab, mark as read
+        if tabData[whisperTabIdx] then tabData[whisperTabIdx]._unread = nil end
       end
     end
   end)
