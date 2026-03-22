@@ -135,5 +135,7 @@ NS.SavePosition = function()
 end
 
 NS.SaveSize = function()
-  DBSet("size", {NS.win:GetSize()})
+  if NS.win and not NS.win.collapsed then
+    DBSet("size", {NS.win:GetSize()})
+  end
 end

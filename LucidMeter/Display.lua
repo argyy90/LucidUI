@@ -531,30 +531,31 @@ local function CreateWindow(windowID, config)
     popupMenu:SetClampedToScreen(true)
 
     local ITEM_H = 18
-    local MENU_W = 160
+    local MENU_W = 220
     local totalH = 0
     local btns = {}
 
+    -- Build items bottom-to-top (menu opens upward, first item closest to icon)
     for _, item in ipairs(items) do
       if item.divider then
         local div = popupMenu:CreateTexture(nil, "OVERLAY")
         div:SetHeight(1)
-        div:SetPoint("TOPLEFT", 4, -(totalH + 4))
-        div:SetPoint("TOPRIGHT", -4, -(totalH + 4))
+        div:SetPoint("BOTTOMLEFT", 4, totalH + 4)
+        div:SetPoint("BOTTOMRIGHT", -4, totalH + 4)
         div:SetColorTexture(0.25, 0.25, 0.25, 1)
         totalH = totalH + 9
       elseif item.title then
         local lbl = popupMenu:CreateFontString(nil, "OVERLAY")
         lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
-        lbl:SetPoint("TOPLEFT", 8, -(totalH + 2))
+        lbl:SetPoint("BOTTOMLEFT", 8, totalH + 2)
         lbl:SetText(item.text)
         lbl:SetTextColor(0.5, 0.5, 0.5)
         totalH = totalH + ITEM_H
       else
         local btn = CreateFrame("Button", nil, popupMenu)
         btn:SetHeight(ITEM_H)
-        btn:SetPoint("TOPLEFT", 2, -(totalH))
-        btn:SetPoint("TOPRIGHT", -2, -(totalH))
+        btn:SetPoint("BOTTOMLEFT", 2, totalH)
+        btn:SetPoint("BOTTOMRIGHT", -2, totalH)
         local hl = btn:CreateTexture(nil, "BACKGROUND")
         hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.06); hl:Hide()
         btn:SetScript("OnEnter", function() hl:Show() end)
@@ -656,16 +657,19 @@ local function CreateWindow(windowID, config)
   resetBtn:HookScript("OnEnter", function(self)
     local hasSnap = w.snappedTo and next(w.snappedTo)
     local items = {
-      {text = "Reset All Windows", func = function() DM.Reset() end},
-      {text = "Reset This Window", func = function()
+      {text = "|TInterface/AddOns/LucidUI/Assets/X_red.png:12:12|t  Reset All Windows", func = function() DM.Reset() end},
+      {text = "|TInterface/AddOns/LucidUI/Assets/X_orange.png:12:12|t  Reset This Window", func = function()
         w.sessionData = nil
+        w.sessionType = 1  -- back to Current
+        w.sessionID = nil
+        SaveWindowState(w)
         RefreshWindowData(w)
         DM.UpdateWindowDisplay(w)
       end},
     }
     if hasSnap then
       items[#items + 1] = {divider = true}
-      items[#items + 1] = {text = "Unsnap Window", func = function()
+      items[#items + 1] = {text = "|TInterface/AddOns/LucidUI/Assets/X_orange.png:12:12|t  Unsnap Window", func = function()
         BreakSnap(w)
         HideAllSnapLines()
         SaveSnapRelations()
@@ -689,9 +693,11 @@ local function CreateWindow(windowID, config)
       items[#items + 1] = {text = isCur and ("|cff" .. aHex .. label .. "|r") or label, func = function() SelectSessionType(capturedType) end}
     end
     local sessions = DM.GetAvailableSessions()
+    local startIdx = math.max(1, #sessions - 19)  -- last 20 entries (newest)
     if #sessions > 0 then
       items[#items + 1] = {divider = true}
-      for _, s in ipairs(sessions) do
+      for si = #sessions, startIdx, -1 do
+        local s = sessions[si]
         local name = s.name
         local sid = s.sessionID
         if name and not isSecret(name) then
@@ -702,7 +708,12 @@ local function CreateWindow(windowID, config)
           end
           local isCur = (w.sessionID == sid)
           local capturedID = sid
-          items[#items + 1] = {text = isCur and ("|cff" .. aHex .. name .. dur .. "|r") or (name .. dur), func = function()
+          local isBoss = name:find("^%(%!%)") or name:find("^!")
+          local icon = isBoss
+            and "|TInterface/AddOns/LucidUI/Assets/Arrow_right_green.png:12:12|t "
+            or "|TInterface/AddOns/LucidUI/Assets/Arrow_right_orange.png:12:12|t "
+          local displayName = isCur and ("|cff" .. aHex .. name .. dur .. "|r") or (name .. dur)
+          items[#items + 1] = {text = icon .. displayName, func = function()
             w.sessionID = capturedID
             w.sessionType = nil
             SaveWindowState(w)
@@ -1047,8 +1058,8 @@ function DM.UpdateWindowDisplay(w)
       end
 
       -- Value
-      local fmtTotal = AbbreviateNumbers(total)
-      local fmtPerSec = AbbreviateNumbers(perSec)
+      local fmtTotal = (not isSecret(total)) and DM.FormatNumber(total) or AbbreviateNumbers(total)
+      local fmtPerSec = (not isSecret(perSec)) and DM.FormatNumber(perSec) or AbbreviateNumbers(perSec)
 
       if valFormat == "both" then
         bar._value:SetFormattedText("%s | %s", fmtTotal, fmtPerSec)
@@ -1127,6 +1138,12 @@ function DM.UpdateWindowDisplay(w)
         bar:SetScript("OnEnter", function(self) DM.ShowSpellBreakdown(self) end)
         bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
       end
+
+      -- Click to expand/collapse spell breakdown
+      bar:SetScript("OnMouseUp", function(self)
+        self._expanded = not self._expanded
+        DM.ShowSpellBreakdown(self)
+      end)
 
       -- Store source for tooltip
       bar._sourceGUID = src.sourceGUID
@@ -1244,10 +1261,10 @@ function DM.ShowSpellBreakdown(bar)
   GameTooltip:AddLine(name, cr, cg, cb)
   GameTooltip:AddLine(" ")
 
-  GameTooltip:AddDoubleLine("|cffccccccSpell Name|r", "|cffccccccAmount    DPS    %|r", 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
+  GameTooltip:AddDoubleLine("|cffccccccSpell Name|r", string.format("|cffcccccc%8s  %7s  %5s|r", "Amount", "DPS", "%"), 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
 
   local totalAmount = sourceData.totalAmount or 0
-  local maxSpells = 10
+  local maxSpells = bar._expanded and 999 or 10
 
   local spells = {}
   for j = 1, #spellsTable do spells[j] = spellsTable[j] end
@@ -1259,6 +1276,15 @@ function DM.ShowSpellBreakdown(bar)
       return aVal > bVal
     end)
   end)
+
+  -- Get max spell amount for bar proportions
+  local topSpellAmount = 0
+  if #spells > 0 and not isSecret(spells[1].totalAmount or 0) then
+    topSpellAmount = spells[1].totalAmount or 0
+  end
+
+  -- Track which tooltip lines are spell lines (for background bars)
+  local spellLineIndices = {}
 
   for i = 1, math.min(#spells, maxSpells) do
     local spell = spells[i]
@@ -1295,17 +1321,54 @@ function DM.ShowSpellBreakdown(bar)
       pct = ""
     end
 
+    local rightText = string.format("%8s  %7s  %5s", fmtAmount, fmtDPS, pct)
     GameTooltip:AddDoubleLine(
       spellIcon .. spellName,
-      fmtAmount .. "   " .. fmtDPS .. "   " .. pct,
+      rightText,
       1, 1, 1, 0.8, 0.8, 0.8)
+
+    local ratio = (topSpellAmount > 0 and not isSecret(spellAmount)) and (spellAmount / topSpellAmount) or 0
+    spellLineIndices[#spellLineIndices + 1] = {line = GameTooltip:NumLines(), ratio = ratio}
   end
 
   if #spells > maxSpells then
-    GameTooltip:AddLine("|cff808080... and " .. (#spells - maxSpells) .. " more|r")
+    GameTooltip:AddLine("|cff808080... and " .. (#spells - maxSpells) .. " more (click to expand)|r")
   end
 
   GameTooltip:Show()
+  GameTooltip:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
+
+  -- Add background bars to spell lines after tooltip is shown and laid out
+  if not GameTooltip._dmBars then
+    GameTooltip._dmBars = {}
+    GameTooltip:HookScript("OnHide", function()
+      if GameTooltip._dmBars then
+        for _, b in ipairs(GameTooltip._dmBars) do b:Hide() end
+      end
+    end)
+  end
+  for _, b in ipairs(GameTooltip._dmBars) do b:Hide() end
+
+  for idx, info in ipairs(spellLineIndices) do
+    local leftText = _G["GameTooltipTextLeft" .. info.line]
+    if leftText then
+      local bgBar = GameTooltip._dmBars[idx]
+      if not bgBar then
+        bgBar = GameTooltip:CreateTexture(nil, "BACKGROUND", nil, 1)
+        GameTooltip._dmBars[idx] = bgBar
+      end
+      pcall(function()
+        bgBar:SetColorTexture(1, 1, 1, 0.2)
+        bgBar:SetHeight(leftText:GetHeight() + 2)
+        bgBar:ClearAllPoints()
+        bgBar:SetPoint("LEFT", GameTooltip, "LEFT", 8, 0)
+        bgBar:SetPoint("TOP", leftText, "TOP", 0, 1)
+        local tooltipW = GameTooltip:GetWidth() - 16
+        bgBar:SetWidth(math.max(1, tooltipW * info.ratio))
+        bgBar:Show()
+      end)
+    end
+  end
 end
 
 -- ── Combat state callback ────────────────────────────────────────────

@@ -11,7 +11,10 @@ local function BuildWindow()
   local DBSet = NS.DBSet
   local L     = LucidUIL
   NS.win = CreateFrame("Frame", "LucidUIWindow", UIParent, "BackdropTemplate")
-  NS.win:SetSize(unpack(DB("size")))
+  local savedSize = DB("size")
+  local sw, sh = savedSize[1], savedSize[2]
+  if sh and sh < 50 then sh = NS.DB_DEFAULTS.size[2] end
+  NS.win:SetSize(sw, sh)
   NS.win:SetPoint(unpack(DB("position")))
   NS.win:SetFrameStrata("MEDIUM")
   NS.win:SetToplevel(true)

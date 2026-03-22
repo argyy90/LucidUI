@@ -19,14 +19,14 @@ function DM.SetupSettings(parent)
   local function DBSet(k, v) NS.DBSet(k, v) end
 
   -- Helper: row with two checkboxes side by side
-  local function MakeDualCheckboxRow(parent2, leftLabel, leftKey, leftCB_func, rightLabel, rightKey, rightCB_func)
+  local function MakeDualCheckboxRow(parent2, leftLabel, leftKey, leftCB_func, rightLabel, rightKey, rightCB_func, leftTip, rightTip)
     local row = CreateFrame("Frame", nil, parent2)
     row:SetHeight(28)
-    local leftCB = NS.ChatGetCheckbox(row, leftLabel, 28, leftCB_func)
+    local leftCB = NS.ChatGetCheckbox(row, leftLabel, 28, leftCB_func, leftTip)
     leftCB.option = leftKey
     leftCB:ClearAllPoints()
     leftCB:SetPoint("TOPLEFT", 0, 0); leftCB:SetSize(260, 28)
-    local rightCB = NS.ChatGetCheckbox(row, rightLabel, 28, rightCB_func)
+    local rightCB = NS.ChatGetCheckbox(row, rightLabel, 28, rightCB_func, rightTip)
     rightCB.option = rightKey
     rightCB:ClearAllPoints()
     rightCB:SetPoint("TOPLEFT", 260, 0); rightCB:SetSize(260, 28)
@@ -70,7 +70,9 @@ function DM.SetupSettings(parent)
           if w.frame and w.frame._resizeBtn then w.frame._resizeBtn:SetShown(not state) end
         end
       end
-    end
+    end,
+    "Only show titlebar icons when hovering over the window",
+    "Prevent moving and resizing the meter windows"
   )
   table.insert(allFrames, row0)
 
@@ -78,7 +80,7 @@ function DM.SetupSettings(parent)
   local row1 = CreateFrame("Frame", nil, scrollChild); row1:SetHeight(28)
   local combatCB = NS.ChatGetCheckbox(row1, "Show only in combat", 28, function(state)
     DBSet("dmShowInCombatOnly", state)
-  end)
+  end, "Hide the meter windows when out of combat")
   combatCB.option = "dmShowInCombatOnly"
   combatCB:ClearAllPoints(); combatCB:SetPoint("TOPLEFT", 0, 0); combatCB:SetSize(260, 28)
   row1._left = combatCB
@@ -94,6 +96,17 @@ function DM.SetupSettings(parent)
   resetDD:Init({"Off", "Enter Instance", "Leave Instance", "Both"}, {"off", "enter", "leave", "both"})
   resetDD:ClearAllPoints(); resetDD:SetPoint("LEFT", resetRow, "LEFT", 0, 0); resetDD:SetWidth(260)
   table.insert(allFrames, resetRow)
+
+  -- History Reset dropdown
+  local histRow = CreateFrame("Frame", nil, scrollChild); histRow:SetHeight(58)
+  local histDD = NS.ChatGetDropdown(histRow, "History Reset", function(value)
+    return (DB("dmHistoryReset") or "never") == value
+  end, function(value)
+    DBSet("dmHistoryReset", value)
+  end)
+  histDD:Init({"Never", "On Login", "On Reload"}, {"never", "login", "reload"})
+  histDD:ClearAllPoints(); histDD:SetPoint("LEFT", histRow, "LEFT", 0, 0); histDD:SetWidth(260)
+  table.insert(allFrames, histRow)
 
   -- ══ Text ═════════════════════════════════════════════════════════
   local hdrText = NS.ChatGetHeader(scrollChild, "Text")
@@ -134,7 +147,9 @@ function DM.SetupSettings(parent)
     "Show server name", "dmShowRealm", function(state)
       DBSet("dmShowRealm", state)
       if DM.UpdateDisplay then DM.UpdateDisplay() end
-    end
+    end,
+    "Add an outline to bar and title text for better readability",
+    "Show realm names for other players (your own name stays short)"
   )
   table.insert(allFrames, textRow)
 
@@ -373,7 +388,7 @@ function DM.SetupSettings(parent)
   local classColorCB = NS.ChatGetCheckbox(colorRow, "Class colors", 24, function(state)
     DBSet("dmClassColors", state)
     if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
+  end, "Color bars by player class instead of a fixed color")
   classColorCB.option = "dmClassColors"; classColorCB:ClearAllPoints()
   classColorCB:SetPoint("LEFT", colorRow, "CENTER", COL1, 0); classColorCB:SetSize(COL_W, 24)
 
@@ -398,21 +413,21 @@ function DM.SetupSettings(parent)
   local accentCB = NS.ChatGetCheckbox(row2, "Accent line", 28, function(state)
     DBSet("dmAccentLine", state)
     if DM.windows then for _, w in ipairs(DM.windows) do if w.frame._accentLine then w.frame._accentLine:SetShown(state) end end end
-  end)
+  end, "Show a colored accent line below the title bar")
   accentCB.option = "dmAccentLine"; accentCB:ClearAllPoints()
   accentCB:SetPoint("LEFT", row2, "CENTER", COL1, 0); accentCB:SetSize(COL_W, 28)
 
   local winBorderCB = NS.ChatGetCheckbox(row2, "Window border", 28, function(state)
     DBSet("dmWindowBorder", state)
     if DM.windows then for _, w in ipairs(DM.windows) do w.frame:SetBackdropBorderColor(0.15, 0.15, 0.15, state and 1 or 0) end end
-  end)
+  end, "Show a thin border around the meter window")
   winBorderCB.option = "dmWindowBorder"; winBorderCB:ClearAllPoints()
   winBorderCB:SetPoint("LEFT", row2, "CENTER", COL2, 0); winBorderCB:SetSize(COL_W, 28)
 
   local titleBorderCB = NS.ChatGetCheckbox(row2, "Title border", 28, function(state)
     DBSet("dmTitleBorder", state)
     if DM.windows then for _, w in ipairs(DM.windows) do if w.frame._titleBorder then w.frame._titleBorder:SetShown(state) end end end
-  end)
+  end, "Show a separator line between title bar and bars")
   titleBorderCB.option = "dmTitleBorder"; titleBorderCB:ClearAllPoints()
   titleBorderCB:SetPoint("LEFT", row2, "CENTER", COL3, 0); titleBorderCB:SetSize(COL_W, 28)
   table.insert(allFrames, row2)
@@ -500,6 +515,7 @@ function DM.SetupSettings(parent)
     row0._right:SetValue(DB("dmLocked") == true)
     combatCB:SetValue(DB("dmShowInCombatOnly") == true)
     if resetDD.SetValue then resetDD:SetValue() end
+    if histDD.SetValue then histDD:SetValue() end
     local fsVal = DB("dmFontShadow") or 0
     if type(fsVal) == "boolean" then fsVal = fsVal and 1.5 or 0 end
     if fontShadow.SetValue then fontShadow:SetValue(fsVal) end

@@ -39,8 +39,8 @@ end
 -- ── Number formatting ────────────────────────────────────────────────
 function DM.FormatNumber(n)
   if not n or n == 0 then return "0" end
-  if n >= 1000000 then return string.format("%.1fM", n / 1000000) end
-  if n >= 1000 then return string.format("%.1fK", n / 1000) end
+  if n >= 1000000 then return string.format("%.2fM", n / 1000000) end
+  if n >= 1000 then return string.format("%.2fK", n / 1000) end
   return string.format("%.0f", n)
 end
 
@@ -178,11 +178,11 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
       local isAvail = C_DamageMeter.IsDamageMeterAvailable()
       DM.available = isAvail
     end
-    -- Ensure CVar is enabled
+    -- Disable default WoW damage meter window
     if DM.available then
       pcall(function()
-        if C_CVar and C_CVar.GetCVarBool and not C_CVar.GetCVarBool("damageMeterEnabled") then
-          C_CVar.SetCVar("damageMeterEnabled", "1")
+        if C_CVar and C_CVar.SetCVar then
+          C_CVar.SetCVar("damageMeterEnabled", "0")
         end
       end)
     end
@@ -210,15 +210,24 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 
   elseif event == "PLAYER_ENTERING_WORLD" then
     local isLogin, isReload = ...
+
+    -- History reset (clears C_DamageMeter sessions)
+    local historyReset = NS.DB("dmHistoryReset") or "never"
+    if historyReset == "reload" and (isLogin or isReload) then
+      DM.Reset()
+    elseif historyReset == "login" and isLogin and not isReload then
+      DM.Reset()
+    end
+
+    -- Auto reset (only clears window display data, NOT session history)
     if not isLogin and not isReload then
-      -- Zone change (not login/reload)
       local autoReset = NS.DB("dmAutoReset") or "off"
       local inInstance = IsInInstance()
       local shouldReset = false
       if autoReset == "enter" and inInstance then shouldReset = true end
       if autoReset == "leave" and not inInstance then shouldReset = true end
       if autoReset == "both" then shouldReset = true end
-      if shouldReset then DM.Reset() end
+      if shouldReset then DM.SoftReset() end
     end
 
   elseif event == "DAMAGE_METER_RESET" then
@@ -244,13 +253,25 @@ function DM.CycleMeterType(delta)
   DoUpdate()
 end
 
--- ── Reset ────────────────────────────────────────────────────────────
+-- ── Soft Reset (clears window data only, keeps session history) ──────
+function DM.SoftReset()
+  DM.sessionData = nil
+  if DM.windows then
+    for _, w in ipairs(DM.windows) do
+      w.sessionData = nil
+      w.sessionType = 1  -- switch to Current
+      w.sessionID = nil
+    end
+  end
+  if DM.UpdateDisplay then DM.UpdateDisplay() end
+end
+
+-- ── Reset (clears everything including C_DamageMeter history) ────────
 function DM.Reset()
   if C_DamageMeter and C_DamageMeter.ResetAllCombatSessions then
     pcall(C_DamageMeter.ResetAllCombatSessions)
   end
   DM.sessionData = nil
-  -- Clear sessionData on all windows
   if DM.windows then
     for _, w in ipairs(DM.windows) do
       w.sessionData = nil
