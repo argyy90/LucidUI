@@ -76,15 +76,27 @@ function DM.SetupSettings(parent)
   )
   table.insert(allFrames, row0)
 
-  -- Show only in combat + Auto Reset dropdown side by side
-  local row1 = CreateFrame("Frame", nil, scrollChild); row1:SetHeight(28)
-  local combatCB = NS.ChatGetCheckbox(row1, "Show only in combat", 28, function(state)
-    DBSet("dmShowInCombatOnly", state)
-  end, "Hide the meter windows when out of combat")
-  combatCB.option = "dmShowInCombatOnly"
-  combatCB:ClearAllPoints(); combatCB:SetPoint("TOPLEFT", 0, 0); combatCB:SetSize(260, 28)
-  row1._left = combatCB
+  -- Show only in combat + Always Show Self
+  local row1 = MakeDualCheckboxRow(scrollChild,
+    "Show only in combat", "dmShowInCombatOnly", function(state)
+      DBSet("dmShowInCombatOnly", state)
+    end,
+    "Always show self", "dmAlwaysShowSelf", function(state)
+      DBSet("dmAlwaysShowSelf", state)
+      if DM.UpdateDisplay then DM.UpdateDisplay() end
+    end,
+    "Hide the meter windows when out of combat",
+    "Show your bar at the bottom even if not in the top list"
+  )
   table.insert(allFrames, row1)
+
+  -- Show Rank checkbox
+  local rankCB = NS.ChatGetCheckbox(scrollChild, "Show Rank", 28, function(state)
+    DBSet("dmShowRank", state)
+    if DM.UpdateDisplay then DM.UpdateDisplay() end
+  end, "Show position numbers and a crown for #1")
+  rankCB.option = "dmShowRank"
+  table.insert(allFrames, rankCB)
 
   -- Auto Reset dropdown (own row)
   local resetRow = CreateFrame("Frame", nil, scrollChild); resetRow:SetHeight(58)
@@ -96,17 +108,6 @@ function DM.SetupSettings(parent)
   resetDD:Init({"Off", "Enter Instance", "Leave Instance", "Both"}, {"off", "enter", "leave", "both"})
   resetDD:ClearAllPoints(); resetDD:SetPoint("LEFT", resetRow, "LEFT", 0, 0); resetDD:SetWidth(260)
   table.insert(allFrames, resetRow)
-
-  -- History Reset dropdown
-  local histRow = CreateFrame("Frame", nil, scrollChild); histRow:SetHeight(58)
-  local histDD = NS.ChatGetDropdown(histRow, "History Reset", function(value)
-    return (DB("dmHistoryReset") or "never") == value
-  end, function(value)
-    DBSet("dmHistoryReset", value)
-  end)
-  histDD:Init({"Never", "On Login", "On Reload"}, {"never", "login", "reload"})
-  histDD:ClearAllPoints(); histDD:SetPoint("LEFT", histRow, "LEFT", 0, 0); histDD:SetWidth(260)
-  table.insert(allFrames, histRow)
 
   -- ══ Text ═════════════════════════════════════════════════════════
   local hdrText = NS.ChatGetHeader(scrollChild, "Text")
@@ -513,9 +514,10 @@ function DM.SetupSettings(parent)
     enableCB:SetValue(DB("dmEnabled") == true)
     row0._left:SetValue(DB("dmIconsOnHover") == true)
     row0._right:SetValue(DB("dmLocked") == true)
-    combatCB:SetValue(DB("dmShowInCombatOnly") == true)
+    row1._left:SetValue(DB("dmShowInCombatOnly") == true)
+    row1._right:SetValue(DB("dmAlwaysShowSelf") ~= false)
+    rankCB:SetValue(DB("dmShowRank") == true)
     if resetDD.SetValue then resetDD:SetValue() end
-    if histDD.SetValue then histDD:SetValue() end
     local fsVal = DB("dmFontShadow") or 0
     if type(fsVal) == "boolean" then fsVal = fsVal and 1.5 or 0 end
     if fontShadow.SetValue then fontShadow:SetValue(fsVal) end

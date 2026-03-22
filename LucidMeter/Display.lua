@@ -3,7 +3,7 @@ local NS = LucidUINS
 local DM = NS.LucidMeter
 local CYAN = NS.CYAN
 
-local MAX_BARS = 20
+local MAX_BARS = 40
 local TITLE_H = 22
 local guidCache = {}
 
@@ -658,14 +658,6 @@ local function CreateWindow(windowID, config)
     local hasSnap = w.snappedTo and next(w.snappedTo)
     local items = {
       {text = "|TInterface/AddOns/LucidUI/Assets/X_red.png:12:12|t  Reset All Windows", func = function() DM.Reset() end},
-      {text = "|TInterface/AddOns/LucidUI/Assets/X_orange.png:12:12|t  Reset This Window", func = function()
-        w.sessionData = nil
-        w.sessionType = 1  -- back to Current
-        w.sessionID = nil
-        SaveWindowState(w)
-        RefreshWindowData(w)
-        DM.UpdateWindowDisplay(w)
-      end},
     }
     if hasSnap then
       items[#items + 1] = {divider = true}
@@ -1046,9 +1038,18 @@ function DM.UpdateWindowDisplay(w)
           srcName = srcName:match("^([^%-]+)") or srcName
         end
       end
+      -- Rank prefix (crown for #1, numbers for rest)
+      local rankPrefix = ""
+      if NS.DB("dmShowRank") then
+        if i == 1 then
+          rankPrefix = "|TInterface/AddOns/LucidUI/Assets/Crown.png:20:18|t "
+        else
+          rankPrefix = "|cff808080" .. i .. ".|r "
+        end
+      end
       bar._name:ClearAllPoints()
       bar._name:SetPoint("LEFT", nameOffset, 0)
-      bar._name:SetText(srcName or "?")
+      bar._name:SetText(rankPrefix .. (srcName or "?"))
       bar._name:SetTextColor(1, 1, 1)
       bar._name:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
       if fontShadowVal > 0 then
@@ -1160,6 +1161,123 @@ function DM.UpdateWindowDisplay(w)
       bar:Hide()
     end
   end
+
+  -- "Always Show Self": if local player not visible in bars, show at bottom
+  if NS.DB("dmAlwaysShowSelf") == false then
+    if w._selfBar then w._selfBar:Hide() end
+    if w._selfSep then w._selfSep:Hide() end
+    return
+  end
+  if not w._selfBar then
+    local sb = CreateBar(w.barContainer, MAX_BARS + 1)
+    sb:Hide()
+    w._selfBar = sb
+    -- Separator line above self bar
+    local sep = w.barContainer:CreateTexture(nil, "OVERLAY")
+    sep:SetHeight(1)
+    sep:SetColorTexture(0.3, 0.3, 0.3, 0.5)
+    sep:Hide()
+    w._selfSep = sep
+  end
+
+  local selfShown = false
+  local barsShown = math.min(#sources, MAX_BARS)
+  for i = 1, barsShown do
+    if sources[i] and sources[i].isLocalPlayer then selfShown = true; break end
+  end
+
+  if not selfShown and #sources > MAX_BARS then
+    -- Find self in remaining sources
+    local selfSrc
+    for i = MAX_BARS + 1, #sources do
+      if sources[i] and sources[i].isLocalPlayer then selfSrc = sources[i]; break end
+    end
+    if selfSrc then
+      local sbar = w._selfBar
+      local cr, cg, cb
+      if NS.DB("dmClassColors") ~= false then
+        cr, cg, cb = GetClassColor(selfSrc.classFilename)
+      else
+        local bc = NS.DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
+        cr, cg, cb = bc.r, bc.g, bc.b
+      end
+      sbar:SetStatusBarTexture(barTexture)
+      sbar:SetStatusBarColor(cr, cg, cb, NS.DB("dmBarBrightness") or 0.70)
+      sbar:SetMinMaxValues(0, maxVal)
+      sbar:SetValue(selfSrc.totalAmount or 0)
+      sbar:SetHeight(barH)
+
+      -- Icon
+      sbar._icon:SetSize(iconSize, iconSize)
+      if iconMode == "spec" and selfSrc.specIconID and not isSecret(selfSrc.specIconID) and selfSrc.specIconID > 0 then
+        sbar._icon:SetTexture(selfSrc.specIconID); sbar._icon:SetTexCoord(0, 1, 0, 1); sbar._icon:Show()
+      elseif iconMode ~= "none" and selfSrc.classFilename and not isSecret(selfSrc.classFilename) then
+        local coords = CLASS_ICON_COORDS[selfSrc.classFilename:upper()]
+        if coords then
+          sbar._icon:SetTexture("Interface/GLUES/CHARACTERCREATE/UI-CHARACTERCREATE-CLASSES")
+          sbar._icon:SetTexCoord(unpack(coords)); sbar._icon:Show()
+        else sbar._icon:Hide() end
+      else sbar._icon:Hide() end
+
+      -- Name
+      local selfName = selfSrc.name
+      if not isSecret(selfName) and selfName then selfName = selfName:match("^([^%-]+)") or selfName end
+      sbar._name:ClearAllPoints(); sbar._name:SetPoint("LEFT", nameOffset, 0)
+      sbar._name:SetText(selfName or "?"); sbar._name:SetTextColor(1, 1, 1)
+      sbar._name:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
+      if fontShadowVal > 0 then
+        sbar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._name:SetShadowColor(0, 0, 0, 1)
+      else sbar._name:SetShadowOffset(0, 0) end
+
+      -- Value
+      local total = selfSrc.totalAmount or 0
+      local perSec = selfSrc.amountPerSecond or 0
+      local fTotal = (not isSecret(total)) and DM.FormatNumber(total) or AbbreviateNumbers(total)
+      local fPerSec = (not isSecret(perSec)) and DM.FormatNumber(perSec) or AbbreviateNumbers(perSec)
+      if valFormat == "both" then sbar._value:SetFormattedText("%s | %s", fTotal, fPerSec)
+      elseif valFormat == "persec" then sbar._value:SetText(fPerSec)
+      else sbar._value:SetText(fTotal) end
+      sbar._value:SetTextColor(1, 1, 1)
+      sbar._value:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
+      if fontShadowVal > 0 then
+        sbar._value:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._value:SetShadowColor(0, 0, 0, 1)
+      else sbar._value:SetShadowOffset(0, 0) end
+
+      sbar._bg:SetColorTexture(0.05, 0.05, 0.05, 0.8)
+
+      -- Position: below last visible bar + separator
+      local selfY = barsShown * (barH + barSpacing) + 4
+      w._selfSep:ClearAllPoints()
+      w._selfSep:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 2, -selfY + 2)
+      w._selfSep:SetPoint("RIGHT", w.barContainer, "RIGHT", -2, 0)
+      w._selfSep:Show()
+      sbar:ClearAllPoints()
+      sbar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, -selfY)
+      sbar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
+      sbar:Show()
+
+      -- Store tooltip data
+      sbar._sourceGUID = selfSrc.sourceGUID
+      sbar._sourceCreatureID = selfSrc.sourceCreatureID
+      sbar._sourceName = selfName
+      sbar._sourceClass = selfSrc.classFilename
+      sbar._isLocalPlayer = true
+      sbar._windowObj = w
+      sbar:EnableMouse(true)
+      sbar:SetScript("OnEnter", function(self) DM.ShowSpellBreakdown(self) end)
+      sbar:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      sbar:SetScript("OnMouseUp", function(self)
+        self._expanded = not self._expanded
+        DM.ShowSpellBreakdown(self)
+      end)
+    else
+      w._selfBar:Hide()
+      w._selfSep:Hide()
+    end
+  else
+    w._selfBar:Hide()
+    w._selfSep:Hide()
+  end
 end
 
 -- ── Update title for all windows (called by timer) ───────────────────
@@ -1220,15 +1338,12 @@ function DM.ShowSpellBreakdown(bar)
   if not guid and not creatureID then return end
 
   local ok, sourceData
-  if w and w.sessionID then
+  if w.sessionID then
     ok, sourceData = pcall(C_DamageMeter.GetCombatSessionSourceFromID,
       w.sessionID, w.meterType, guid, creatureID)
-  elseif w then
-    ok, sourceData = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
-      w.sessionType or 1, w.meterType, guid, creatureID)
   else
     ok, sourceData = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
-      DM.currentSessionType or 1, DM.currentMeterType, guid, creatureID)
+      w.sessionType or 1, w.meterType, guid, creatureID)
   end
 
   if not ok or not sourceData then
