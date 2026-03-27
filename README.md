@@ -1,6 +1,6 @@
 # LucidUI
 
-A complete chat replacement, loot tracking, damage meter, session statistics and quality-of-life addon for World of Warcraft (Retail). ![](https://img.shields.io/badge/-Every%20feature%20is%20independent%20and%20can%20be%20enabled%20or%20disabled%20individually-grey)
+A complete chat replacement, loot tracking, damage meter, session statistics and quality-of-life addon for World of Warcraft (Retail).
 
 ![Interface](https://img.shields.io/badge/Interface-12.0.x-blue)
 ![Version](https://img.shields.io/badge/Version-1.6-green)

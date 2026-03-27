@@ -1760,6 +1760,51 @@ local function SetupLoot(parent)
   RefreshLootSettingsVisibility = function()
     local lootActive = DB("lootInChatTab") == true or DB("lootOwnWindow") == true
     for _, f in ipairs(lootSettingsItems) do f:SetShown(lootActive) end
+
+    -- Dim and disable Session Stats and Loot Rolls when no loot tracker is active
+    local dimAlpha = lootActive and 1.0 or 0.35
+    local function SetInteractive(frame, enabled)
+      if not frame then return end
+      frame:SetAlpha(enabled and 1.0 or dimAlpha)
+      frame:EnableMouse(enabled)
+    end
+    -- Disable the checkboxes via their _hit frames and dim everything
+    local function SetCBEnabled(cb, enabled)
+      if not cb then return end
+      cb:SetAlpha(enabled and 1.0 or dimAlpha)
+      if cb._hit then cb._hit:EnableMouse(enabled) end
+    end
+    SetCBEnabled(statsCB, lootActive)
+    SetCBEnabled(zoneResetCB, lootActive)
+    SetCBEnabled(rollsCB, lootActive)
+    -- Dim and disable rows, sliders, dropdowns
+    SetInteractive(statsRow, lootActive)
+    SetInteractive(rollsRow, lootActive)
+    SetInteractive(rollCloseMode, lootActive)
+    SetInteractive(rollDelay, lootActive)
+    if statsRow._transSlider then SetInteractive(statsRow._transSlider, lootActive) end
+    if rollsRow._transSlider then SetInteractive(rollsRow._transSlider, lootActive) end
+
+    -- Show/hide warning text between loot toggles and dependent options
+    if not scrollChild._lootWarnFrame then
+      local warnFrame = CreateFrame("Frame", nil, scrollChild)
+      warnFrame:SetHeight(20)
+      local warn = warnFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      warn:SetPoint("LEFT", 20, 0)
+      warn:SetFont(warn:GetFont(), 11, "")
+      warn:SetTextColor(1, 0.82, 0, 0.9)
+      warn:SetText("Requires LootTracker in Chat Tab or own Window")
+      scrollChild._lootWarnFrame = warnFrame
+      -- Insert into allFrames right after ownWinRow
+      for i, f in ipairs(allFrames) do
+        if f == ownWinRow then
+          table.insert(allFrames, i + 1, warnFrame)
+          break
+        end
+      end
+    end
+    scrollChild._lootWarnFrame:SetShown(not lootActive)
+
     RepositionAll()
   end
 
@@ -2682,6 +2727,7 @@ NS.BuildChatOptionsWindow = function()
     {name="Loot",           callback=SetupLoot},
     {name="QoL",            callback=SetupQoL},
     {name="LucidMeter",     callback=NS.LucidMeter.SetupSettings},
+    {name="Bags",            callback=NS.Bags.SetupSettings},
     {name="Tab Settings",   callback=SetupTabSettings, hidden=true},
   }
 
@@ -2786,6 +2832,9 @@ NS.BuildChatOptionsWindow = function()
       chatOptWin._tabSettingsContainer = tabContainer
       chatOptWin._tabSettingsButton = tabButton
       chatOptWin._tabSettingsIdx = i
+    end
+    if setup.name == "Bags" then
+      chatOptWin._bagsTabIdx = i
     end
     table.insert(tabs, tabButton)
     table.insert(containers, tabContainer)

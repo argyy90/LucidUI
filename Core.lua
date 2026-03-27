@@ -327,6 +327,28 @@ NS.ApplyTheme = function(themeKey)
     NS.rollWin._accentLine:SetColorTexture(ar, ag, ab, 0.6)
   end
   if NS.LucidMeter and NS.LucidMeter.ApplyTheme then NS.LucidMeter.ApplyTheme() end
+  -- Update Bags accent
+  local bagFrame = _G["LucidUIBags"]
+  if bagFrame then
+    if bagFrame._accentLine then bagFrame._accentLine:SetColorTexture(ar, ag, ab, 1) end
+    if bagFrame._title then bagFrame._title:SetTextColor(ar, ag, ab) end
+    if bagFrame._bagBar and bagFrame._bagBar._accentLine then
+      bagFrame._bagBar._accentLine:SetColorTexture(ar, ag, ab, 1)
+    end
+    if bagFrame._reagentWin then
+      if bagFrame._reagentWin._accentLine then
+        bagFrame._reagentWin._accentLine:SetColorTexture(ar, ag, ab, 1)
+      end
+      if bagFrame._reagentWin._title then
+        bagFrame._reagentWin._title:SetTextColor(ar, ag, ab)
+      end
+    end
+    if bagFrame._reagentInlineBorder and bagFrame._reagentInlineBorder._edges then
+      for _, e in ipairs(bagFrame._reagentInlineBorder._edges) do
+        e:SetColorTexture(ar, ag, ab, 0.7)
+      end
+    end
+  end
   -- Update title brackets on stats + rolls windows
   if NS.statsWin and NS.statsWin._titleTxt then
     local hex2 = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))

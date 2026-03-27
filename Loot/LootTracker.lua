@@ -271,15 +271,32 @@ end
 -- Events
 -- ============================================================
 local eventFrame = CreateFrame("Frame")
-eventFrame:RegisterEvent("CHAT_MSG_LOOT")
-eventFrame:RegisterEvent("CHAT_MSG_MONEY")
+-- Core events always needed for addon initialization
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
-eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-eventFrame:RegisterEvent("ENCOUNTER_END")
-eventFrame:RegisterEvent("PLAYER_DEAD")
-eventFrame:RegisterEvent("PLAYER_MONEY")
+
+-- Loot-specific events registered conditionally after DB is available
+local function RegisterLootEvents()
+  local lootActive = NS.DB("lootOwnWindow") or NS.DB("lootInChatTab")
+  if lootActive then
+    eventFrame:RegisterEvent("CHAT_MSG_LOOT")
+    eventFrame:RegisterEvent("CHAT_MSG_MONEY")
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+    eventFrame:RegisterEvent("ENCOUNTER_END")
+    eventFrame:RegisterEvent("PLAYER_DEAD")
+    eventFrame:RegisterEvent("PLAYER_MONEY")
+  else
+    eventFrame:UnregisterEvent("CHAT_MSG_LOOT")
+    eventFrame:UnregisterEvent("CHAT_MSG_MONEY")
+    eventFrame:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:UnregisterEvent("ZONE_CHANGED_NEW_AREA")
+    eventFrame:UnregisterEvent("ENCOUNTER_END")
+    eventFrame:UnregisterEvent("PLAYER_DEAD")
+    eventFrame:UnregisterEvent("PLAYER_MONEY")
+  end
+end
+NS.RegisterLootEvents = RegisterLootEvents
 
 eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
   local DB = NS.DB
@@ -302,6 +319,8 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
     NS.characterFullName = (pn and pr) and (pn.."-"..pr) or (pn or UnitName("player"))
     if DB("clearOnReload") and LucidUIDB then LucidUIDB.history = {} end
     NS.LoadHistory()
+    -- Register loot events only if loot tracking is enabled
+    RegisterLootEvents()
     -- Only show loot window if "own window" mode is enabled
     if NS.win then
       NS.win:SetShown(DB("lootOwnWindow") == true)

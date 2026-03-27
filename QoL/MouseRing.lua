@@ -61,12 +61,16 @@ function NS.QoL.RefreshMouseRing()
   if ringFrame then ApplyRingSettings() end
 end
 
+local combatFrame, updater
+
 function NS.QoL.InitMouseRing()
+  if not NS.DB("qolMouseRing") then return end
+
   BuildRing()
   ApplyRingSettings()
 
   -- Combat state tracking
-  local combatFrame = CreateFrame("Frame")
+  combatFrame = CreateFrame("Frame")
   combatFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
   combatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
   combatFrame:SetScript("OnEvent", function(_, event)
@@ -77,7 +81,7 @@ function NS.QoL.InitMouseRing()
   -- OnUpdate: position ring at cursor, re-read settings each frame for live updates
   local settingsTimer = 0
   local lastShape, lastSize, lastR, lastG, lastB, lastOpacity
-  local updater = CreateFrame("Frame")
+  updater = CreateFrame("Frame")
   updater:SetScript("OnUpdate", function(_, elapsed)
     if not ShouldBeVisible() then
       if ringFrame:IsShown() then ringFrame:Hide() end
@@ -106,4 +110,15 @@ function NS.QoL.InitMouseRing()
     ringFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cx/scale, cy/scale)
     if not ringFrame:IsShown() then ringFrame:Show() end
   end)
+end
+
+-- Enable/disable at runtime (called from settings toggle)
+function NS.QoL.EnableMouseRing()
+  if updater then return end -- already active
+  NS.QoL.InitMouseRing()
+end
+function NS.QoL.DisableMouseRing()
+  if updater then updater:SetScript("OnUpdate", nil) end
+  if combatFrame then combatFrame:UnregisterAllEvents() end
+  if ringFrame then ringFrame:Hide() end
 end

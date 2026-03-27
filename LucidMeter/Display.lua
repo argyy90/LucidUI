@@ -78,7 +78,7 @@ local function CreateBar(parent, index)
   return bar
 end
 
--- ── Snap / Anchor system (Details-style: direct frame-to-frame anchors) ──
+-- ── proximity-snap system ──
 local SNAP_THRESHOLD = 20
 local OPPOSITE_EDGE = {left = "right", right = "left", top = "bottom", bottom = "top"}
 

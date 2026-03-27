@@ -57,17 +57,25 @@ local function LoadRollSessions()
   end
 end
 
--- Auto-save every 15s + on logout
+-- Auto-save every 15s + on logout (only when rolls enabled)
 local rollSaveFrame = CreateFrame("Frame")
 local rollSaveTimer = 0
-rollSaveFrame:SetScript("OnUpdate", function(_, elapsed)
-  rollSaveTimer = rollSaveTimer + elapsed
-  if rollSaveTimer < 15 then return end
-  rollSaveTimer = 0
-  SaveRollSessions()
-end)
-rollSaveFrame:RegisterEvent("PLAYER_LOGOUT")
-rollSaveFrame:SetScript("OnEvent", function() SaveRollSessions() end)
+local function EnableRollSave()
+  rollSaveFrame:SetScript("OnUpdate", function(_, elapsed)
+    rollSaveTimer = rollSaveTimer + elapsed
+    if rollSaveTimer < 15 then return end
+    rollSaveTimer = 0
+    SaveRollSessions()
+  end)
+  rollSaveFrame:RegisterEvent("PLAYER_LOGOUT")
+  rollSaveFrame:SetScript("OnEvent", function() SaveRollSessions() end)
+end
+local function DisableRollSave()
+  rollSaveFrame:SetScript("OnUpdate", nil)
+  rollSaveFrame:UnregisterAllEvents()
+end
+NS.EnableRollSave = EnableRollSave
+NS.DisableRollSave = DisableRollSave
 
 LoadRollSessions()
 
@@ -905,14 +913,33 @@ end
 -- Events
 -- ============================================================
 local rollFrame = CreateFrame("Frame", "LucidUIRollFrame")
-rollFrame:RegisterEvent("START_LOOT_ROLL")
-rollFrame:RegisterEvent("CANCEL_LOOT_ROLL")
-rollFrame:RegisterEvent("CANCEL_ALL_LOOT_ROLLS")
+-- PLAYER_LOGIN always needed for initialization
 rollFrame:RegisterEvent("PLAYER_LOGIN")
-rollFrame:RegisterEvent("LOOT_ROLLS_COMPLETE")
-rollFrame:RegisterEvent("ENCOUNTER_START")
-rollFrame:RegisterEvent("CHAT_MSG_LOOT")
-rollFrame:RegisterEvent("LOOT_HISTORY_UPDATE_DROP")
+
+-- Roll-specific events registered conditionally
+local function RegisterRollEvents()
+  local lootActive = NS.DB("lootOwnWindow") or NS.DB("lootInChatTab")
+  if lootActive then
+    rollFrame:RegisterEvent("START_LOOT_ROLL")
+    rollFrame:RegisterEvent("CANCEL_LOOT_ROLL")
+    rollFrame:RegisterEvent("CANCEL_ALL_LOOT_ROLLS")
+    rollFrame:RegisterEvent("LOOT_ROLLS_COMPLETE")
+    rollFrame:RegisterEvent("ENCOUNTER_START")
+    rollFrame:RegisterEvent("CHAT_MSG_LOOT")
+    rollFrame:RegisterEvent("LOOT_HISTORY_UPDATE_DROP")
+    EnableRollSave()
+  else
+    rollFrame:UnregisterEvent("START_LOOT_ROLL")
+    rollFrame:UnregisterEvent("CANCEL_LOOT_ROLL")
+    rollFrame:UnregisterEvent("CANCEL_ALL_LOOT_ROLLS")
+    rollFrame:UnregisterEvent("LOOT_ROLLS_COMPLETE")
+    rollFrame:UnregisterEvent("ENCOUNTER_START")
+    rollFrame:UnregisterEvent("CHAT_MSG_LOOT")
+    rollFrame:UnregisterEvent("LOOT_HISTORY_UPDATE_DROP")
+    DisableRollSave()
+  end
+end
+NS.RegisterRollEvents = RegisterRollEvents
 rollFrame:SetScript("OnEvent", function(self, event, ...)
   if event == "ENCOUNTER_START" then
     local _, encounterName = ...
@@ -921,6 +948,7 @@ rollFrame:SetScript("OnEvent", function(self, event, ...)
   elseif event == "PLAYER_LOGIN" then
     BuildRollWindow()
     HookApplyTheme()
+    RegisterRollEvents()
 
   elseif event == "START_LOOT_ROLL" then
     if NS.DB and NS.DB("rollsEnabled") == false then return end

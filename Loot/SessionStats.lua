@@ -118,12 +118,21 @@ end
 -- Save periodically and on logout
 local saveFrame = CreateFrame("Frame")
 local saveTimer = 0
-saveFrame:SetScript("OnUpdate", function(_, elapsed)
-  saveTimer = saveTimer + elapsed
-  if saveTimer < 15 then return end
-  saveTimer = 0
-  SaveSession()
-end)
+
+local function EnableStatsSave()
+  saveFrame:SetScript("OnUpdate", function(_, elapsed)
+    saveTimer = saveTimer + elapsed
+    if saveTimer < 15 then return end
+    saveTimer = 0
+    SaveSession()
+  end)
+end
+local function DisableStatsSave()
+  saveFrame:SetScript("OnUpdate", nil)
+end
+NS.EnableStatsSave = EnableStatsSave
+NS.DisableStatsSave = DisableStatsSave
+
 saveFrame:RegisterEvent("PLAYER_LOGOUT")
 saveFrame:RegisterEvent("ADDON_LOADED")
 saveFrame:SetScript("OnEvent", function(_, event, addon)
@@ -133,6 +142,9 @@ saveFrame:SetScript("OnEvent", function(_, event, addon)
       NS._sessionLoaded = true
     end
     saveFrame:UnregisterEvent("ADDON_LOADED")
+    -- Only start periodic saving if loot tracking is active
+    local lootActive = NS.DB and (NS.DB("lootOwnWindow") or NS.DB("lootInChatTab"))
+    if lootActive then EnableStatsSave() end
   elseif event == "PLAYER_LOGOUT" then
     ArchiveSession()
     -- Mark session as archived so LoadSession won't double-count after reload
