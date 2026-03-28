@@ -16,10 +16,9 @@ NS.ChatFormatTimestamp = function(unixTime)
   end
   local result = "|cff" .. hex .. ts .. "|r "
   if NS.DB("chatShowSeparator") ~= false then
-    local t = NS.GetTheme(NS.DB("theme"))
-    local tid = t.tilders or NS.CYAN
-    local ar, ag, ab = tid[1], tid[2], tid[3]
-    result = result .. "|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "|||r "
+    -- NS.CYAN is always kept in sync with the active accent color
+    local C = NS.CYAN
+    result = result .. "|cff" .. string.format("%02x%02x%02x", C[1]*255, C[2]*255, C[3]*255) .. "|||r "
   end
   return result
 end
@@ -52,6 +51,7 @@ NS.ChatGetColoredSender = function(guid, name)
     local ok, _, englishClass = pcall(UnitClassFromGUID, guid)
     if ok and englishClass then return ApplyClassColor(englishClass, name) end
   end
+  -- GetPlayerInfoByGUID returns: localizedClass, englishClass, race, localizedRace, gender, name, realm
   local ok, _, englishClass = pcall(GetPlayerInfoByGUID, guid)
   if ok and englishClass then return ApplyClassColor(englishClass, name) end
   return name
@@ -106,9 +106,9 @@ local URL_PATTERN = "https?://[%w%.%-_~:/?#%[%]@!$&'%(%)%*%+,;=%%]+"
 NS.ChatFormatURLs = function(msg)
   if NS.DB("chatClickableUrls") == false then return msg end
   if not msg or not msg:find("https?://", 1, true) then return msg end
-  local t = NS.GetTheme(NS.DB("theme"))
-  local tid = t.tilders or NS.CYAN
-  local hex = string.format("%02x%02x%02x", tid[1]*255, tid[2]*255, tid[3]*255)
+  -- NS.CYAN is always kept in sync with the active accent color
+  local C = NS.CYAN
+  local hex = string.format("%02x%02x%02x", C[1]*255, C[2]*255, C[3]*255)
   return msg:gsub(URL_PATTERN, "|cff" .. hex .. "%0|r")
 end
 

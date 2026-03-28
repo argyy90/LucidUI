@@ -3,9 +3,15 @@ local NS = LucidUINS
 local DM = NS.LucidMeter
 local CYAN = NS.CYAN
 
+-- Defensive fallback: AbbreviateNumbers is a Blizzard global that may not exist in all Midnight builds
+local AbbreviateNumbers = AbbreviateNumbers or DM.FormatNumber
+
 local MAX_BARS = 40
 local TITLE_H = 22
 local guidCache = {}
+local guidCacheSize = 0
+local GUID_CACHE_MAX = 300
+local isSecret = issecretvalue or function() return false end
 
 DM.windows = {}
 
@@ -36,7 +42,9 @@ local CLASS_ICON_COORDS = {
 
 -- ── Build a single bar ───────────────────────────────────────────────
 local function CreateBar(parent, index)
-  local barH = NS.DB("dmBarHeight") or 18
+  local barH    = NS.DB("dmBarHeight") or 18
+  local barFont = NS.GetFontPath(NS.DB("dmFont"))
+  local barFS   = NS.DB("dmFontSize") or 11
   local bar = CreateFrame("StatusBar", nil, parent)
   bar:SetHeight(barH)
   bar:SetStatusBarTexture(NS.GetBarTexturePath(NS.DB("dmBarTexture")))
@@ -56,20 +64,20 @@ local function CreateBar(parent, index)
   bar._icon = icon
 
   local name = bar:CreateFontString(nil, "OVERLAY")
-  name:SetFont("Fonts/FRIZQT__.TTF", NS.DB("dmFontSize") or 11, "")
+  name:SetFont(barFont, barFS, "")
   name:SetPoint("LEFT", 4, 0)
   name:SetJustifyH("LEFT")
   bar._name = name
 
   local pct = bar:CreateFontString(nil, "OVERLAY")
-  pct:SetFont("Fonts/FRIZQT__.TTF", NS.DB("dmFontSize") or 11, "")
+  pct:SetFont(barFont, barFS, "")
   pct:SetPoint("RIGHT", -4, 0)
   pct:SetJustifyH("RIGHT")
   pct:Hide()
   bar._pct = pct
 
   local value = bar:CreateFontString(nil, "OVERLAY")
-  value:SetFont("Fonts/FRIZQT__.TTF", NS.DB("dmFontSize") or 11, "")
+  value:SetFont(barFont, barFS, "")
   value:SetPoint("RIGHT", -4, 0)
   value:SetJustifyH("RIGHT")
   bar._value = value
@@ -215,7 +223,6 @@ local function FlashSnapLines(line1, line2)
 end
 
 -- Anchor dragged frame directly to target using multiple SetPoints (Details-style)
--- This locks position AND size, and movement/resize propagates automatically via WoW anchors
 local function SnapWindow(w)
   HideAllSnapLines()
   local group = GetSnapGroup(w)
@@ -270,15 +277,12 @@ local function SaveSnapRelations()
 end
 
 -- Re-anchor all group members relative to the dragged window
--- so they follow automatically via WoW's anchor system
 local function AnchorGroupToDragRoot(dragRoot)
   local group = GetSnapGroup(dragRoot)
   if #group <= 1 then return end
 
   local overlap = (NS.DB("dmWindowBorder") ~= false) and 1 or 2
 
-  -- First: detach ALL group members from each other → anchor to UIParent at current positions
-  -- This prevents circular dependency errors when re-anchoring
   for _, gw in ipairs(group) do
     local l, t = gw.frame:GetLeft(), gw.frame:GetTop()
     if l then
@@ -287,7 +291,6 @@ local function AnchorGroupToDragRoot(dragRoot)
     end
   end
 
-  -- Now re-anchor each non-root member relative to its snap parent
   local anchored = {[dragRoot.id] = true}
   local function anchorFrom(parent)
     if not parent.snappedTo then return end
@@ -334,7 +337,6 @@ local function RestoreSnapRelations()
     end
   end
 
-  -- Re-anchor using first window of each group as root
   local done = {}
   for _, w in ipairs(DM.windows) do
     if not done[w.id] and w.snappedTo and next(w.snappedTo) then
@@ -360,7 +362,6 @@ end
 
 -- ── Save helpers ─────────────────────────────────────────────────────
 local function SaveWindowPosSize(w)
-  -- Always save absolute screen position (GetLeft/GetTop) to handle frame-to-frame anchors
   local l, t = w.frame:GetLeft(), w.frame:GetTop()
   if not l then return end
   local posData = {point = "TOPLEFT", x = l, y = t}
@@ -401,6 +402,15 @@ end
 -- ── SESSION_LABELS ───────────────────────────────────────────────────
 local SESSION_LABELS = {[0] = "Overall", [1] = "Current", [2] = "Previous"}
 
+-- ── Apply click-through state to a window ───────────────────────────
+-- NEW FEATURE (from Details): click-through support
+local function ApplyClickThrough(w)
+  local enabled = NS.DB("dmClickThrough")
+  local combatOnly = NS.DB("dmClickThroughCombat")
+  local active = enabled and (not combatOnly or DM.inCombat)
+  w.frame:EnableMouse(not active)
+end
+
 -- ── Create a meter window ────────────────────────────────────────────
 local function CreateWindow(windowID, config)
   config = config or {}
@@ -413,7 +423,7 @@ local function CreateWindow(windowID, config)
     sessionData = nil,
   }
 
-  local winW = (windowID == 1) and 200 or 320
+  local winW = (windowID == 1) and 290 or 320
   local winH = 220
 
   local frameName = (windowID == 1) and "LucidMeterFrame" or ("LucidMeterFrame" .. windowID)
@@ -443,9 +453,11 @@ local function CreateWindow(windowID, config)
   w.frame = frame
   w.snapLines = CreateSnapLines(frame)
 
+  -- Apply click-through setting on creation
+  ApplyClickThrough(w)
+
   local function OnDragStart()
     if NS.DB("dmLocked") then return end
-    -- Re-anchor all group members relative to this frame so they follow via WoW anchors
     AnchorGroupToDragRoot(w)
     HideAllSnapLines()
     frame:StartMoving()
@@ -458,7 +470,6 @@ local function CreateWindow(windowID, config)
     HideAllSnapLines()
     SnapWindow(w)
     SaveSnapRelations()
-    -- Save positions for all group members
     local group = GetSnapGroup(w)
     for _, gw in ipairs(group) do SaveWindowPosSize(gw) end
   end
@@ -475,7 +486,6 @@ local function CreateWindow(windowID, config)
     if windowID == 1 then
       frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -20, 200)
     else
-      -- Extra windows spawn centered, slightly offset so they don't overlap
       local offset = (windowID - 2) * 30
       frame:SetPoint("CENTER", UIParent, "CENTER", offset, -offset)
     end
@@ -485,7 +495,6 @@ local function CreateWindow(windowID, config)
     frame:SetSize(savedSize.w or winW, savedSize.h or winH)
   end
 
-  -- Drag to move
   frame:RegisterForDrag("LeftButton")
   frame:SetScript("OnDragStart", OnDragStart)
   frame:SetScript("OnDragStop", OnDragStop)
@@ -502,7 +511,6 @@ local function CreateWindow(windowID, config)
   titleBg:SetAlpha(NS.DB("dmTitleAlpha") or 1)
   frame._titleBg = titleBg
 
-  -- Title bar bottom border line
   local titleBorder = titleBar:CreateTexture(nil, "OVERLAY")
   titleBorder:SetHeight(1)
   titleBorder:SetPoint("BOTTOMLEFT", 0, 0)
@@ -542,7 +550,6 @@ local function CreateWindow(windowID, config)
     local totalH = 0
     local btns = {}
 
-    -- Build items bottom-to-top (menu opens upward, first item closest to icon)
     for _, item in ipairs(items) do
       if item.divider then
         local div = popupMenu:CreateTexture(nil, "OVERLAY")
@@ -584,7 +591,6 @@ local function CreateWindow(windowID, config)
     popupMenu:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 0, 2)
     popupMenu:Show()
 
-    -- Auto-close: poll every 0.5s
     popupCloseTicker = C_Timer.NewTicker(0.5, function()
       if not popupMenu or not popupMenu:IsShown() then
         if popupCloseTicker then popupCloseTicker:Cancel(); popupCloseTicker = nil end
@@ -599,12 +605,27 @@ local function CreateWindow(windowID, config)
     end)
   end
 
-  -- Titlebar: drag to move, scroll to cycle meter type
   titleBar:EnableMouse(true)
   titleBar:EnableMouseWheel(true)
   titleBar:RegisterForDrag("LeftButton")
   titleBar:SetScript("OnDragStart", OnDragStart)
   titleBar:SetScript("OnDragStop", OnDragStop)
+
+  -- NEW FEATURE: mousewheel on titlebar cycles through meter types (Details-style)
+  titleBar:SetScript("OnMouseWheel", function(_, delta)
+    local types = DM.METER_TYPES
+    local curIdx = 1
+    for i, mt in ipairs(types) do
+      if mt.id == w.meterType then curIdx = i; break end
+    end
+    local newIdx = ((curIdx - 1 - delta) % #types) + 1
+    w.meterType = types[newIdx].id
+    w.scrollOffset = 0
+    SaveWindowState(w)
+    RefreshWindowData(w)
+    DM.UpdateWindowDisplay(w)
+  end)
+
   -- ── Titlebar icon helper ───────────────────────────────────────────
   local function MakeTitleIcon(parent, size, texture)
     local btn = CreateFrame("Button", nil, parent)
@@ -620,7 +641,6 @@ local function CreateWindow(windowID, config)
     return btn
   end
 
-  -- helper: select a meter type for this window
   local function SelectMeterType(id)
     w.meterType = id
     w.scrollOffset = 0
@@ -660,7 +680,7 @@ local function CreateWindow(windowID, config)
     OpenMenuAbove(self, {{text = "Report Results", func = function() DM.OpenReportWindow(w) end}})
   end)
 
-  -- ── Reset button (context menu: reset all / reset this window) ─────
+  -- ── Reset button ───────────────────────────────────────────────────
   local resetBtn = MakeTitleIcon(titleBar, 16, "Interface/AddOns/LucidUI/Assets/Reset.png")
   resetBtn:SetPoint("RIGHT", reportBtn, "LEFT", -1, 0)
   resetBtn:HookScript("OnEnter", function(self)
@@ -685,7 +705,6 @@ local function CreateWindow(windowID, config)
   sessionBtn:HookScript("OnEnter", function(self)
     local ar, ag, ab = NS.ChatGetAccentRGB()
     local aHex = string.format("%02x%02x%02x", ar*255, ag*255, ab*255)
-    local isSecret = issecretvalue or function() return false end
     local items = {}
     for _, stype in ipairs({1, 0}) do
       local label = SESSION_LABELS[stype]
@@ -694,7 +713,7 @@ local function CreateWindow(windowID, config)
       items[#items + 1] = {text = isCur and ("|cff" .. aHex .. label .. "|r") or label, func = function() SelectSessionType(capturedType) end}
     end
     local sessions = DM.GetAvailableSessions()
-    local startIdx = math.max(1, #sessions - 19)  -- last 20 entries (newest)
+    local startIdx = math.max(1, #sessions - 19)
     if #sessions > 0 then
       items[#items + 1] = {divider = true}
       for si = #sessions, startIdx, -1 do
@@ -709,7 +728,7 @@ local function CreateWindow(windowID, config)
           end
           local isCur = (w.sessionID == sid)
           local capturedID = sid
-          local isBoss = name:find("^%(%!%)") or name:find("^!")
+          local isBoss = name:find("^%(%)") or name:find("^!")
           local icon = isBoss
             and "|TInterface/AddOns/LucidUI/Assets/Arrow_right_green.png:12:12|t "
             or "|TInterface/AddOns/LucidUI/Assets/Arrow_right_orange.png:12:12|t "
@@ -734,14 +753,12 @@ local function CreateWindow(windowID, config)
     local ar, ag, ab = NS.ChatGetAccentRGB()
     local aHex = string.format("%02x%02x%02x", ar*255, ag*255, ab*255)
     local items = {}
-    -- Damage group
     items[#items + 1] = {title = true, text = "|cff808080Damage|r"}
     for _, mt in ipairs({{0, "Damage Done"}, {1, "DPS"}, {7, "Damage Taken"}, {8, "Avoidable Damage"}}) do
       local id, label = mt[1], mt[2]
       local capturedId = id
       items[#items + 1] = {text = (w.meterType == id) and ("|cff" .. aHex .. label .. "|r") or label, func = function() SelectMeterType(capturedId) end}
     end
-    -- Healing group
     items[#items + 1] = {divider = true}
     items[#items + 1] = {title = true, text = "|cff808080Healing|r"}
     for _, mt in ipairs({{2, "Healing Done"}, {3, "HPS"}, {4, "Absorbs"}}) do
@@ -749,7 +766,6 @@ local function CreateWindow(windowID, config)
       local capturedId = id
       items[#items + 1] = {text = (w.meterType == id) and ("|cff" .. aHex .. label .. "|r") or label, func = function() SelectMeterType(capturedId) end}
     end
-    -- Utility group
     items[#items + 1] = {divider = true}
     items[#items + 1] = {title = true, text = "|cff808080Utility|r"}
     for _, mt in ipairs({{5, "Interrupts"}, {6, "Dispels"}, {9, "Deaths"}}) do
@@ -778,9 +794,12 @@ local function CreateWindow(windowID, config)
   w.scrollOffset = 0
 
   -- Scroll support
+  -- BUG FIX: use consistent default of 18 (not 24) for dmBarHeight in scroll math
   barContainer:EnableMouseWheel(true)
   barContainer:SetScript("OnMouseWheel", function(_, delta)
-    local maxOffset = math.max(0, (w._totalSources or 0) - math.floor(barContainer:GetHeight() / ((NS.DB("dmBarHeight") or 24) + (NS.DB("dmBarSpacing") or 1))))
+    local barH2 = NS.DB("dmBarHeight") or 18
+    local barSpacing2 = NS.DB("dmBarSpacing") or 1
+    local maxOffset = math.max(0, (w._totalSources or 0) - math.floor(barContainer:GetHeight() / (barH2 + barSpacing2)))
     w.scrollOffset = math.max(0, math.min(w.scrollOffset - delta, maxOffset))
     DM.UpdateWindowDisplay(w)
   end)
@@ -789,6 +808,35 @@ local function CreateWindow(windowID, config)
   for i = 1, MAX_BARS do
     w.bars[i] = CreateBar(barContainer, i)
   end
+
+  -- NEW FEATURE (from Details): Total bar — shows group total at the very bottom
+  -- Shows a second bar representing the sum of all sources (useful for raid awareness)
+  local totalBarFrame = CreateFrame("StatusBar", nil, barContainer)
+  totalBarFrame:SetStatusBarTexture(NS.GetBarTexturePath(NS.DB("dmBarTexture")))
+  totalBarFrame:SetMinMaxValues(0, 1)
+  totalBarFrame:SetValue(1)
+  totalBarFrame:SetStatusBarColor(0.3, 0.3, 0.3, 0.5)
+  totalBarFrame:Hide()
+  local totalBarBg = totalBarFrame:CreateTexture(nil, "BACKGROUND")
+  totalBarBg:SetAllPoints()
+  totalBarBg:SetColorTexture(0.05, 0.05, 0.05, 0.6)
+  local totalBarLabel = totalBarFrame:CreateFontString(nil, "OVERLAY")
+  totalBarLabel:SetFont(NS.GetFontPath(NS.DB("dmFont")), NS.DB("dmFontSize") or 11, "")
+  totalBarLabel:SetPoint("LEFT", 4, 0)
+  totalBarLabel:SetTextColor(0.7, 0.7, 0.7)
+  totalBarLabel:SetText("Total")
+  local totalBarValue = totalBarFrame:CreateFontString(nil, "OVERLAY")
+  totalBarValue:SetFont(NS.GetFontPath(NS.DB("dmFont")), NS.DB("dmFontSize") or 11, "")
+  totalBarValue:SetPoint("RIGHT", -4, 0)
+  totalBarValue:SetTextColor(0.7, 0.7, 0.7)
+  local totalBarSep = barContainer:CreateTexture(nil, "OVERLAY")
+  totalBarSep:SetHeight(1)
+  totalBarSep:SetColorTexture(0.25, 0.25, 0.25, 0.6)
+  totalBarSep:Hide()
+  w._totalBar = totalBarFrame
+  w._totalBarLabel = totalBarLabel
+  w._totalBarValue = totalBarValue
+  w._totalBarSep = totalBarSep
 
   -- Resize support
   frame:SetResizable(true)
@@ -800,20 +848,17 @@ local function CreateWindow(windowID, config)
   resizeBtn:GetNormalTexture():SetVertexColor(0.4, 0.4, 0.4)
   resizeBtn:SetScript("OnMouseDown", function()
     if NS.DB("dmLocked") then return end
-    -- Re-anchor group so anchored frames resize automatically
     AnchorGroupToDragRoot(w)
     frame:StartSizing("BOTTOMRIGHT")
   end)
   resizeBtn:SetScript("OnMouseUp", function()
     frame:StopMovingOrSizing()
-    -- Save all group members
     local group = GetSnapGroup(w)
     for _, gw in ipairs(group) do SaveWindowPosSize(gw) end
   end)
   resizeBtn:SetShown(not NS.DB("dmLocked"))
   frame._resizeBtn = resizeBtn
 
-  -- Icons on mouse over: hide/show titlebar icons based on hover
   local titleIcons = {settingsBtn, reportBtn, resetBtn, sessionBtn, meterBtn}
   frame._titleIcons = titleIcons
 
@@ -853,7 +898,6 @@ end
 
 -- ── Build display: creates main window + restores extra windows ──────
 function DM.BuildDisplay()
-  -- Main window (ID 1)
   if #DM.windows == 0 then
     local mainConfig = {
       meterType = NS.DB("dmMeterType") or 0,
@@ -865,7 +909,6 @@ function DM.BuildDisplay()
     DM.windows[1] = mainWin
     NS.dmWin = mainWin.frame
 
-    -- Restore extra windows
     local extra = NS.DB("dmExtraWindows") or {}
     for _, ew in ipairs(extra) do
       local w = CreateWindow(ew.id, {
@@ -877,7 +920,6 @@ function DM.BuildDisplay()
       DM.windows[#DM.windows + 1] = w
     end
   else
-    -- Already built, just show all
     for _, w in ipairs(DM.windows) do
       w.frame:Show()
     end
@@ -889,7 +931,6 @@ end
 
 -- ── Create a new extra window ────────────────────────────────────────
 function DM.CreateNewWindow()
-  -- Find next free ID (lowest available starting from 2)
   local usedIDs = {}
   for _, w in ipairs(DM.windows) do usedIDs[w.id] = true end
   local nextID = 2
@@ -910,8 +951,7 @@ end
 
 -- ── Close and destroy an extra window ────────────────────────────────
 function DM.CloseWindow(windowID)
-  if windowID == 1 then return end  -- can't close main window
-  -- Remove from DM.windows
+  if windowID == 1 then return end
   for i, w in ipairs(DM.windows) do
     if w.id == windowID then
       w.frame:Hide()
@@ -920,7 +960,6 @@ function DM.CloseWindow(windowID)
       break
     end
   end
-  -- Remove from DB
   local extra = NS.DB("dmExtraWindows") or {}
   for i, ew in ipairs(extra) do
     if ew.id == windowID then
@@ -949,8 +988,7 @@ local function UpdateWindowTitle(w)
       local secs = math.floor(GetTime() - DM.combatStartTime)
       timeStr = string.format("%02d:%02d ", math.floor(secs / 60), secs % 60)
     else
-      local isSecret = issecretvalue or function() return false end
-      local dur = w.sessionData and w.sessionData.durationSeconds
+        local dur = w.sessionData and w.sessionData.durationSeconds
       if dur and not isSecret(dur) then
         local secs = math.floor(dur)
         timeStr = string.format("%02d:%02d ", math.floor(secs / 60), secs % 60)
@@ -966,8 +1004,6 @@ end
 function DM.UpdateWindowDisplay(w)
   if not w or not w.frame then return end
 
-  local isSecret = issecretvalue or function() return false end
-
   -- Visibility check
   local showInCombatOnly = NS.DB("dmShowInCombatOnly")
   if showInCombatOnly and not DM.inCombat then
@@ -979,229 +1015,238 @@ function DM.UpdateWindowDisplay(w)
   end
   if NS.DB("dmEnabled") then w.frame:Show() end
 
+  -- NEW FEATURE: apply click-through on each display update (catches combat state changes)
+  ApplyClickThrough(w)
+
   UpdateWindowTitle(w)
 
-  -- Get sorted sources from this window's session data
-  local sources = {}
+  if not w._sortFunc then
+    -- Guard against secret values: isSecret() returns a truthy userdata, not nil/false,
+    -- so "secretVal or 0" evaluates to secretVal and crashes arithmetic operators.
+    w._sortFunc = function(a, b)
+      local av = a.totalAmount or 0
+      local bv = b.totalAmount or 0
+      if isSecret(av) or isSecret(bv) then return false end
+      return av > bv
+    end
+  end
+  local sources = w._cachedSources
+  if not sources then sources = {}; w._cachedSources = sources end
+  for k in pairs(sources) do sources[k] = nil end
   if w.sessionData then
     local cs = w.sessionData.combatSources
     if cs and not isSecret(cs) then
       local ok = pcall(function()
-        for i = 1, #cs do sources[#sources + 1] = cs[i] end
+        for i = 1, #cs do sources[i] = cs[i] end
       end)
       if ok and #sources > 0 and not isSecret(sources[1].totalAmount) then
-        table.sort(sources, function(a, b) return (a.totalAmount or 0) > (b.totalAmount or 0) end)
+        table.sort(sources, w._sortFunc)
       end
     end
   end
 
-  local maxVal = w.sessionData and w.sessionData.maxAmount or 1
-  local barH = NS.DB("dmBarHeight") or 18
-  local barSpacing = NS.DB("dmBarSpacing") or 1
-  local fontSize = NS.DB("dmFontSize") or 11
-  local iconMode = NS.DB("dmIconMode") or "spec"
-  local valFormat = NS.DB("dmValueFormat") or "both"
-  local txtCol = NS.DB("dmTextColor") or {r=1, g=1, b=1}
+  -- BUG FIX: clamp maxVal to at least 1 to prevent StatusBar display glitch at 0
+  -- Also guard against secret values: isSecret() is truthy so "secretVal or 0" = secretVal,
+  -- which then crashes math.max with "numeric conversion on a secret number value".
+  local rawMax = w.sessionData and w.sessionData.maxAmount
+  local maxVal = (rawMax and not isSecret(rawMax) and rawMax > 0) and rawMax or 1
+
+  local DB = NS.DB
+  local barH = DB("dmBarHeight") or 18
+  local barSpacing = DB("dmBarSpacing") or 1
+  local fontSize = DB("dmFontSize") or 11
+  local iconMode = DB("dmIconMode") or "spec"
+  local valFormat = DB("dmValueFormat") or "both"
+  local txtCol = DB("dmTextColor") or {r=1, g=1, b=1}
   local tr, tg, tb = txtCol.r, txtCol.g, txtCol.b
-  local barTexture = NS.GetBarTexturePath(NS.DB("dmBarTexture"))
-  local barBgTexture = NS.GetBarTexturePath(NS.DB("dmBarBgTexture"))
-  local fontShadowVal = NS.DB("dmFontShadow") or 0
+  local barTexture = NS.GetBarTexturePath(DB("dmBarTexture"))
+  local barBgTexture = NS.GetBarTexturePath(DB("dmBarBgTexture"))
+  local fontShadowVal = DB("dmFontShadow") or 0
   if type(fontShadowVal) == "boolean" then fontShadowVal = fontShadowVal and 1.5 or 0 end
-  local fontFlags = NS.DB("dmTextOutline") and "OUTLINE" or ""
+  local fontFlags = DB("dmTextOutline") and "OUTLINE" or ""
   local iconSize = barH - 2
   local hasIcon = (iconMode ~= "none")
   local nameOffset = hasIcon and (iconSize + 4) or 4
+  local fontPath = NS.GetFontPath(DB("dmFont"))
+  local showPercent = DB("dmShowPercent")
+  local showRank = DB("dmShowRank")
+  local showRealm = DB("dmShowRealm")
+  local classColors = DB("dmClassColors") ~= false
+  local barAlpha = DB("dmBarBrightness") or 0.70
+  local barColor = DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
+  local totalAll = 0
+  if showPercent then
+    for _, s in ipairs(sources) do
+      local amt = s.totalAmount or 0
+      if not isSecret(amt) then totalAll = totalAll + amt end
+    end
+  end
 
   w._totalSources = #sources
   local offset = w.scrollOffset or 0
+
+  -- BUG FIX: use string key for configStamp to avoid numeric sum collisions
+  -- e.g. barH=12+fontSize=4+shadow=12 vs barH=18+fontSize=4+shadow=6 both summed to 28
+  local configStamp = barH .. "|" .. fontSize .. "|" .. fontShadowVal
+    .. "|" .. (showRank and "R" or "") .. (showPercent and "P" or "")
 
   for i = 1, MAX_BARS do
     local bar = w.bars[i]
     local src = sources[i + offset]
     if src then
       local cr, cg, cb
-      if NS.DB("dmClassColors") ~= false then
+      if classColors then
         cr, cg, cb = GetClassColor(src.classFilename)
       else
-        local bc = NS.DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
-        cr, cg, cb = bc.r, bc.g, bc.b
+        cr, cg, cb = barColor.r, barColor.g, barColor.b
       end
-      bar:SetStatusBarTexture(barTexture)
-      local barAlpha = NS.DB("dmBarBrightness") or 0.70
-      bar:SetStatusBarColor(cr, cg, cb, barAlpha)
-
       local total = src.totalAmount or 0
       local perSec = src.amountPerSecond or 0
+      -- Guard: isSecret() returns truthy userdata, not nil, so "secretVal or 0" = secretVal.
+      -- Sanitize before any arithmetic or StatusBar:SetValue call.
+      if isSecret(total) then total = 0 end
+      if isSecret(perSec) then perSec = 0 end
+
+      local srcName = src.name
+      if not isSecret(srcName) and srcName then
+        if not showRealm or src.isLocalPlayer then
+          srcName = srcName:match("^([^%-]+)") or srcName
+        end
+      end
+
+      local nameChanged = true
+      pcall(function()
+        if bar._lastSrcName == srcName and bar._lastBarIdx == (i + offset) then
+          nameChanged = false
+        end
+      end)
+      local barChanged = nameChanged or (bar._lastConfigStamp ~= configStamp) or not bar:IsShown()
+
+      if barChanged then
+        bar._lastSrcName = srcName
+        bar._lastBarIdx = i + offset
+        bar._lastConfigStamp = configStamp
+
+        bar:SetStatusBarTexture(barTexture)
+        bar:SetStatusBarColor(cr, cg, cb, barAlpha)
+
+        bar._icon:SetSize(iconSize, iconSize)
+        if iconMode == "spec" and src.specIconID and not isSecret(src.specIconID) and src.specIconID > 0 then
+          bar._icon:SetTexture(src.specIconID); bar._icon:SetTexCoord(0, 1, 0, 1); bar._icon:Show()
+        elseif iconMode ~= "none" and src.classFilename and not isSecret(src.classFilename) then
+          local coords = CLASS_ICON_COORDS[src.classFilename:upper()]
+          if coords then
+            bar._icon:SetTexture("Interface/GLUES/CHARACTERCREATE/UI-CHARACTERCREATE-CLASSES")
+            bar._icon:SetTexCoord(unpack(coords)); bar._icon:Show()
+          else bar._icon:Hide() end
+        else bar._icon:Hide() end
+
+        if not bar._rankFS then bar._rankFS = bar:CreateFontString(nil, "OVERLAY") end
+        local rankPrefix = ""
+        local actualRank = i + offset
+        if showRank then
+          if actualRank == 1 then
+            local cs = math.max(barH - 2, 12)
+            rankPrefix = "|TInterface/AddOns/LucidUI/Assets/Crown.png:" .. cs .. ":" .. cs .. "|t "
+          else
+            rankPrefix = "|cffffffff" .. actualRank .. ".|r "
+          end
+        end
+        bar._name:ClearAllPoints()
+        if rankPrefix ~= "" then
+          bar._rankFS:ClearAllPoints(); bar._rankFS:SetPoint("LEFT", nameOffset, 0)
+          bar._rankFS:SetFont(fontPath, fontSize, fontFlags)
+          bar._rankFS:SetText(rankPrefix); bar._rankFS:SetTextColor(tr, tg, tb); bar._rankFS:Show()
+          bar._name:SetPoint("LEFT", nameOffset + (bar._rankFS:GetStringWidth() or 0), 0)
+        else
+          bar._rankFS:Hide()
+          bar._name:SetPoint("LEFT", nameOffset, 0)
+        end
+        bar._name:SetText(srcName or "?")
+
+        bar._name:SetTextColor(tr, tg, tb); bar._name:SetFont(fontPath, fontSize, fontFlags)
+        bar._value:SetTextColor(tr, tg, tb); bar._value:SetFont(fontPath, fontSize, fontFlags)
+        if fontShadowVal > 0 then
+          bar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._name:SetShadowColor(0, 0, 0, 1)
+          bar._value:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._value:SetShadowColor(0, 0, 0, 1)
+        else
+          bar._name:SetShadowOffset(0, 0); bar._value:SetShadowOffset(0, 0)
+        end
+
+        if showPercent then
+          bar._pct:SetTextColor(tr, tg, tb); bar._pct:SetFont(fontPath, fontSize, fontFlags)
+          if fontShadowVal > 0 then
+            bar._pct:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._pct:SetShadowColor(0, 0, 0, 1)
+          else bar._pct:SetShadowOffset(0, 0) end
+        end
+
+        bar:SetHeight(barH)
+        bar:ClearAllPoints()
+        bar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, -((i - 1) * (barH + barSpacing)))
+        bar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
+
+        bar._bg:SetTexture(barBgTexture); bar._bg:SetVertexColor(0.05, 0.05, 0.05, 0.8)
+
+        if not bar._hlBorder then
+          local hlB = CreateFrame("Frame", nil, bar, "BackdropTemplate")
+          hlB:SetAllPoints(); hlB:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+          hlB:SetFrameLevel(bar:GetFrameLevel() + 2); hlB:Hide()
+          bar._hlBorder = hlB
+        end
+        if not bar._hlOverlay then
+          local hlO = bar:CreateTexture(nil, "OVERLAY", nil, 1)
+          hlO:SetAllPoints(); hlO:SetColorTexture(1, 1, 1, 0.15); hlO:Hide()
+          bar._hlOverlay = hlO
+        end
+
+        local hlMode = DB("dmBarHighlight") or "none"
+        if hlMode == "border" then
+          bar._hlOverlay:Hide()
+          bar:SetScript("OnEnter", function(self)
+            local a2r, a2g, a2b = NS.ChatGetAccentRGB()
+            bar._hlBorder:SetBackdropBorderColor(a2r, a2g, a2b, 0.8); bar._hlBorder:Show()
+            DM.ShowSpellBreakdown(self)
+          end)
+          bar:SetScript("OnLeave", function() bar._hlBorder:Hide(); GameTooltip:Hide() end)
+        elseif hlMode == "bar" then
+          bar._hlBorder:Hide()
+          bar:SetScript("OnEnter", function(self) bar._hlOverlay:Show(); DM.ShowSpellBreakdown(self) end)
+          bar:SetScript("OnLeave", function() bar._hlOverlay:Hide(); GameTooltip:Hide() end)
+        else
+          bar._hlBorder:Hide(); bar._hlOverlay:Hide()
+          bar:SetScript("OnEnter", function(self) DM.ShowSpellBreakdown(self) end)
+          bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        end
+        bar:SetScript("OnMouseUp", function(self) self._expanded = not self._expanded; DM.ShowSpellBreakdown(self) end)
+      end
+
+      bar:Show()
 
       bar:SetMinMaxValues(0, maxVal)
       bar:SetValue(total)
 
-      -- Icon: spec or class
-      bar._icon:SetSize(iconSize, iconSize)
-      if iconMode == "spec" and src.specIconID and not isSecret(src.specIconID) and src.specIconID > 0 then
-        bar._icon:SetTexture(src.specIconID)
-        bar._icon:SetTexCoord(0, 1, 0, 1)
-        bar._icon:Show()
-      elseif iconMode ~= "none" and src.classFilename and not isSecret(src.classFilename) then
-        local coords = CLASS_ICON_COORDS[src.classFilename:upper()]
-        if coords then
-          bar._icon:SetTexture("Interface/GLUES/CHARACTERCREATE/UI-CHARACTERCREATE-CLASSES")
-          bar._icon:SetTexCoord(unpack(coords))
-          bar._icon:Show()
-        else
-          bar._icon:Hide()
-        end
-      else
-        bar._icon:Hide()
-      end
-
-      -- Name
-      local srcName = src.name
-      if not isSecret(srcName) and srcName then
-        if not NS.DB("dmShowRealm") or src.isLocalPlayer then
-          srcName = srcName:match("^([^%-]+)") or srcName
-        end
-      end
-      -- Rank prefix (crown for #1, numbers for rest)
-      local rankPrefix = ""
-      local actualRank = i + offset
-      if NS.DB("dmShowRank") then
-        if actualRank == 1 then
-          rankPrefix = "|TInterface/AddOns/LucidUI/Assets/Crown.png:20:18|t "
-        else
-          rankPrefix = "|cffffffff" .. actualRank .. ".|r "
-        end
-      end
-      bar._name:ClearAllPoints()
-      bar._name:SetPoint("LEFT", nameOffset, 0)
-      bar._name:SetText(rankPrefix .. (srcName or "?"))
-      bar._name:SetTextColor(tr, tg, tb)
-      bar._name:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
-      if fontShadowVal > 0 then
-        bar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._name:SetShadowColor(0, 0, 0, 1)
-      else
-        bar._name:SetShadowOffset(0, 0)
-      end
-
-      -- Value
-      local fmtTotal = (not isSecret(total)) and DM.FormatNumber(total) or AbbreviateNumbers(total)
+      local totalSecret = isSecret(total)
+      local fmtTotal = (not totalSecret) and DM.FormatNumber(total) or AbbreviateNumbers(total)
       local fmtPerSec = (not isSecret(perSec)) and DM.FormatNumber(perSec) or AbbreviateNumbers(perSec)
-
       if valFormat == "both" then
-        bar._value:SetFormattedText("%s | %s", fmtTotal, fmtPerSec)
-      elseif valFormat == "persec" then
-        bar._value:SetText(fmtPerSec)
-      else
-        bar._value:SetText(fmtTotal)
-      end
-      bar._value:SetTextColor(tr, tg, tb)
-      bar._value:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
-      if fontShadowVal > 0 then
-        bar._value:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._value:SetShadowColor(0, 0, 0, 1)
-      else
-        bar._value:SetShadowOffset(0, 0)
-      end
+        bar._value:SetText(fmtTotal .. " | " .. fmtPerSec)
+      elseif valFormat == "persec" then bar._value:SetText(fmtPerSec)
+      else bar._value:SetText(fmtTotal) end
 
-      -- Percent display
-      if NS.DB("dmShowPercent") and not isSecret(total) and maxVal and not isSecret(maxVal) then
-        local pctVal = 0
-        -- Calculate % of total across all sources
-        local totalAll = 0
-        for _, s in ipairs(sources) do
-          local amt = s.totalAmount or 0
-          if not isSecret(amt) then totalAll = totalAll + amt end
+      if showPercent and not totalSecret and totalAll > 0 then
+        local pct = math.floor(total / totalAll * 1000 + 0.5) / 10
+        bar._pct:SetText("| " .. pct .. "%")
+        if not bar._pct:IsShown() then
+          bar._pct:ClearAllPoints(); bar._pct:SetPoint("RIGHT", -4, 0); bar._pct:Show()
+          bar._value:ClearAllPoints(); bar._value:SetPoint("RIGHT", bar._pct, "LEFT", -4, 0)
         end
-        if totalAll > 0 then pctVal = total / totalAll * 100 end
-        bar._pct:SetText("| " .. string.format("%.1f%%", pctVal))
-        bar._pct:SetTextColor(tr, tg, tb)
-        bar._pct:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
-        if fontShadowVal > 0 then
-          bar._pct:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._pct:SetShadowColor(0, 0, 0, 1)
-        else
-          bar._pct:SetShadowOffset(0, 0)
-        end
-        bar._pct:ClearAllPoints()
-        bar._pct:SetPoint("RIGHT", -4, 0)
-        bar._pct:Show()
-        bar._value:ClearAllPoints()
-        bar._value:SetPoint("RIGHT", bar._pct, "LEFT", -4, 0)
       else
-        bar._pct:Hide()
-        bar._value:ClearAllPoints()
-        bar._value:SetPoint("RIGHT", -4, 0)
-      end
-
-      bar:SetHeight(barH)
-      bar:ClearAllPoints()
-      bar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, -((i - 1) * (barH + barSpacing)))
-      bar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
-      bar:Show()
-
-      bar._bg:SetTexture(barBgTexture)
-      bar._bg:SetVertexColor(0.05, 0.05, 0.05, 0.8)
-
-      -- Bar highlight on hover
-      if not bar._hlBorder then
-        local hlB = CreateFrame("Frame", nil, bar, "BackdropTemplate")
-        hlB:SetAllPoints()
-        hlB:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-        hlB:SetFrameLevel(bar:GetFrameLevel() + 2)
-        hlB:Hide()
-        bar._hlBorder = hlB
-      end
-      if not bar._hlOverlay then
-        local hlO = bar:CreateTexture(nil, "OVERLAY", nil, 1)
-        hlO:SetAllPoints()
-        hlO:SetColorTexture(1, 1, 1, 0.15)
-        hlO:Hide()
-        bar._hlOverlay = hlO
-      end
-      local hlMode = NS.DB("dmBarHighlight") or "none"
-      local isHovered = bar:IsMouseOver()
-      if hlMode == "border" then
-        bar._hlOverlay:Hide()
-        if isHovered then
-          local ar2, ag2, ab2 = NS.ChatGetAccentRGB()
-          bar._hlBorder:SetBackdropBorderColor(ar2, ag2, ab2, 0.8)
-          bar._hlBorder:Show()
-        else
-          bar._hlBorder:Hide()
+        if bar._pct:IsShown() then
+          bar._pct:Hide()
+          bar._value:ClearAllPoints(); bar._value:SetPoint("RIGHT", -4, 0)
         end
-        bar:SetScript("OnEnter", function(self)
-          local ar2, ag2, ab2 = NS.ChatGetAccentRGB()
-          bar._hlBorder:SetBackdropBorderColor(ar2, ag2, ab2, 0.8)
-          bar._hlBorder:Show()
-          DM.ShowSpellBreakdown(self)
-        end)
-        bar:SetScript("OnLeave", function()
-          bar._hlBorder:Hide()
-          GameTooltip:Hide()
-        end)
-      elseif hlMode == "bar" then
-        bar._hlBorder:Hide()
-        bar._hlOverlay:SetShown(isHovered)
-        bar:SetScript("OnEnter", function(self)
-          bar._hlOverlay:Show()
-          DM.ShowSpellBreakdown(self)
-        end)
-        bar:SetScript("OnLeave", function()
-          bar._hlOverlay:Hide()
-          GameTooltip:Hide()
-        end)
-      else
-        bar._hlBorder:Hide()
-        bar._hlOverlay:Hide()
-        bar:SetScript("OnEnter", function(self) DM.ShowSpellBreakdown(self) end)
-        bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
       end
 
-      -- Click to expand/collapse spell breakdown
-      bar:SetScript("OnMouseUp", function(self)
-        self._expanded = not self._expanded
-        DM.ShowSpellBreakdown(self)
-      end)
-
-      -- Store source for tooltip
       bar._sourceGUID = src.sourceGUID
       bar._sourceCreatureID = src.sourceCreatureID
       bar._sourceName = srcName
@@ -1209,6 +1254,10 @@ function DM.UpdateWindowDisplay(w)
       bar._isLocalPlayer = src.isLocalPlayer
       bar._windowObj = w
       if srcName and src.sourceGUID and not isSecret(src.sourceGUID) then
+        if not guidCache[srcName] then
+          if guidCacheSize >= GUID_CACHE_MAX then wipe(guidCache); guidCacheSize = 0 end
+          guidCacheSize = guidCacheSize + 1
+        end
         guidCache[srcName] = src.sourceGUID
       end
       bar:EnableMouse(true)
@@ -1217,8 +1266,34 @@ function DM.UpdateWindowDisplay(w)
     end
   end
 
-  -- "Always Show Self": if local player not visible in bars, show at bottom
-  if NS.DB("dmAlwaysShowSelf") == false then
+  -- NEW FEATURE: Total bar (inspired by Details totalbar_enabled)
+  -- Shows sum of all group members' values at the very bottom of the window
+  local showTotalBar = DB("dmShowTotalBar")
+  local tbar = w._totalBar
+  if showTotalBar and totalAll > 0 and not isSecret(totalAll) then
+    local barsShown2 = math.min(#sources, MAX_BARS)
+    local tbarY = barsShown2 * (barH + barSpacing) + 4
+    w._totalBarSep:ClearAllPoints()
+    w._totalBarSep:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 2, -tbarY + 2)
+    w._totalBarSep:SetPoint("RIGHT", w.barContainer, "RIGHT", -2, 0)
+    w._totalBarSep:Show()
+    tbar:SetHeight(barH)
+    tbar:ClearAllPoints()
+    tbar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, -tbarY)
+    tbar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
+    tbar:SetStatusBarTexture(barTexture)
+    tbar:SetMinMaxValues(0, 1); tbar:SetValue(1)
+    w._totalBarValue:SetText(DM.FormatNumber(totalAll))
+    w._totalBarValue:SetFont(fontPath, fontSize, fontFlags)
+    w._totalBarLabel:SetFont(fontPath, fontSize, fontFlags)
+    tbar:Show()
+  else
+    tbar:Hide()
+    w._totalBarSep:Hide()
+  end
+
+  -- "Always Show Self" logic
+  if DB("dmAlwaysShowSelf") == false then
     if w._selfBar then w._selfBar:Hide() end
     if w._selfSep then w._selfSep:Hide() end
     return
@@ -1227,7 +1302,6 @@ function DM.UpdateWindowDisplay(w)
     local sb = CreateBar(w.barContainer, MAX_BARS + 1)
     sb:Hide()
     w._selfBar = sb
-    -- Separator line above self bar
     local sep = w.barContainer:CreateTexture(nil, "OVERLAY")
     sep:SetHeight(1)
     sep:SetColorTexture(0.3, 0.3, 0.3, 0.5)
@@ -1242,7 +1316,6 @@ function DM.UpdateWindowDisplay(w)
   end
 
   if not selfShown and #sources > MAX_BARS then
-    -- Find self in remaining sources
     local selfSrc
     for i = MAX_BARS + 1, #sources do
       if sources[i] and sources[i].isLocalPlayer then selfSrc = sources[i]; break end
@@ -1250,19 +1323,20 @@ function DM.UpdateWindowDisplay(w)
     if selfSrc then
       local sbar = w._selfBar
       local cr, cg, cb
-      if NS.DB("dmClassColors") ~= false then
+      if classColors then
         cr, cg, cb = GetClassColor(selfSrc.classFilename)
       else
-        local bc = NS.DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
-        cr, cg, cb = bc.r, bc.g, bc.b
+        cr, cg, cb = barColor.r, barColor.g, barColor.b
       end
       sbar:SetStatusBarTexture(barTexture)
-      sbar:SetStatusBarColor(cr, cg, cb, NS.DB("dmBarBrightness") or 0.70)
+      sbar:SetStatusBarColor(cr, cg, cb, barAlpha)
       sbar:SetMinMaxValues(0, maxVal)
-      sbar:SetValue(selfSrc.totalAmount or 0)
+      local selfInitTotal = selfSrc.totalAmount or 0
+      sbar:SetValue(isSecret(selfInitTotal) and 0 or selfInitTotal)
       sbar:SetHeight(barH)
 
-      -- Icon
+      -- BUG FIX: refresh spec icon on every update (not only when _setupDone is unset)
+      -- This ensures spec icon updates correctly after a spec change mid-session
       sbar._icon:SetSize(iconSize, iconSize)
       if iconMode == "spec" and selfSrc.specIconID and not isSecret(selfSrc.specIconID) and selfSrc.specIconID > 0 then
         sbar._icon:SetTexture(selfSrc.specIconID); sbar._icon:SetTexCoord(0, 1, 0, 1); sbar._icon:Show()
@@ -1274,34 +1348,40 @@ function DM.UpdateWindowDisplay(w)
         else sbar._icon:Hide() end
       else sbar._icon:Hide() end
 
-      -- Name
+      -- Static text setup (font, color) — only redo when configStamp changes
+      if sbar._lastConfigStamp ~= configStamp then
+        sbar._lastConfigStamp = configStamp
+        sbar._name:SetTextColor(tr, tg, tb); sbar._name:SetFont(fontPath, fontSize, fontFlags)
+        sbar._value:SetTextColor(tr, tg, tb); sbar._value:SetFont(fontPath, fontSize, fontFlags)
+        if fontShadowVal > 0 then
+          sbar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._name:SetShadowColor(0, 0, 0, 1)
+          sbar._value:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._value:SetShadowColor(0, 0, 0, 1)
+        else
+          sbar._name:SetShadowOffset(0, 0); sbar._value:SetShadowOffset(0, 0)
+        end
+        sbar._bg:SetTexture(barBgTexture); sbar._bg:SetVertexColor(0.05, 0.05, 0.05, 0.8)
+      end
+
+      -- Name (update every tick in case name becomes un-secret)
       local selfName = selfSrc.name
       if not isSecret(selfName) and selfName then selfName = selfName:match("^([^%-]+)") or selfName end
       sbar._name:ClearAllPoints(); sbar._name:SetPoint("LEFT", nameOffset, 0)
-      sbar._name:SetText(selfName or "?"); sbar._name:SetTextColor(tr, tg, tb)
-      sbar._name:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
-      if fontShadowVal > 0 then
-        sbar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._name:SetShadowColor(0, 0, 0, 1)
-      else sbar._name:SetShadowOffset(0, 0) end
+      sbar._name:SetText(selfName or "?")
 
-      -- Value
+      -- Fast update
       local total = selfSrc.totalAmount or 0
       local perSec = selfSrc.amountPerSecond or 0
+      if isSecret(total) then total = 0 end
+      if isSecret(perSec) then perSec = 0 end
+      sbar:SetStatusBarColor(cr, cg, cb, barAlpha)
+      sbar:SetMinMaxValues(0, maxVal)
+      sbar:SetValue(total)
       local fTotal = (not isSecret(total)) and DM.FormatNumber(total) or AbbreviateNumbers(total)
       local fPerSec = (not isSecret(perSec)) and DM.FormatNumber(perSec) or AbbreviateNumbers(perSec)
-      if valFormat == "both" then sbar._value:SetFormattedText("%s | %s", fTotal, fPerSec)
+      if valFormat == "both" then sbar._value:SetText(fTotal .. " | " .. fPerSec)
       elseif valFormat == "persec" then sbar._value:SetText(fPerSec)
       else sbar._value:SetText(fTotal) end
-      sbar._value:SetTextColor(tr, tg, tb)
-      sbar._value:SetFont(NS.GetFontPath(NS.DB("dmFont")), fontSize, fontFlags)
-      if fontShadowVal > 0 then
-        sbar._value:SetShadowOffset(fontShadowVal, -fontShadowVal); sbar._value:SetShadowColor(0, 0, 0, 1)
-      else sbar._value:SetShadowOffset(0, 0) end
 
-      sbar._bg:SetTexture(barBgTexture)
-      sbar._bg:SetVertexColor(0.05, 0.05, 0.05, 0.8)
-
-      -- Position: below last visible bar + separator
       local selfY = barsShown * (barH + barSpacing) + 4
       w._selfSep:ClearAllPoints()
       w._selfSep:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 2, -selfY + 2)
@@ -1312,10 +1392,9 @@ function DM.UpdateWindowDisplay(w)
       sbar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
       sbar:Show()
 
-      -- Store tooltip data
       sbar._sourceGUID = selfSrc.sourceGUID
       sbar._sourceCreatureID = selfSrc.sourceCreatureID
-      sbar._sourceName = selfName
+      sbar._sourceName = selfSrc.name
       sbar._sourceClass = selfSrc.classFilename
       sbar._isLocalPlayer = true
       sbar._windowObj = w
@@ -1350,7 +1429,7 @@ function DM.RefreshAllWindows()
   end
 end
 
--- ── Update display for all windows ──────────────────────────────────
+-- ── Update display for all windows (with data refresh) ──────────────
 function DM.UpdateDisplay()
   for _, w in ipairs(DM.windows) do
     RefreshWindowData(w)
@@ -1358,10 +1437,15 @@ function DM.UpdateDisplay()
   end
 end
 
+-- ── Update display only (no data refresh, used by ticker) ───────────
+function DM.UpdateDisplayOnly()
+  for _, w in ipairs(DM.windows) do
+    DM.UpdateWindowDisplay(w)
+  end
+end
+
 -- ── Spell breakdown tooltip ───────────────────────────────────────────
 function DM.ShowSpellBreakdown(bar)
-  local isSecret = issecretvalue or function() return false end
-
   local guid = bar._sourceGUID
   local creatureID = bar._sourceCreatureID
   local sourceName = bar._sourceName
@@ -1370,6 +1454,10 @@ function DM.ShowSpellBreakdown(bar)
   local nameUsable = sourceName and not isSecret(sourceName)
 
   if guid and not isSecret(guid) and nameUsable then
+    if not guidCache[sourceName] then
+      if guidCacheSize >= GUID_CACHE_MAX then wipe(guidCache); guidCacheSize = 0 end
+      guidCacheSize = guidCacheSize + 1
+    end
     guidCache[sourceName] = guid
   end
 
@@ -1384,7 +1472,13 @@ function DM.ShowSpellBreakdown(bar)
         local uName = GetUnitName(unit, false)
         if uName and (uName == sourceName or uName:match("^([^%-]+)") == sourceName) then
           guid = UnitGUID(unit)
-          if guid then guidCache[sourceName] = guid end
+          if guid then
+            if not guidCache[sourceName] then
+              if guidCacheSize >= GUID_CACHE_MAX then wipe(guidCache); guidCacheSize = 0 end
+              guidCacheSize = guidCacheSize + 1
+            end
+            guidCache[sourceName] = guid
+          end
           break
         end
       end
@@ -1448,13 +1542,11 @@ function DM.ShowSpellBreakdown(bar)
     end)
   end)
 
-  -- Get max spell amount for bar proportions
   local topSpellAmount = 0
   if #spells > 0 and not isSecret(spells[1].totalAmount or 0) then
     topSpellAmount = spells[1].totalAmount or 0
   end
 
-  -- Track which tooltip lines are spell lines (for background bars)
   local spellLineIndices = {}
 
   for i = 1, math.min(#spells, maxSpells) do
@@ -1509,7 +1601,6 @@ function DM.ShowSpellBreakdown(bar)
   GameTooltip:Show()
   GameTooltip:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
 
-  -- Add background bars to spell lines after tooltip is shown and laid out
   if not GameTooltip._dmBars then
     GameTooltip._dmBars = {}
     GameTooltip:HookScript("OnHide", function()
@@ -1524,7 +1615,7 @@ function DM.ShowSpellBreakdown(bar)
     local leftText = _G["GameTooltipTextLeft" .. info.line]
     if leftText then
       local bgBar = GameTooltip._dmBars[idx]
-      if not bgBar then
+      if not bgBar and idx <= 50 then
         bgBar = GameTooltip:CreateTexture(nil, "BACKGROUND", nil, 1)
         GameTooltip._dmBars[idx] = bgBar
       end
@@ -1552,6 +1643,10 @@ function DM.OnCombatStateChanged(entering)
     for _, w in ipairs(DM.windows) do
       w.frame:Show()
     end
+  end
+  -- NEW FEATURE: update click-through state when combat changes
+  for _, w in ipairs(DM.windows) do
+    ApplyClickThrough(w)
   end
 end
 
@@ -1598,7 +1693,6 @@ function DM.OpenReportWindow(w)
   reportWin:SetScript("OnKeyDown", function(_, key) if key == "ESCAPE" then reportWin:Hide() end end)
   reportWin:EnableKeyboard(true)
 
-  -- Title bar
   local titleBar = CreateFrame("Frame", nil, reportWin)
   titleBar:SetHeight(24)
   titleBar:SetPoint("TOPLEFT", 0, 0); titleBar:SetPoint("TOPRIGHT", 0, 0)
@@ -1613,7 +1707,6 @@ function DM.OpenReportWindow(w)
   title:SetText("|cff" .. aHex .. ">|r Report Results")
   title:SetTextColor(0.85, 0.85, 0.85)
 
-  -- Close X
   local closeBtn = CreateFrame("Button", nil, titleBar)
   closeBtn:SetSize(16, 16); closeBtn:SetPoint("RIGHT", -4, 0)
   local closeTex = closeBtn:CreateFontString(nil, "OVERLAY")
@@ -1626,7 +1719,6 @@ function DM.OpenReportWindow(w)
   local PAD = 12
   local yOff = -32
 
-  -- ── Channel Dropdown ──────────────────────────────────────────────
   local selectedChannel = "SAY"
 
   local channels = {}
@@ -1637,7 +1729,6 @@ function DM.OpenReportWindow(w)
   if IsInGuild() then channels[#channels + 1] = {label = "Guild", ch = "GUILD"} end
   channels[#channels + 1] = {label = "Whisper", ch = "WHISPER"}
 
-  -- Auto-select best channel
   if IsInRaid() then selectedChannel = "RAID"
   elseif GetNumSubgroupMembers() > 0 then selectedChannel = "PARTY"
   elseif IsInInstance() then selectedChannel = "INSTANCE_CHAT" end
@@ -1648,7 +1739,6 @@ function DM.OpenReportWindow(w)
   chanLabel:SetText("|cff808080Channel|r")
 
   yOff = yOff - 16
-  -- Dropdown button
   local chanBtn = CreateFrame("Button", nil, reportWin, "BackdropTemplate")
   chanBtn:SetSize(WIN_W - PAD * 2, 24)
   chanBtn:SetPoint("TOPLEFT", PAD, yOff)
@@ -1664,7 +1754,6 @@ function DM.OpenReportWindow(w)
   chanArrow:SetPoint("RIGHT", -6, 0)
   chanArrow:SetTextColor(ar, ag, ab); chanArrow:SetText("v")
 
-  -- Update displayed channel name
   local function UpdateChanBtnText()
     for _, ch in ipairs(channels) do
       if ch.ch == selectedChannel then chanBtnText:SetText(ch.label); break end
@@ -1711,7 +1800,6 @@ function DM.OpenReportWindow(w)
 
   yOff = yOff - 30
 
-  -- ── Whisper Target Input ──────────────────────────────────────────
   local whisperLabel = reportWin:CreateFontString(nil, "OVERLAY")
   whisperLabel:SetFont("Fonts/FRIZQT__.TTF", 10, "")
   whisperLabel:SetPoint("TOPLEFT", PAD, yOff)
@@ -1729,18 +1817,14 @@ function DM.OpenReportWindow(w)
   whisperBox:SetTextInsets(8, 8, 0, 0)
   whisperBox:SetAutoFocus(false)
   if UnitExists("target") and UnitIsPlayer("target") then
-    -- Use full name with normalized realm for cross-server whispers
     local fullName = GetUnitName("target", true)
-    if fullName then
-      whisperBox:SetText(fullName)
-    end
+    if fullName then whisperBox:SetText(fullName) end
   end
   whisperBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
   whisperBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 
   yOff = yOff - 28
 
-  -- ── Lines selector ─────────────────────────────────────────────────
   local linesVal = 5
   local linesRow = CreateFrame("Frame", nil, reportWin)
   linesRow:SetSize(WIN_W - PAD * 2, 24)
@@ -1788,7 +1872,6 @@ function DM.OpenReportWindow(w)
 
   yOff = yOff - 30
 
-  -- ── Send Button ───────────────────────────────────────────────────
   reportWin:SetHeight(math.abs(yOff) + 26 + PAD)
   local sendBtn = CreateFrame("Button", nil, reportWin, "BackdropTemplate")
   sendBtn:SetSize(WIN_W - PAD * 2, 26)
@@ -1807,7 +1890,6 @@ function DM.OpenReportWindow(w)
     if not ch then return end
     if ch == "WHISPER" and (not target or target == "") then return end
 
-    local isSecret = issecretvalue or function() return false end
     local label = "Damage Done"
     for _, mt in ipairs(DM.METER_TYPES) do if mt.id == w.meterType then label = mt.label; break end end
     local suffix = ""
@@ -1840,7 +1922,6 @@ function DM.OpenReportWindow(w)
     for j, line in ipairs(chatLines) do
       C_Timer.After((j - 1) * 0.2, function()
         if ch == "WHISPER" and target and target ~= "" then
-          -- Capitalize name and realm: "arggyy-thrall" → "Arggyy-Thrall"
           local cleanTarget = target:gsub("%s+", ""):gsub("(%a)([%a]*)", function(first, rest)
             return first:upper() .. rest:lower()
           end)

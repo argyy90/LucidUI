@@ -25,10 +25,10 @@ NS.validLinks = {
 local function FormatEntry(msg, ts_unix)
   local sep = " "
   if DB("chatShowSeparator") ~= false then
-    local t   = NS.GetTheme(DB("theme"))
-    local tid = t.tilders or NS.CYAN
+    -- NS.CYAN is always kept in sync with the active accent color
+    local C = NS.CYAN
     local hex = string.format("%02x%02x%02x",
-      math.floor(tid[1]*255), math.floor(tid[2]*255), math.floor(tid[3]*255))
+      math.floor(C[1]*255), math.floor(C[2]*255), math.floor(C[3]*255))
     sep = "|cff"..hex.."| |r"
   end
   if DB("timestamps") then

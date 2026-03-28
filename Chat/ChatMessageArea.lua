@@ -45,9 +45,9 @@ function NS.CreateChatMessageArea(parent, name)
   end
 
   local function getAccent()
-    local t = NS.GetTheme(NS.DB("theme"))
-    local tid = t.tilders or NS.CYAN
-    return tid[1], tid[2], tid[3]
+    -- NS.CYAN is always kept in sync with the active accent color
+    local C = NS.CYAN
+    return C[1], C[2], C[3]
   end
 
   local function applyFont(fs, face, size, outline)
@@ -183,13 +183,23 @@ function NS.CreateChatMessageArea(parent, name)
     if slots[i] then return slots[i] end
     local s = {}
 
-    s.tsFS = CreateFrame("ScrollingMessageFrame", nil, frame)
+    -- FIX: Use plain FontString instead of ScrollingMessageFrame for timestamp column.
+    -- SMF has a large internal buffer (128 lines) and is unnecessary for single-line static text.
+    -- Chattynator uses the same approach (CreateFontStringPool in ScrollingMessages.lua).
+    s.tsFS = frame:CreateFontString(nil, "OVERLAY")
     applyFont(s.tsFS, FACE, SIZE, OUTLINE)
     s.tsFS:SetJustifyH("LEFT")
-    s.tsFS:SetInsertMode("TOP")
-    s.tsFS:SetMaxLines(1)
-    s.tsFS:SetFading(false)
-    s.tsFS:SetIndentedWordWrap(false)
+    -- Compatibility shims so external code calling SMF-style methods still works
+    s.tsFS.SetInsertMode       = function() end
+    s.tsFS.SetMaxLines         = function() end
+    s.tsFS.SetFading           = function() end
+    s.tsFS.SetIndentedWordWrap = function() end
+    s.tsFS.SetSpacing          = function() end
+    s.tsFS.Clear = function(self) self:SetText("") end
+    s.tsFS.AddMessage = function(self, text, r, g, b)
+      self:SetText(text or "")
+      if r then self:SetTextColor(r, g or 1, b or 1) end
+    end
 
     s.sepTex = frame:CreateTexture(nil, "ARTWORK")
     s.sepTex:SetWidth(SEP_W)
@@ -217,9 +227,16 @@ function NS.CreateChatMessageArea(parent, name)
         -- Open whisper to this player
         local playerName = link:match("^player:([^:]+)")
         if playerName then
-          local eb = ChatFrame1EditBox
+          local eb = ChatFrame1EditBox or ChatFrameEditBox
           if eb then
-            ChatFrame_OpenChat("/w " .. playerName .. " ", ChatFrame1)
+            -- ChatEdit_OpenChat is the Midnight-compatible API
+            local openFn = ChatEdit_OpenChat or ChatFrame_OpenChat
+            if openFn then
+              openFn("/w " .. playerName .. " ", ChatFrame1)
+              -- Deferred focus ensures our activation runs after Blizzard's own OnShow handlers
+              local eb2 = ChatFrame1EditBox or ChatFrameEditBox
+              if eb2 then C_Timer.After(0, function() if eb2 and not eb2:HasFocus() then eb2:SetFocus() end end) end
+            end
           end
         end
       else

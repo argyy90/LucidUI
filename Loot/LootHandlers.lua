@@ -4,6 +4,11 @@
 local NS = LucidUINS
 local DB = NS.DB
 
+-- FIX: Use C_Item.GetItemInfo (Midnight 12.x API) instead of deprecated global GetItemInfo
+-- ElvUI (ElvUI/Game/Mainline/Skins/Bags.lua) uses the same pattern:
+--   local GetItemInfo = C_Item.GetItemInfo
+local GetItemInfo = C_Item.GetItemInfo
+
 local function GetItemQualityFromLink(link)
   if not link then return 1 end
   local itemID = link:match("item:(%d+)")
@@ -14,7 +19,6 @@ end
 
 NS.OnLoot = function(msg, sender, senderGUID)
   -- Guard: WoW marks some encounter loot strings as "secret" / restricted.
-  -- pcall lets us detect this before any string operation fails.
   if type(msg) ~= "string" then return end
   local loc = GetLocale()
   local ownPrefix = (loc == "deDE") and "^Ihr " or "^You "
@@ -57,13 +61,17 @@ NS.OnLoot = function(msg, sender, senderGUID)
       end
       local class
       if senderGUID and senderGUID ~= "" then
-        _, class = GetPlayerInfoByGUID(senderGUID)
+        local _, englishClass = GetPlayerInfoByGUID(senderGUID)
+        class = englishClass
       end
       if not class then
         for i = 1, GetNumGroupMembers() do
           local unit = IsInRaid() and ("raid"..i) or ("party"..i)
-          local n,_,_,_,c = GetPlayerInfoByGUID(UnitGUID(unit) or "")
-          if n and (n==sender or n==senderShort) then class=c; break end
+          local _, englishClass = GetPlayerInfoByGUID(UnitGUID(unit) or "")
+          local uname = GetUnitName(unit, true)
+          if uname and (uname == sender or uname == senderShort) and englishClass then
+            class = englishClass; break
+          end
         end
       end
       local hex = NS.GetClassColor(class)
@@ -72,8 +80,6 @@ NS.OnLoot = function(msg, sender, senderGUID)
       if coloredMsg == msg then coloredMsg = msg:gsub("^"..esc, hex..senderDisplay.."|r", 1) end
       NS.DebugLog("ALLOWED group loot", 0.3, 1, 0.3)
       NS.AddMessage(coloredMsg, unpack(NS.COL.group))
-      local link = msg:match("|H[^|]+|h%[.-%]|h")
-      if link and NS.StatsAddLoot then NS.StatsAddLoot(link, senderShort, GetItemQualityFromLink(msg)) end
     end
   end
 end

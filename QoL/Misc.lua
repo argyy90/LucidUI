@@ -6,17 +6,22 @@ NS.QoL = NS.QoL or {}
 local lootCooldown = 0
 local lootFrame = CreateFrame("Frame")
 
+local _getCVarBool = (C_CVar and C_CVar.GetCVarBool) or GetCVarBool
+
 lootFrame:SetScript("OnEvent", function()
   if not NS.DB("qolFasterLoot") then return end
   -- Respect the autoLoot toggle modifier (Shift by default)
-  local auto = GetCVarBool("autoLootDefault")
+  local auto = _getCVarBool("autoLootDefault")
   local mod  = IsModifiedClick("AUTOLOOTTOGGLE")
   if (auto and mod) or (not auto and not mod) then return end
   -- Simple throttle to avoid double-processing
   local t = GetTime()
   if t - lootCooldown < 0.15 then return end
   lootCooldown = t
-  if GetCursorInfo() then return end
+  -- GetCursorInfo: global wrapper still exists in 12.x; C_Cursor as fallback
+  local cursorHasItem = (C_Cursor and C_Cursor.GetCursorInfo) and
+    (C_Cursor.GetCursorInfo() ~= nil) or (GetCursorInfo() ~= nil)
+  if cursorHasItem then return end
   for i = 1, GetNumLootItems() do LootSlot(i) end
 end)
 
@@ -25,9 +30,15 @@ end)
 local warnFrame = CreateFrame("Frame")
 
 local WARN_HANDLERS = {
-  CONFIRM_LOOT_ROLL      = function(_, id, roll) ConfirmLootRoll(id, roll); StaticPopup_Hide("CONFIRM_LOOT_ROLL") end,
-  CONFIRM_DISENCHANT_ROLL = function(_, id, roll) ConfirmLootRoll(id, roll); StaticPopup_Hide("CONFIRM_LOOT_ROLL") end,
-  LOOT_BIND_CONFIRM      = function(_, slot, ...) ConfirmLootSlot(slot); StaticPopup_Hide("LOOT_BIND", ...) end,
+  CONFIRM_LOOT_ROLL       = ConfirmLootRoll and function(_, id, roll)
+    ConfirmLootRoll(id, roll); StaticPopup_Hide("CONFIRM_LOOT_ROLL")
+  end or nil,
+  CONFIRM_DISENCHANT_ROLL = ConfirmLootRoll and function(_, id, roll)
+    ConfirmLootRoll(id, roll); StaticPopup_Hide("CONFIRM_LOOT_ROLL")
+  end or nil,
+  LOOT_BIND_CONFIRM       = ConfirmLootSlot and function(_, slot, ...)
+    ConfirmLootSlot(slot); StaticPopup_Hide("LOOT_BIND", ...)
+  end or nil,
   MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL = function() SellCursorItem() end,
   MAIL_LOCK_SEND_ITEMS   = function(_, slot) RespondMailLockSendItem(slot, true) end,
 }
@@ -67,7 +78,10 @@ destroyFrame:SetScript("OnEvent", function()
         eb:Hide()
         btn:Enable()
         -- Replace dialog text with cleaned version + item link
-        local kind, _, link = GetCursorInfo()
+        -- Use C_Cursor.GetCursorInfo (Midnight API); fall back to global
+        local cursorInfo = (C_Cursor and C_Cursor.GetCursorInfo) and C_Cursor.GetCursorInfo() or GetCursorInfo()
+        local kind = cursorInfo and cursorInfo.cursorType or select(1, GetCursorInfo())
+        local link = cursorInfo and cursorInfo.hyperlink or select(3, GetCursorInfo())
         if kind == "item" and link then
           local region = _G[popup:GetName() .. "Text"]
           if region then

@@ -239,7 +239,8 @@ local function BuildProfilerWindow()
   cpuHeaderBtn:SetSize(60, 14)
   cpuHeaderBtn:SetScript("OnClick", function()
     if not cpuEnabled then
-      SetCVar("scriptProfile", "1")
+      local _SetCVar = (C_CVar and C_CVar.SetCVar) or SetCVar
+      pcall(_SetCVar, "scriptProfile", "1")
       ReloadUI()
     else
       sortMode = "cpu"
@@ -267,16 +268,19 @@ local function BuildProfilerWindow()
   accent:SetColorTexture(cr, cg, cb, 1)
 
   -- Check if CPU profiling is enabled
-  cpuEnabled = GetCVar("scriptProfile") == "1"
+  local _GetCVar = (C_CVar and C_CVar.GetCVar) or GetCVar
+  cpuEnabled = _GetCVar("scriptProfile") == "1"
 
-  -- Auto-refresh timer
-  local timer = 0
-  profilerWin:SetScript("OnUpdate", function(_, elapsed)
-    timer = timer + elapsed
-    if timer >= UPDATE_INTERVAL then
-      timer = 0
-      RefreshDisplay()
+  -- Auto-refresh ticker (start on show, cancel on hide)
+  local _profTicker = nil
+  profilerWin:SetScript("OnShow", function()
+    if not _profTicker then
+      _profTicker = C_Timer.NewTicker(UPDATE_INTERVAL, RefreshDisplay)
     end
+    RefreshDisplay()
+  end)
+  profilerWin:SetScript("OnHide", function()
+    if _profTicker then _profTicker:Cancel(); _profTicker = nil end
   end)
 
   RefreshDisplay()

@@ -144,15 +144,16 @@ local function BuildWindow()
     GameTooltip:SetOwner(clearBtn,"ANCHOR_LEFT"); GameTooltip:SetText(L["Clear"]); GameTooltip:Show()
   end)
   clearBtn:SetScript("OnLeave", function()
-    -- Restore to icon color
+    -- Restore to icon color — reuse the same logic as ApplyTheme
     local ic = NS.DB("chatIconColor")
+    local r, g, b
     if ic and type(ic) == "table" and ic.r then
-      clearTxt:SetTextColor(ic.r, ic.g, ic.b, 1)
+      r, g, b = ic.r, ic.g, ic.b
     else
-      local t = NS.GetTheme(NS.DB("theme"))
-      local bc = t.btnColor or {1,1,1,1}
-      clearTxt:SetTextColor(bc[1], bc[2], bc[3], 1)
+      local bc = NS.GetTheme(NS.DB("theme")).btnColor or {1,1,1,1}
+      r, g, b = bc[1], bc[2], bc[3]
     end
+    clearTxt:SetTextColor(r, g, b, 1)
     GameTooltip:Hide()
   end)
 
@@ -162,15 +163,17 @@ local function BuildWindow()
   msgWrapper:SetPoint("BOTTOMRIGHT", 0, 0)
   NS.win.msgWrapper = msgWrapper
 
-  -- SMF (LucidUIHyperlinkHandler from XML)
-  NS.smf = LucidUIHyperlinkHandler
-  NS.smf:SetParent(msgWrapper)
-  NS.smf:ClearAllPoints()
-  NS.smf:SetPoint("TOPLEFT",  msgWrapper, "TOPLEFT",  4, -4)
-  NS.smf:SetPoint("BOTTOMRIGHT", msgWrapper, "BOTTOMRIGHT", -4, 4)
+  -- SMF: created programmatically (no longer needs HyperlinkHandler.xml).
+  -- HyperlinkHandler.xml used to define LucidUIHyperlinkHandler; we create the
+  -- same frame here so the XML can be removed from the TOC entirely.
+  NS.smf = CreateFrame("ScrollingMessageFrame", "LucidUIHyperlinkHandler", msgWrapper)
+  NS.smf:SetPoint("TOPLEFT",     msgWrapper, "TOPLEFT",     4, -4)
+  NS.smf:SetPoint("BOTTOMRIGHT", msgWrapper, "BOTTOMRIGHT", -4,  4)
   NS.smf:SetMaxLines(DB("maxLines") or NS.MAX_LINES)
   NS.smf:SetJustifyH("LEFT")
+  NS.smf:SetInsertMode(SCROLLING_MESSAGE_FRAME_INSERT_MODE_BOTTOM)
   NS.smf:SetFading(false)
+  NS.smf:SetHyperlinksEnabled(true)
   NS.smf:EnableMouseWheel(true)
   NS.smf:Show()
 
@@ -246,17 +249,17 @@ local function BuildWindow()
   NS.resizeWidget:SetScript("OnLeave", function() rTex:SetVertexColor(0.8,0.8,0.8,0.8) end)
 
   -- Restore lock visuals
+  local lockTheme = NS.GetTheme(DB("theme"))
   if NS.win.locked then
     NS.resizeWidget:Hide()
-    local lt = NS.GetTheme(DB("theme")); local bc = lt.btnColor or {0.8,0.8,0.8}
+    local bc = lockTheme.btnColor or {0.8,0.8,0.8}
     lockTex:SetVertexColor(bc[1],bc[2],bc[3],0.9)
   else
     lockTex:SetVertexColor(CYAN[1],CYAN[2],CYAN[3],1.0)
   end
 
   NS.ApplyTheme(DB("theme"))
-  NS.ApplyAlpha()
-  NS.ApplyTitleAlpha()
+  -- ApplyAlpha and ApplyTitleAlpha are called internally by ApplyTheme; no need to repeat them.
   NS.ApplyFontSize()
   NS.ApplySpacing()
   NS.ApplyFade()

@@ -643,6 +643,9 @@ local function SetupText(parent)
   table.insert(allFrames, lootFadeTime)
 
   container:SetScript("OnShow", function()
+    -- Invalidate font cache so fonts from other addons registered after our
+    -- ADDON_LOADED event (LSM packs, ElvUI, NaowhUI, etc.) are always included.
+    NS.InvalidateLSMCache()
     -- Build font dropdown dynamically
     local fonts = NS.GetLSMFonts()
     local fontValues, fontLabels = {"default"}, {"Default"}
@@ -1036,12 +1039,63 @@ local function SetupAdvanced(parent)
             if s == "nil" then return nil end
             if tonumber(s) then return tonumber(s) end
             if s:match('^".*"$') then return s:sub(2, -2):gsub('\\"', '"') end
+            -- Safe table parser: only handles {key=val,...} and {val,...} without loadstring
             if s:match("^{.*}$") then
-              local fn = loadstring("return " .. s)
-              if fn then
-                local ok, result = pcall(fn)
-                if ok then return result end
+              local result = {}
+              local inner = s:sub(2, -2)
+              -- Tokenize key=value pairs safely (no code execution)
+              local i = 1
+              local arrIdx = 1
+              while i <= #inner do
+                -- Skip whitespace and commas
+                local _, eSkip = inner:find("^[%s,]*", i)
+                i = (eSkip or i - 1) + 1
+                if i > #inner then break end
+                -- Try key=value
+                local k, rest = inner:match("^([%w_]+)=(.+)", i)
+                if k then
+                  -- Find end of value (before next non-nested comma)
+                  local depth, j = 0, 1
+                  local valStr = rest
+                  for ci = 1, #rest do
+                    local ch = rest:sub(ci, ci)
+                    if ch == "{" then depth = depth + 1
+                    elseif ch == "}" then depth = depth - 1
+                    elseif ch == "," and depth == 0 then
+                      valStr = rest:sub(1, ci - 1)
+                      i = i + #k + 1 + ci
+                      break
+                    end
+                    if ci == #rest then i = i + #k + 1 + #rest + 1 end
+                  end
+                  local numKey = tonumber(k)
+                  if numKey then
+                    result[numKey] = Deserialize(strtrim(valStr))
+                  else
+                    result[k] = Deserialize(strtrim(valStr))
+                  end
+                else
+                  -- Array value
+                  local depth2 = 0
+                  for ci = i, #inner do
+                    local ch = inner:sub(ci, ci)
+                    if ch == "{" then depth2 = depth2 + 1
+                    elseif ch == "}" then depth2 = depth2 - 1
+                    elseif ch == "," and depth2 == 0 then
+                      result[arrIdx] = Deserialize(strtrim(inner:sub(i, ci - 1)))
+                      arrIdx = arrIdx + 1
+                      i = ci + 1
+                      break
+                    end
+                    if ci == #inner then
+                      result[arrIdx] = Deserialize(strtrim(inner:sub(i, ci)))
+                      arrIdx = arrIdx + 1
+                      i = ci + 1
+                    end
+                  end
+                end
               end
+              return result
             end
             return s
           end
@@ -1295,6 +1349,7 @@ local function SetupMessageColors(parent)
   scrollChild:SetWidth(560)
   scrollFrame:SetScrollChild(scrollChild)
   container:SetScript("OnSizeChanged", function(_, w) scrollChild:SetWidth(w - 24) end)
+  NS.AddSmoothScroll(scrollFrame)
 
   local PAD = 40
   local ROW_H = 22
@@ -1481,6 +1536,7 @@ local function SetupLoot(parent)
   scrollChild:SetSize(560, 1)
   scrollFrame:SetScrollChild(scrollChild)
   container:SetScript("OnSizeChanged", function(_, w) scrollChild:SetWidth(w - 24) end)
+  NS.AddSmoothScroll(scrollFrame)
 
   local allFrames = {}
   local lootSettingsItems = {}
@@ -1863,6 +1919,7 @@ local function SetupQoL(parent)
   scrollFrame:SetScrollChild(scrollChild)
   scrollFrame:HookScript("OnSizeChanged", function(_, w) scrollChild:SetWidth(w) end)
   if scrollFrame.ScrollBar then scrollFrame.ScrollBar:SetAlpha(0.5) end
+  NS.AddSmoothScroll(scrollFrame)
 
   local allFrames = {}
   local sections = {}

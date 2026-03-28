@@ -11,6 +11,7 @@ DM.combatElapsed = 0
 
 local updateTicker = nil
 local secretPollTicker = nil
+local isSecret = issecretvalue or function() return false end
 
 -- ── Meter type labels ────────────────────────────────────────────────
 DM.METER_TYPES = {
@@ -26,12 +27,34 @@ DM.METER_TYPES = {
   {id = 9,  label = "Deaths"},
 }
 
--- ── Number formatting ────────────────────────────────────────────────
+-- ── Number formatting (cached to avoid repeated string.format) ──────
+local fmtCache = {}
+local fmtCacheSize = 0
+local function ClearFmtCache() wipe(fmtCache); fmtCacheSize = 0 end
+
 function DM.FormatNumber(n)
   if not n or n == 0 then return "0" end
-  if n >= 1000000 then return string.format("%.2fM", n / 1000000) end
-  if n >= 1000 then return string.format("%.2fK", n / 1000) end
-  return string.format("%.0f", n)
+  -- Round to reduce cache entries: M=2 decimals, K=1 decimal, raw=integer
+  local key
+  if n >= 1000000 then
+    key = math.floor(n / 10000) -- 2-decimal M precision
+  elseif n >= 1000 then
+    key = math.floor(n / 100)   -- 1-decimal K precision
+  else
+    key = math.floor(n)
+  end
+  local cached = fmtCache[key]
+  if cached then return cached end
+  -- Compute
+  local result
+  if n >= 1000000 then result = string.format("%.2fM", n / 1000000)
+  elseif n >= 1000 then result = string.format("%.1fK", n / 1000)
+  else result = string.format("%.0f", n) end
+  -- Store (cap cache size to prevent memory leak)
+  if fmtCacheSize > 500 then ClearFmtCache() end
+  fmtCache[key] = result
+  fmtCacheSize = fmtCacheSize + 1
+  return result
 end
 
 -- ── Fetch session data ───────────────────────────────────────────────
@@ -50,8 +73,10 @@ end
 
 -- ── Update display ───────────────────────────────────────────────────
 local function DoUpdate()
+  -- RefreshData already calls RefreshAllWindows which fetches C_DamageMeter data
+  -- UpdateDisplay only needs to redraw, not refetch
   DM.RefreshData()
-  if DM.UpdateDisplay then DM.UpdateDisplay() end
+  if DM.UpdateDisplayOnly then DM.UpdateDisplayOnly() end
 end
 
 -- ── Poll for secret values to drop after combat ──────────────────────
@@ -61,7 +86,6 @@ local function PollForSecrets()
   if DM.windows then
     for _, w in ipairs(DM.windows) do
       if w.sessionData and w.sessionData.combatSources then
-        local isSecret = issecretvalue or function() return false end
         if not isSecret(w.sessionData.combatSources) and #w.sessionData.combatSources > 0 then
           if secretPollTicker then secretPollTicker:Cancel(); secretPollTicker = nil end
           if DM.UpdateDisplay then DM.UpdateDisplay() end
@@ -76,8 +100,16 @@ end
 local function OnCombatEnter()
   DM.inCombat = true
   DM.combatStartTime = GetTime()
+  -- BUG FIX: cancel secretPollTicker if combat starts while it's still running
+  -- (e.g. back-to-back pulls), otherwise poll and update ticker run in parallel
+  if secretPollTicker then secretPollTicker:Cancel(); secretPollTicker = nil end
   if updateTicker then updateTicker:Cancel() end
-  local interval = NS.DB("dmUpdateInterval") or 0.3
+  local interval = NS.DB("dmUpdateInterval") or 0.5
+  -- In raids/dungeons, use longer interval to reduce CPU load
+  local inInstance, instanceType = IsInInstance()
+  if inInstance and (instanceType == "raid" or instanceType == "party") then
+    interval = math.max(interval, 1.0)
+  end
   updateTicker = C_Timer.NewTicker(interval, DoUpdate)
   DoUpdate()
   if DM.OnCombatStateChanged then DM.OnCombatStateChanged(true) end
@@ -87,6 +119,7 @@ local function OnCombatLeave()
   DM.inCombat = false
   DM.combatElapsed = GetTime() - DM.combatStartTime
   if updateTicker then updateTicker:Cancel(); updateTicker = nil end
+  ClearFmtCache()
   DoUpdate()
   if secretPollTicker then secretPollTicker:Cancel() end
   secretPollTicker = C_Timer.NewTicker(0.3, PollForSecrets)
@@ -127,10 +160,14 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
       DM.available = C_DamageMeter.IsDamageMeterAvailable()
     end
     if DM.available then
-      pcall(function()
-        if C_CVar and C_CVar.SetCVar then
-          C_CVar.SetCVar("damageMeterEnabled", "0")
-        end
+      -- Defer SetCVar to avoid taint: protected CVars must not be written during PLAYER_LOGIN
+      -- (before PLAYER_ENTERING_WORLD the secure environment is not fully established)
+      C_Timer.After(0, function()
+        pcall(function()
+          if C_CVar and C_CVar.SetCVar then
+            C_CVar.SetCVar("damageMeterEnabled", "0")
+          end
+        end)
       end)
     end
     if DM.available and NS.DB("dmEnabled") then

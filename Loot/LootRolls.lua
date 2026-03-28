@@ -59,19 +59,16 @@ end
 
 -- Auto-save every 15s + on logout (only when rolls enabled)
 local rollSaveFrame = CreateFrame("Frame")
-local rollSaveTimer = 0
+local _rollSaveTicker = nil
 local function EnableRollSave()
-  rollSaveFrame:SetScript("OnUpdate", function(_, elapsed)
-    rollSaveTimer = rollSaveTimer + elapsed
-    if rollSaveTimer < 15 then return end
-    rollSaveTimer = 0
-    SaveRollSessions()
-  end)
+  if not _rollSaveTicker then
+    _rollSaveTicker = C_Timer.NewTicker(15, SaveRollSessions)
+  end
   rollSaveFrame:RegisterEvent("PLAYER_LOGOUT")
   rollSaveFrame:SetScript("OnEvent", function() SaveRollSessions() end)
 end
 local function DisableRollSave()
-  rollSaveFrame:SetScript("OnUpdate", nil)
+  if _rollSaveTicker then _rollSaveTicker:Cancel(); _rollSaveTicker = nil end
   rollSaveFrame:UnregisterAllEvents()
 end
 NS.EnableRollSave = EnableRollSave
@@ -189,27 +186,15 @@ local function GetAccentColorRGB()
 end
 
 local function GetWinTheme()
-  local DT = NS.DARK_THEME
+  local t = NS.GetTheme(NS.DB("theme"))
   local alpha = GetRollsAlpha()
   local accent = GetAccentColorRGB()
-  if NS.DB and NS.DB("theme") == "custom" then
-    local function col(k, def) local v = NS.DB(k); return v and v or def end
-    local bg = col("customBg", {0.03,0.03,0.03,alpha})
-    bg[4] = alpha
-    return {
-      bg         = bg,
-      border     = col("customBorder",    {0.15,0.15,0.15,1}),
-      titleBg    = col("customTitleBg",   {0.06,0.06,0.06,1}),
-      titleText  = col("customTitleText", {1,1,1,1}),
-      tilders    = accent,
-    }
-  end
-  local bg = {DT.bg[1], DT.bg[2], DT.bg[3], alpha}
+  local bg = {t.bg[1], t.bg[2], t.bg[3], alpha}
   return {
     bg        = bg,
-    border    = DT.border,
-    titleBg   = DT.titleBg,
-    titleText = DT.titleText  or {1,1,1,1},
+    border    = t.border,
+    titleBg   = t.titleBg,
+    titleText = t.titleText or {1,1,1,1},
     tilders   = accent,
   }
 end
@@ -383,15 +368,32 @@ local function BuildItemRow(parent, session, yOffset)
     end)
   end
 
+  -- "Passed" indicator (bottom right, shown when local player passed)
+  local passedLbl = row:CreateFontString(nil, "OVERLAY")
+  passedLbl:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  passedLbl:SetPoint("BOTTOMRIGHT", -6, 5)
+  passedLbl:SetTextColor(0.45, 0.45, 0.45)
+  passedLbl:SetText("Passed")
+  passedLbl:Hide()
+
   -- Status line (winner or animated dots)
   local statusLbl = row:CreateFontString(nil, "OVERLAY")
   statusLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "")
   statusLbl:SetPoint("BOTTOMLEFT", ICON_SZ + 10, 5)
-  statusLbl:SetPoint("BOTTOMRIGHT", -4, 5)
+  statusLbl:SetPoint("BOTTOMRIGHT", passedLbl, "BOTTOMLEFT", -4, 0)
   statusLbl:SetJustifyH("LEFT")
 
   local function RefreshStatus()
     local sorted = SortedRollers(session.rollers)
+
+    -- Check if local player passed
+    local playerName = UnitName("player")
+    local playerRoll = playerName and session.rollers[playerName]
+    if playerRoll and playerRoll.rollType == "pass" then
+      passedLbl:Show()
+    else
+      passedLbl:Hide()
+    end
 
     if #sorted == 0 then
       RegisterDotsLabel(statusLbl, "|cff555555Waiting")
@@ -926,7 +928,8 @@ local function RegisterRollEvents()
     rollFrame:RegisterEvent("LOOT_ROLLS_COMPLETE")
     rollFrame:RegisterEvent("ENCOUNTER_START")
     rollFrame:RegisterEvent("CHAT_MSG_LOOT")
-    rollFrame:RegisterEvent("LOOT_HISTORY_UPDATE_DROP")
+    pcall(function() rollFrame:RegisterEvent("LOOT_HISTORY_ROLL_CHANGED") end)
+    pcall(function() rollFrame:RegisterEvent("LOOT_HISTORY_UPDATE_DROP") end)
     EnableRollSave()
   else
     rollFrame:UnregisterEvent("START_LOOT_ROLL")
@@ -935,7 +938,8 @@ local function RegisterRollEvents()
     rollFrame:UnregisterEvent("LOOT_ROLLS_COMPLETE")
     rollFrame:UnregisterEvent("ENCOUNTER_START")
     rollFrame:UnregisterEvent("CHAT_MSG_LOOT")
-    rollFrame:UnregisterEvent("LOOT_HISTORY_UPDATE_DROP")
+    pcall(function() rollFrame:UnregisterEvent("LOOT_HISTORY_ROLL_CHANGED") end)
+    pcall(function() rollFrame:UnregisterEvent("LOOT_HISTORY_UPDATE_DROP") end)
     DisableRollSave()
   end
 end
@@ -954,8 +958,20 @@ rollFrame:SetScript("OnEvent", function(self, event, ...)
     if NS.DB and NS.DB("rollsEnabled") == false then return end
     local rollID, rollTime = ...
     local function ProcessRoll(attempt)
-      local texture, name, count, quality, bop = GetLootRollItemInfo(rollID)
-      local link = GetLootRollItemLink(rollID)
+      -- In WoW 12.x GetLootRollItemInfo may return a table or individual values
+      -- depending on patch; use C_LootJournal-aware approach with pcall safety
+      local texture, name, count, quality, bop
+      local ok, r1, r2, r3, r4, r5 = pcall(GetLootRollItemInfo, rollID)
+      if ok then
+        -- Check if result is a table (newer API) or positional (classic API)
+        if type(r1) == "table" then
+          texture = r1.texture; name = r1.itemName; count = r1.quantity
+          quality = r1.quality; bop = r1.bindOnPickUp
+        else
+          texture, name, count, quality, bop = r1, r2, r3, r4, r5
+        end
+      end
+      local link = GetLootRollItemLink and GetLootRollItemLink(rollID)
       -- If item info not available yet, retry
       if (not name or name == "") and attempt < 5 then
         C_Timer.After(0.5, function() ProcessRoll(attempt + 1) end)
@@ -1020,42 +1036,67 @@ rollFrame:SetScript("OnEvent", function(self, event, ...)
     NS.RollWindowRedraw()
     ScheduleAutoClose()
 
-  elseif event == "LOOT_HISTORY_UPDATE_DROP" then
-    -- Retail 11.0.8+: get roll data from C_LootHistory API
-    local encounterID, lootListID = ...
-    pcall(function()
-      if not C_LootHistory or not C_LootHistory.GetSortedInfoForDrop then return end
-      local dropInfo = C_LootHistory.GetSortedInfoForDrop(encounterID, lootListID)
-      if not dropInfo or not dropInfo.rollInfos then return end
-      -- Match drop to our session via item link
-      local dropItemID = dropInfo.itemHyperlink and dropInfo.itemHyperlink:match("item:(%d+)")
-      if not dropItemID then return end
-      for _, s in pairs(NS.rollSessions) do
-        local sessionItemID = s.link and s.link:match("item:(%d+)")
-        if sessionItemID and sessionItemID == dropItemID then
-          -- EncounterLootDropRollState: 0=NeedMainSpec, 1=NeedOffSpec, 2=Transmog, 3=Greed, 4=NoRoll, 5=Pass
-          local STATE_MAP = {[0]="need", [1]="need", [2]="transmog", [3]="greed", [5]="pass"}
-          for _, ri in ipairs(dropInfo.rollInfos) do
-            if ri.playerName and ri.state ~= 4 then -- skip NoRoll
-              local shortName = ri.playerName:match("^([^%-]+)") or ri.playerName
-              local rtype = STATE_MAP[ri.state] or "need"
-              if ri.playerClass then classCache[shortName] = ri.playerClass end
-              s.rollers[shortName] = {
-                val = ri.roll or 0, rollType = rtype, class = ri.playerClass,
-                winner = ri.isWinner or nil,
-              }
+  elseif event == "LOOT_HISTORY_ROLL_CHANGED" or event == "LOOT_HISTORY_UPDATE_DROP" then
+    pcall(function(...)
+      if not C_LootHistory then return end
+      local STATE_MAP = {[0]="need", [1]="need", [2]="transmog", [3]="greed", [5]="pass"}
+
+      if event == "LOOT_HISTORY_ROLL_CHANGED" and C_LootHistory.GetItem then
+        -- Per-player roll update: match via rollID (unique, handles duplicates)
+        local itemIdx, playerIdx = ...
+        local rollID = C_LootHistory.GetItem(itemIdx)
+        if not rollID then return end
+        local s = NS.rollSessions[rollID]
+        if not s then return end
+
+        local info = C_LootHistory.GetPlayerInfo(itemIdx, playerIdx)
+        if not info or not info.playerName then return end
+
+        local shortName = info.playerName:match("^([^%-]+)") or info.playerName
+        local rtype = STATE_MAP[info.state] or "need"
+        if info.playerClass then classCache[shortName] = info.playerClass end
+        s.rollers[shortName] = {
+          val = info.roll or 0, rollType = rtype, class = info.playerClass,
+          winner = info.isWinner or nil,
+        }
+        if info.isWinner then s.done = true; s._doneTime = s._doneTime or GetTime() end
+        if s._refreshStatus then s._refreshStatus() end
+        NS.RollWindowRedraw()
+
+      elseif event == "LOOT_HISTORY_UPDATE_DROP" and C_LootHistory.GetSortedInfoForDrop then
+        -- Fallback: full drop info, match via itemID + lootListID
+        local encounterID, lootListID = ...
+        local dropInfo = C_LootHistory.GetSortedInfoForDrop(encounterID, lootListID)
+        if not dropInfo or not dropInfo.rollInfos then return end
+        local dropItemID = dropInfo.itemHyperlink and dropInfo.itemHyperlink:match("item:(%d+)")
+        if not dropItemID then return end
+        for _, s in pairs(NS.rollSessions) do
+          local sID = s.link and s.link:match("item:(%d+)")
+          if sID and sID == dropItemID then
+            if s._lootListID and s._lootListID ~= lootListID then
+              -- Already matched to different drop, skip
+            elseif not s._lootListID or s._lootListID == lootListID then
+              s._lootListID = lootListID
+              for _, ri in ipairs(dropInfo.rollInfos) do
+                if ri.playerName and ri.state ~= 4 then
+                  local shortName = ri.playerName:match("^([^%-]+)") or ri.playerName
+                  local rtype = STATE_MAP[ri.state] or "need"
+                  if ri.playerClass then classCache[shortName] = ri.playerClass end
+                  s.rollers[shortName] = {
+                    val = ri.roll or 0, rollType = rtype, class = ri.playerClass,
+                    winner = ri.isWinner or nil,
+                  }
+                end
+              end
+              if dropInfo.winner then s.done = true; s._doneTime = s._doneTime or GetTime() end
+              if s._refreshStatus then s._refreshStatus() end
+              NS.RollWindowRedraw()
+              break
             end
           end
-          if dropInfo.winner then
-            s.done = true
-            s._doneTime = s._doneTime or GetTime()
-          end
-          if s._refreshStatus then s._refreshStatus() end
-          NS.RollWindowRedraw()
-          break
         end
       end
-    end)
+    end, ...)
 
   elseif event == "CHAT_MSG_LOOT" then
     -- Detect roll winners from loot messages

@@ -11,9 +11,8 @@ NS.chatOptDropdownArrows = {}
 NS.chatOptSliderThumbs   = {}
 
 local function GetAccentRGB()
-  local t = NS.GetTheme(NS.DB("theme"))
-  local tid = t.tilders or CYAN
-  return tid[1], tid[2], tid[3]
+  -- NS.CYAN is always kept in sync with the active accent color
+  return CYAN[1], CYAN[2], CYAN[3]
 end
 
 local function GetAccentHex()
@@ -232,7 +231,7 @@ function NS.ChatGetSlider(parent, label, minVal, maxVal, valuePattern, callback)
   holder.Slider:SetHeight(20)
 
   local range = maxVal - minVal
-  holder.Slider:Init(maxVal, minVal, maxVal, range, {
+  holder.Slider:Init(minVal, minVal, maxVal, range, {
     [MinimalSliderWithSteppersMixin.Label.Right] = CreateMinimalSliderFormatter(
       MinimalSliderWithSteppersMixin.Label.Right,
       function(value)

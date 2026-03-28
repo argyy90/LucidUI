@@ -7,14 +7,17 @@ local L  = LucidUIL
 local chatBar       = nil
 local iconTextures  = {}
 
+-- Ticker refs kept so they can be cancelled cleanly (avoids ticker leaks)
+local _friendsTicker = nil
+local _vcTicker      = nil
+
 local BAR_W    = 32
 local BTN_SIZE = 24
 local BTN_GAP  = -4
 
 local function GetAccent()
-  local t = NS.GetTheme(NS.DB("theme"))
-  local tid = t.tilders or NS.CYAN
-  return tid[1], tid[2], tid[3]
+  -- NS.CYAN is always kept in sync with the active accent color
+  return NS.CYAN[1], NS.CYAN[2], NS.CYAN[3]
 end
 
 local function GetBtnColor()
@@ -68,6 +71,12 @@ local function Tooltip(btn, text)
   btn:HookScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- Cancel all active bar tickers (call this if chat is disabled/reset)
+NS.CleanupChatBarTickers = function()
+  if _friendsTicker then _friendsTicker:Cancel(); _friendsTicker = nil end
+  if _vcTicker       then _vcTicker:Cancel();      _vcTicker = nil       end
+end
+
 NS.BuildChatBar = function()
   if chatBar then return end
   local anchor = NS.chatBg
@@ -109,7 +118,13 @@ NS.BuildChatBar = function()
   -- Social (with online friends count badge)
   local socialsBtn = MakeBtn(chatBar)
   MakeIcon(socialsBtn, "Interface/AddOns/LucidUI/Assets/ChatSocial.png")
-  socialsBtn:SetScript("OnClick", function() ToggleFriendsFrame() end)
+  socialsBtn:SetScript("OnClick", function()
+    if ToggleFriendsFrame then
+      ToggleFriendsFrame()
+    elseif FriendsFrame then
+      FriendsFrame:SetShown(not FriendsFrame:IsShown())
+    end
+  end)
   Tooltip(socialsBtn, L["Social"])
   table.insert(entries, socialsBtn)
 
@@ -119,27 +134,18 @@ NS.BuildChatBar = function()
   friendsBadge:SetTextColor(1, 1, 1, 1)
   friendsBadge:SetText("")
 
-  local friendsSyncTimer = 0
-  local friendsSyncFrame = CreateFrame("Frame")
-  friendsSyncFrame:SetScript("OnUpdate", function(_, elapsed)
-    friendsSyncTimer = friendsSyncTimer + elapsed
-    if friendsSyncTimer < 10 then return end
-    friendsSyncTimer = 0
+  -- Ticker instead of OnUpdate polling; stored so it can be cancelled
+  _friendsTicker = C_Timer.NewTicker(10, function()
     local numOnline = 0
-    -- WoW friends
     if C_FriendList and C_FriendList.GetNumOnlineFriends then
       numOnline = numOnline + (C_FriendList.GetNumOnlineFriends() or 0)
     end
-    -- BNet friends
+    -- BNGetNumFriends is the stable Midnight global (C_BattleNet.GetFriendNumFriends does not exist)
     if BNGetNumFriends then
       local _, bnOnline = BNGetNumFriends()
       numOnline = numOnline + (bnOnline or 0)
     end
-    if numOnline > 0 then
-      friendsBadge:SetText(numOnline)
-    else
-      friendsBadge:SetText("")
-    end
+    friendsBadge:SetText(numOnline > 0 and numOnline or "")
   end)
 
   -- Settings
@@ -183,34 +189,30 @@ NS.BuildChatBar = function()
   table.insert(entries, statsBtn)
 
   -- Voice Chat / Leave Voice Chat
+  -- FIX: Midnight 12.x API uses IsSelfMuted / IsSelfDeafened / ToggleSelfMute / ToggleSelfDeafen
   local vcBtn = MakeBtn(chatBar)
   local vcTex = MakeIcon(vcBtn, "Interface/AddOns/LucidUI/Assets/VoiceChat.png")
   local vcInChannel = false
   vcBtn:SetScript("OnClick", function()
     if vcInChannel then
-      -- Leave voice channel
       if C_VoiceChat and C_VoiceChat.IsLoggedIn and C_VoiceChat.IsLoggedIn() then
         local channelID = C_VoiceChat.GetActiveChannelID and C_VoiceChat.GetActiveChannelID()
-        if channelID then
-          C_VoiceChat.LeaveChannel(channelID)
-        end
+        if channelID then C_VoiceChat.LeaveChannel(channelID) end
       end
     else
-      -- Open channel panel
-      if ChannelFrame and ChannelFrame:IsShown() then ChannelFrame:Hide()
-      else ToggleChannelFrame() end
+      -- Open channel panel — ToggleChannelFrame removed in Midnight
+      if ChannelFrame then
+        ChannelFrame:SetShown(not ChannelFrame:IsShown())
+      elseif ToggleChannelFrame then
+        ToggleChannelFrame()
+      end
     end
   end)
   Tooltip(vcBtn, L["Voice Chat"])
   table.insert(entries, vcBtn)
 
-  -- Swap icon based on voice channel state
-  local vcSyncTimer = 0
-  local vcSyncFrame = CreateFrame("Frame")
-  vcSyncFrame:SetScript("OnUpdate", function(_, elapsed)
-    vcSyncTimer = vcSyncTimer + elapsed
-    if vcSyncTimer < 2 then return end
-    vcSyncTimer = 0
+  -- Ticker for voice state; stored so it can be cancelled
+  _vcTicker = C_Timer.NewTicker(2, function()
     local wasInChannel = vcInChannel
     if C_VoiceChat and C_VoiceChat.IsLoggedIn and C_VoiceChat.IsLoggedIn() then
       local chID = C_VoiceChat.GetActiveChannelID and C_VoiceChat.GetActiveChannelID()
@@ -232,9 +234,7 @@ NS.BuildChatBar = function()
     local yOff2 = -8
     for _, btn in ipairs(entries) do
       local visible = true
-      if btn._configKey then
-        visible = NS.DB(btn._configKey) ~= false
-      end
+      if btn._configKey then visible = NS.DB(btn._configKey) ~= false end
       btn:SetShown(visible)
       if visible then
         btn:ClearAllPoints()
@@ -259,7 +259,6 @@ NS.BuildChatBar = function()
   chatBar:HookScript("OnEnter", function()
     if (NS.DB("chatBarVisibility") or "always") == "mouseover" then
       chatBar:SetAlpha(1)
-      -- Stretch tabbar bg to cover bar on hover
       local pos2 = NS.DB("chatBarPosition") or "outside_right"
       local isOutside = (pos2 == "outside_right" or pos2 == "outside_left")
       if isOutside and NS.chatTabBarBg then
@@ -281,7 +280,6 @@ NS.BuildChatBar = function()
     if (NS.DB("chatBarVisibility") or "always") == "mouseover" then
       if not chatBar:IsMouseOver() then
         chatBar:SetAlpha(0)
-        -- Shrink tabbar bg back
         if NS.UpdateTabBarBgStretch then NS.UpdateTabBarBgStretch() end
       end
     end
@@ -318,9 +316,7 @@ NS.RepositionChatBar = function()
     local a = NS.DB("chatBgAlpha") or 0.5
     chatBar:SetBackdropColor(0, 0, 0, 1 - a)
   end
-  -- Update tab bar bg stretch based on bar visibility
   NS.UpdateTabBarBgStretch()
-  -- Update message area / resize inset for inside bar positions
   if NS.ApplyBarLayout then NS.ApplyBarLayout() end
 end
 
@@ -335,7 +331,6 @@ NS.UpdateTabBarBgStretch = function()
 
   NS.chatTabBarBg:ClearAllPoints()
   if isOutside and barVisible then
-    -- Bar always visible: stretch tabbar bg to cover bar area
     if pos == "outside_right" then
       NS.chatTabBarBg:SetPoint("TOPLEFT", ltTabBar, "TOPLEFT", 0, 0)
       NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", BAR_W, 0)
@@ -344,7 +339,6 @@ NS.UpdateTabBarBgStretch = function()
       NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", 0, 0)
     end
   else
-    -- Inside, mouseover, or never: tabbar bg matches tabbar only
     NS.chatTabBarBg:SetAllPoints(ltTabBar)
   end
 end

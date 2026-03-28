@@ -1,44 +1,43 @@
 ## Interface: 120001, 120000
 ## Title: LucidUI
 ## Notes: Complete chat replacement, loot tracking, session stats & QoL features
-## Version: 1.7
+## Version: 1.8
 ## SavedVariables: LucidUIDB
-## IconTexture: Interface\AddOns\LucidUI\Assets\Logo.png
+## IconTexture: Interface\\AddOns\\LucidUI\\Assets\\Logo.png
 
 ## Category-enUS: Chat
 ## Category-deDE: Chat
 
-HyperlinkHandler.xml
 Locales.lua
 Core.lua
 
-Chat\Messages.lua
-Chat\ChatFormat.lua
-Chat\ChatMessageArea.lua
-Chat\ChatComponents.lua
-Chat\ChatBar.lua
-Chat\ChatFrame.lua
-Chat\ChatOptions.lua
+Chat\\Messages.lua
+Chat\\ChatFormat.lua
+Chat\\ChatMessageArea.lua
+Chat\\ChatComponents.lua
+Chat\\ChatBar.lua
+Chat\\ChatFrame.lua
+Chat\\ChatOptions.lua
 
-Loot\LootHandlers.lua
-Loot\LootRolls.lua
-Loot\LootTracker.lua
-Loot\SessionStats.lua
+Loot\\LootHandlers.lua
+Loot\\LootRolls.lua
+Loot\\LootTracker.lua
+Loot\\SessionStats.lua
 
-LucidMeter\Main.lua
-LucidMeter\Display.lua
-LucidMeter\Settings.lua
+LucidMeter\\Main.lua
+LucidMeter\\Display.lua
+LucidMeter\\Settings.lua
 
-Bags\Bags.lua
+Bags\\Bags.lua
 
-Debug\Main.lua
-Debug\AddonProfiler.lua
+Debug\\Main.lua
+Debug\\AddonProfiler.lua
 
-QoL\Main.lua
-QoL\MouseRing.lua
-QoL\CombatTimer.lua
-QoL\CombatAlert.lua
-QoL\SystemOpt.lua
-QoL\AutoVendor.lua
-QoL\SkipCinematics.lua
-QoL\Misc.lua
+QoL\\Main.lua
+QoL\\MouseRing.lua
+QoL\\CombatTimer.lua
+QoL\\CombatAlert.lua
+QoL\\SystemOpt.lua
+QoL\\AutoVendor.lua
+QoL\\SkipCinematics.lua
+QoL\\Misc.lua

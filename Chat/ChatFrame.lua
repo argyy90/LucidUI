@@ -25,6 +25,17 @@ local restoringHistory = false
 local tabFlashing    = {}
 local tabBarFrame    = nil
 
+-- ── Loot routing cache (recomputed once on settings change) ──────────
+-- Avoids 4+ repeated NS.DB lookups per incoming message.
+local lootRouting = { active=false, showMoney=true, showCurrency=true }
+local function RefreshLootRouting()
+  lootRouting.active       = NS.DB("lootInChatTab") or NS.DB("lootOwnWindow") or false
+  lootRouting.showMoney    = NS.DB("showMoney") ~= false
+  lootRouting.showCurrency = NS.DB("showCurrency") ~= false
+end
+-- Expose so settings callbacks can call it after changing loot options
+NS.RefreshLootRouting = RefreshLootRouting
+
 local hiddenFrame = CreateFrame("Frame")
 hiddenFrame:Hide()
 
@@ -118,10 +129,11 @@ end
 -- When active: remove loot events from non-loot tabs' eventSets.
 -- When inactive: re-add them (by collapsing eventSet back to nil if all events are on).
 NS.SyncLootEvents = function()
-  local lootActive = NS.DB("lootInChatTab") or NS.DB("lootOwnWindow")
+  RefreshLootRouting()
+  local lootActive = lootRouting.active
   local lootEvents = {"CHAT_MSG_LOOT"}
-  if NS.DB("showMoney") ~= false then table.insert(lootEvents, "CHAT_MSG_MONEY") end
-  if NS.DB("showCurrency") ~= false then table.insert(lootEvents, "CHAT_MSG_CURRENCY") end
+  if lootRouting.showMoney    then table.insert(lootEvents, "CHAT_MSG_MONEY") end
+  if lootRouting.showCurrency then table.insert(lootEvents, "CHAT_MSG_CURRENCY") end
 
   for tabIdx, td in ipairs(tabData) do
     if td._isLootTab then
@@ -200,7 +212,8 @@ local function LoadTabData()
       td.eventSet = BuildFullEventSet()
     end
     -- Migrate: enable newly added events by default in existing eventSets
-    if td.eventSet then
+    -- Skip managed tabs (Whisper/Loot/CombatLog) - they have intentionally restricted eventSets
+    if td.eventSet and not (td._isWhisperTab or td._isLootTab or td._isCombatLogTab) then
       local NEW_EVENTS = {
         "CHAT_MSG_TRADESKILLS","CHAT_MSG_OPENING","CHAT_MSG_PET_INFO","CHAT_MSG_COMBAT_MISC_INFO",
         "CHAT_MSG_PET_BATTLE_COMBAT_LOG","CHAT_MSG_PET_BATTLE_INFO","CHAT_MSG_PING",
@@ -471,7 +484,7 @@ end
 
 -- ── AddToDisplay ─────────────────────────────────────────────────────
 
-AddToDisplay = function(index, msg, r, g, b, event, channelName)
+AddToDisplay = function(index, msg, r, g, b, event, channelName, unixTime)
   if msg then
     local ok, safe = pcall(tostring, msg)
     if not ok then return end
@@ -484,7 +497,7 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName)
   local d = customDisplays[index]
   if not d then return end
   if not isRerendering then
-    local t = time()
+    local t = unixTime or time()
     StoreMessage(index, msg, r, g, b, t, event, channelName)
     local cleanOk, cleanMsg = pcall(function()
       return msg
@@ -500,10 +513,9 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName)
 
     if index == 1 then
       -- Check if loot events should be suppressed from non-loot tabs
-      local lootActive = NS.DB("lootInChatTab") or NS.DB("lootOwnWindow")
       local isLootEvent = event and (event == "CHAT_MSG_LOOT"
-        or (event == "CHAT_MSG_MONEY" and NS.DB("showMoney") ~= false)
-        or (event == "CHAT_MSG_CURRENCY" and NS.DB("showCurrency") ~= false))
+        or (event == "CHAT_MSG_MONEY" and lootRouting.showMoney)
+        or (event == "CHAT_MSG_CURRENCY" and lootRouting.showCurrency))
 
       for tabIdx, td in ipairs(tabData) do
         local flt = td.eventSet
@@ -517,7 +529,7 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName)
         end
         if show and td.createdAt and t < td.createdAt then show = false end
         -- Suppress loot events from non-loot tabs
-        if show and lootActive and isLootEvent and not td._isLootTab then
+        if show and lootRouting.active and isLootEvent and not td._isLootTab then
           show = false
         end
         -- Block messages from channels the tab has blocked
@@ -1023,6 +1035,7 @@ RebuildTabButtons = function()
               end
               tabMsgs[#tabData + 1] = nil
               if activeTab >= capturedI then activeTab = math.max(1, activeTab - 1) end
+              tabScrollOffset = 0
               RebuildTabButtons()
               isRerendering = true; RedrawDisplay(); isRerendering = false
               SaveTabData()
@@ -1039,6 +1052,7 @@ RebuildTabButtons = function()
         end
         tabMsgs[#tabData + 1] = nil
         if activeTab >= capturedI then activeTab = math.max(1, activeTab - 1) end
+        tabScrollOffset = 0
         RebuildTabButtons()
         isRerendering = true; RedrawDisplay(); isRerendering = false
         SaveTabData()
@@ -1196,8 +1210,9 @@ local function BuildTabBar(bg)
   end
   muteBtn:SetScript("OnClick", function()
     if C_VoiceChat and C_VoiceChat.IsLoggedIn and C_VoiceChat.IsLoggedIn() then
-      isMuted = not (C_VoiceChat.IsMuted and C_VoiceChat.IsMuted() or false)
-      if C_VoiceChat.SetMuted then C_VoiceChat.SetMuted(isMuted) end
+      C_VoiceChat.ToggleSelfMute()
+          isMuted = C_VoiceChat.IsSelfMuted and C_VoiceChat.IsSelfMuted() or false
+      
       RefreshMuteIcon()
     end
   end)
@@ -1229,8 +1244,9 @@ local function BuildTabBar(bg)
   end
   deafenBtn:SetScript("OnClick", function()
     if C_VoiceChat and C_VoiceChat.IsLoggedIn and C_VoiceChat.IsLoggedIn() then
-      isDeafened = not (C_VoiceChat.IsDeafened and C_VoiceChat.IsDeafened() or false)
-      if C_VoiceChat.SetDeafened then C_VoiceChat.SetDeafened(isDeafened) end
+      C_VoiceChat.ToggleSelfDeafen()
+          isDeafened = C_VoiceChat.IsSelfDeafened and C_VoiceChat.IsSelfDeafened() or false
+      
       RefreshDeafenIcon()
     end
   end)
@@ -1264,12 +1280,7 @@ local function BuildTabBar(bg)
   NS._voiceGetIconColor = GetVoiceIconColor
 
   -- Show mute/deafen only when in voice channel, reposition tabs when state changes
-  local voiceSyncTimer2 = 0
-  local voiceSync2 = CreateFrame("Frame")
-  voiceSync2:SetScript("OnUpdate", function(_, elapsed)
-    voiceSyncTimer2 = voiceSyncTimer2 + elapsed
-    if voiceSyncTimer2 < 2 then return end
-    voiceSyncTimer2 = 0
+  local voiceSyncTicker = C_Timer.NewTicker(2, function()
     local wasVisible = voiceButtonsVisible
     if C_VoiceChat and C_VoiceChat.IsLoggedIn and C_VoiceChat.IsLoggedIn() then
       local inChannel = C_VoiceChat.GetActiveChannelID and C_VoiceChat.GetActiveChannelID()
@@ -1278,8 +1289,8 @@ local function BuildTabBar(bg)
       deafenBtn:SetShown(voiceButtonsVisible)
       if voiceButtonsVisible then
         PositionVoiceButtons()
-        local m = C_VoiceChat.IsMuted and C_VoiceChat.IsMuted() or false
-        local d2 = C_VoiceChat.IsDeafened and C_VoiceChat.IsDeafened() or false
+        local m = C_VoiceChat.IsSelfMuted and C_VoiceChat.IsSelfMuted() or false
+        local d2 = C_VoiceChat.IsSelfDeafened and C_VoiceChat.IsSelfDeafened() or false
         if m ~= isMuted then isMuted = m; RefreshMuteIcon() end
         if d2 ~= isDeafened then isDeafened = d2; RefreshDeafenIcon() end
       end
@@ -1391,11 +1402,8 @@ local function SetupEditBox(bg)
   else
     eb:Hide(); cont:Hide()
   end
-  -- Track chat type continuously while user has focus
-  -- OnUpdate is the only reliable way because WoW's DeactivateChat resets
-  -- chatType to SAY before any hook can capture it
-  local focusTracker = CreateFrame("Frame")
-  focusTracker:SetScript("OnUpdate", function()
+  -- Track chat type while user has focus — ticker fires 4x/sec (C_Timer is lighter than OnUpdate)
+  local _focusTicker = C_Timer.NewTicker(0.25, function()
     if eb:HasFocus() then
       local ct = eb:GetAttribute("chatType")
       if ct and ct ~= "" then
@@ -1476,11 +1484,10 @@ NS.ChatShowCopyWindow = function()
         show = false
       end
       -- Skip loot events in non-loot tabs
-      local lootActive = NS.DB("lootInChatTab") or NS.DB("lootOwnWindow")
       local isLootEvent = entry.event and (entry.event == "CHAT_MSG_LOOT"
-        or (entry.event == "CHAT_MSG_MONEY" and NS.DB("showMoney") ~= false)
-        or (entry.event == "CHAT_MSG_CURRENCY" and NS.DB("showCurrency") ~= false))
-      if show and lootActive and isLootEvent and not td._isLootTab then
+        or (entry.event == "CHAT_MSG_MONEY" and lootRouting.showMoney)
+        or (entry.event == "CHAT_MSG_CURRENCY" and lootRouting.showCurrency))
+      if show and lootRouting.active and isLootEvent and not td._isLootTab then
         show = false
       end
       if show then
@@ -1858,7 +1865,7 @@ local function InitChatSystem()
   -- Flush early buffer
   if earlyBuffer then
     for _, entry in ipairs(earlyBuffer) do
-      AddToDisplay(1, entry.msg, entry.r, entry.g, entry.b, entry.event, entry.channelName)
+      AddToDisplay(1, entry.msg, entry.r, entry.g, entry.b, entry.event, entry.channelName, entry.t)
     end
   end
   earlyBuffer = nil
@@ -1867,13 +1874,15 @@ local function InitChatSystem()
   if NS.BuildChatBar then NS.BuildChatBar() end
   UpdateMinimapButton()
 
-  -- Hide default WoW chat UI
+  -- Hide default WoW chat UI (graceful no-ops if removed in Midnight)
   if GeneralDockManager then
-    GeneralDockManager:UnregisterAllEvents()
-    GeneralDockManager:Hide()
-    GeneralDockManager:SetScript("OnSizeChanged", nil)
-    GeneralDockManager:SetScript("OnUpdate", nil)
-    GeneralDockManager:SetScript("OnShow", function(self) self:Hide() end)
+    pcall(function()
+      GeneralDockManager:UnregisterAllEvents()
+      GeneralDockManager:Hide()
+      GeneralDockManager:SetScript("OnSizeChanged", nil)
+      GeneralDockManager:SetScript("OnUpdate", nil)
+      GeneralDockManager:SetScript("OnShow", function(self) self:Hide() end)
+    end)
   end
 
   for _, name in ipairs({
@@ -1909,7 +1918,7 @@ local function InitChatSystem()
         end
       end
 
-      if FloatingChatFrameManager then FloatingChatFrameManager:UnregisterAllEvents() end
+      if FloatingChatFrameManager then pcall(function() FloatingChatFrameManager:UnregisterAllEvents() end) end
 
       for i = 3, NUM_CHAT_WINDOWS or 10 do
         local cf = _G["ChatFrame" .. i]
@@ -1966,7 +1975,7 @@ local function InitChatSystem()
         tabMsgs[whisperTabIdx] = {}
         local h = messageHistory[1]
         if h then
-          for idx = #h, math.max(1, #h - 5), -1 do
+          for idx = #h, math.max(1, #h - 30), -1 do
             local entry = h[idx]
             if entry and entry.event and whisperEventSet[entry.event] then
               if not entry._clean then

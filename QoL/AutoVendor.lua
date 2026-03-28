@@ -14,9 +14,9 @@ local function DoAutoRepair()
   RepairAllItems(useGuild and true or false)
 
   if useGuild then
-    print("|cff00ffffff[LucidUI]|r " .. L["Repaired guild"])
+    print("|cff3bd2ed[LucidUI]|r " .. L["Repaired guild"])
   else
-    print("|cff00ffffff[LucidUI]|r Repaired for " .. GetCoinTextureString(cost))
+    print("|cff3bd2ed[LucidUI]|r Repaired for " .. C_CurrencyInfo.GetCoinTextureString(cost))
   end
 end
 
@@ -40,7 +40,7 @@ local function DoAutoSellGrey()
   end
 
   if sold > 0 then
-    print(string.format("|cff00ffffff[LucidUI]|r Sold %d grey item(s) for %s.", sold, GetCoinTextureString(gold)))
+    print(string.format("|cff3bd2ed[LucidUI]|r Sold %d grey item(s) for %s.", sold, C_CurrencyInfo.GetCoinTextureString(gold)))
   end
 end
 

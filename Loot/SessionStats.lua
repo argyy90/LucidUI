@@ -7,6 +7,9 @@ local L    = LucidUIL
 local CYAN = NS.CYAN
 local statsCollapsed = false
 
+-- Helper: single place to check whether stats tracking is active.
+local function StatsEnabled() return not (NS.DB and NS.DB("showStatsBtn") == false) end
+
 -- ── Session data (persisted in SavedVariables) ──────────────────────────────
 NS.session = {
   zone = "", instanceID = nil, startTime = GetTime(),
@@ -119,16 +122,13 @@ end
 local saveFrame = CreateFrame("Frame")
 local saveTimer = 0
 
+local _statsSaveTicker = nil
 local function EnableStatsSave()
-  saveFrame:SetScript("OnUpdate", function(_, elapsed)
-    saveTimer = saveTimer + elapsed
-    if saveTimer < 15 then return end
-    saveTimer = 0
-    SaveSession()
-  end)
+  if _statsSaveTicker then return end
+  _statsSaveTicker = C_Timer.NewTicker(15, SaveSession)
 end
 local function DisableStatsSave()
-  saveFrame:SetScript("OnUpdate", nil)
+  if _statsSaveTicker then _statsSaveTicker:Cancel(); _statsSaveTicker = nil end
 end
 NS.EnableStatsSave = EnableStatsSave
 NS.DisableStatsSave = DisableStatsSave
@@ -204,7 +204,7 @@ NS.ResetSession = function()
 end
 
 NS.StatsAddDeath = function(name)
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   local ses = NS.session
   ses.deaths[name] = (ses.deaths[name] or 0) + 1
   table.insert(ses.deathOrder, name)
@@ -212,20 +212,20 @@ NS.StatsAddDeath = function(name)
 end
 
 NS.StatsAddBoss = function(name)
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   table.insert(NS.session.bosses, name)
   if NS.statsWin and NS.statsWin:IsShown() then NS.RefreshStatsWindow() end
 end
 
 NS.StatsAddLoot = function(link, player, quality)
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   table.insert(NS.session.loot, {link=link, player=player, quality=quality or 1})
   if NS.statsWin and NS.statsWin:IsShown() then NS.RefreshStatsWindow() end
 end
 
 -- ── Event handlers (called from LucidUI main eventFrame) ──────────
 NS.StatsOnEnteringWorld = function()
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   -- Ensure session is loaded from DB (may not have happened yet)
   if not NS._sessionLoaded and LucidUIDB then
     LoadSession()
@@ -268,7 +268,7 @@ NS.StatsOnEnteringWorld = function()
 end
 
 NS.StatsOnZoneChanged = function()
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   local zoneName = GetRealZoneText()
   if not zoneName or zoneName == "" then return end
 
@@ -285,7 +285,7 @@ NS.StatsOnZoneChanged = function()
 end
 
 NS.StatsOnEncounterEnd = function(_, encName, _, _, success)
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   if success == 1 then
     NS.StatsAddBoss(encName)
   else
@@ -295,13 +295,13 @@ NS.StatsOnEncounterEnd = function(_, encName, _, _, success)
 end
 
 NS.StatsOnPlayerDead = function()
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   local name = UnitName("player") or "?"
   NS.StatsAddDeath(name)
 end
 
 NS.StatsOnMoney = function()
-  if NS.DB and NS.DB("showStatsBtn") == false then return end
+  if not StatsEnabled() then return end
   local cur = GetMoney()
   local ses = NS.session
   if cur > ses.goldPrev then ses.gold = ses.gold + (cur - ses.goldPrev) end
@@ -436,7 +436,6 @@ NS.BuildStatsWindow = function()
   local WIN_W  = 320
   local WIN_H  = 420
   local TITLE_H = 28
-  local function GetT() return NS.GetTheme(NS.DB("theme")) end
 
   NS.statsWin = CreateFrame("Frame", "LucidUIStatsWindow", UIParent, "BackdropTemplate")
   NS.statsWin:SetSize(WIN_W, WIN_H)
@@ -461,18 +460,13 @@ NS.BuildStatsWindow = function()
   -- Not in UISpecialFrames so ESC doesn't close it
   NS.statsWin:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
   local function GetStatsAlpha()
-    local at = NS._addonTable
-    if at and at.Config then
-      local trans = at.Config.Get(at.Config.Options.LOOT_STATS_TRANSPARENCY)
-      if trans then return 1 - trans end
-    end
-    return 0.97
+    return math.max(0.02, 0.97 - (NS.DB("statsTransparency") or 0))
   end
-  local t0 = GetT()
+  local t0 = NS.GetTheme(NS.DB("theme"))
   NS.statsWin:SetBackdropColor(t0.bg[1], t0.bg[2], t0.bg[3], GetStatsAlpha())
   NS.statsWin:SetBackdropBorderColor(unpack(t0.border))
   NS.statsWin._ApplyTheme = function()
-    local t = GetT()
+    local t = NS.GetTheme(NS.DB("theme"))
     NS.statsWin:SetBackdropColor(t.bg[1], t.bg[2], t.bg[3], GetStatsAlpha())
     NS.statsWin:SetBackdropBorderColor(unpack(t.border))
     if NS.statsWin._titleBar then
@@ -480,9 +474,10 @@ NS.BuildStatsWindow = function()
     end
     if NS.statsWin._titleTxt then
       local tc  = t.titleText or {1,1,1,1}
-      local tid = t.tilders   or {59/255, 210/255, 237/255, 1}
+      -- Use NS.CYAN directly — always in sync with the active accent
+      local C = NS.CYAN
       local thex = string.format("%02x%02x%02x",
-        math.floor(tid[1]*255), math.floor(tid[2]*255), math.floor(tid[3]*255))
+        math.floor(C[1]*255), math.floor(C[2]*255), math.floor(C[3]*255))
       NS.statsWin._titleTxt:SetTextColor(tc[1], tc[2], tc[3], 1)
       NS.statsWin._titleTxt:SetText("|cff"..thex..">|r"..L["Session Stats"].."|cff"..thex.."<|r")
     end
@@ -607,10 +602,18 @@ NS.BuildStatsWindow = function()
   -- chrome = space taken by title bar + top gap + bottom margin + padding
   NS.statsWin._chromePad = TITLE_H + 5 + 4 + 12
 
-  -- Auto-refresh every 5s while open (for session time)
-  NS.statsWin:SetScript("OnUpdate", function(self, elapsed)
-    self._t = (self._t or 0) + elapsed
-    if self._t >= 5 then self._t = 0; NS.RefreshStatsWindow() end
+  -- Auto-refresh every 5s while open — ticker started/stopped with window visibility
+  local _statsRefreshTicker = nil
+  NS.statsWin:SetScript("OnShow", function()
+    if not _statsRefreshTicker then
+      _statsRefreshTicker = C_Timer.NewTicker(5, function()
+        if NS.statsWin and NS.statsWin:IsShown() then NS.RefreshStatsWindow() end
+      end)
+    end
+    NS.RefreshStatsWindow()
+  end)
+  NS.statsWin:SetScript("OnHide", function()
+    if _statsRefreshTicker then _statsRefreshTicker:Cancel(); _statsRefreshTicker = nil end
   end)
 
   NS.RefreshStatsWindow()
@@ -619,6 +622,7 @@ end
 -- ── Helper: create themed dark window ───────────────────────────────────────
 local function MakeDarkWindow(name, width, height, titleText, posKey)
   local t = NS.GetTheme(NS.DB("theme"))
+  -- Use NS.CYAN directly — always in sync with the active accent color
   local hex = string.format("%02x%02x%02x",
     math.floor(CYAN[1]*255), math.floor(CYAN[2]*255), math.floor(CYAN[3]*255))
   local TH = 28

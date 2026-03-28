@@ -265,6 +265,8 @@ NS.GetClassColor = function(class)
   return "|cffffffff"
 end
 
+NS.AddSmoothScroll = function() end
+
 -- ── Apply* functions ───────────────────────────────────────────────────────────
 NS.ApplyTheme = function(themeKey)
   local t = NS.GetTheme(themeKey)
@@ -350,19 +352,20 @@ NS.ApplyTheme = function(themeKey)
     end
   end
   -- Update title brackets on stats + rolls windows
-  if NS.statsWin and NS.statsWin._titleTxt then
+  if NS.statsWin and NS.statsWin._titleTxt or NS.rollWin and NS.rollWin._titleTxt then
     local hex2 = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))
     local L = LucidUIL or {}
-    NS.statsWin._titleTxt:SetText("|cff"..hex2..">|r"..(L["Session Stats"] or "Session Stats").."|cff"..hex2.."<|r")
-  end
-  if NS.rollWin and NS.rollWin._titleTxt then
-    local hex2 = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))
-    local L2 = LucidUIL or {}
-    NS.rollWin._titleTxt:SetText("|cff"..hex2..">|r "..(L2["LOOT ROLLS"] or "LOOT ROLLS").." |cff"..hex2.."<|r")
+    if NS.statsWin and NS.statsWin._titleTxt then
+      NS.statsWin._titleTxt:SetText("|cff"..hex2..">|r"..(L["Session Stats"] or "Session Stats").."|cff"..hex2.."<|r")
+    end
+    if NS.rollWin and NS.rollWin._titleTxt then
+      NS.rollWin._titleTxt:SetText("|cff"..hex2..">|r "..(L["LOOT ROLLS"] or "LOOT ROLLS").." |cff"..hex2.."<|r")
+    end
   end
 
   NS.ApplyAlpha()
   NS.ApplyTitleAlpha()
+  if NS.ApplyChatTransparency then NS.ApplyChatTransparency() end
 end
 
 NS.ApplyAlpha = function()
@@ -411,70 +414,111 @@ NS.ApplyFade = function()
   end
 end
 
--- ── Font discovery ─────────────────────────────────────────────────────────────
-NS.GetLSMFonts = function()
-  local combined = {
+-- ── Font / StatusBar discovery (cached) ────────────────────────────────────────
+local _lsmFontList    = nil  -- full list for display in dropdowns
+local _lsmFontMap     = nil  -- label → path for fast lookup
+local _lsmBarList     = nil  -- full list for display in dropdowns
+local _lsmBarMap      = nil  -- label → path for fast lookup
+
+local function BuildFontCache()
+  local list = {
     {label="Friz Quadrata", path="Fonts/FRIZQT__.TTF"},
     {label="Arial Narrow",  path="Fonts/ARIALN.TTF"},
     {label="Morpheus",      path="Fonts/MORPHEUS.TTF"},
     {label="Skurri",        path="Fonts/skurri.TTF"},
     {label="Damage",        path="Fonts/DAMAGE.TTF"},
   }
+  local existing = {}
+  for _, f in ipairs(list) do existing[f.label] = true end
   local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
   if LSM then
     for _, name in ipairs(LSM:List("font")) do
-      local path = LSM:Fetch("font", name, true)
-      if path then
-        local dup = false
-        for _, f in ipairs(combined) do
-          if f.label == name then dup = true; break end
+      if not existing[name] then
+        local path = LSM:Fetch("font", name, true)
+        if path then
+          list[#list + 1] = {label=name, path=path}
+          existing[name] = true
         end
-        if not dup then table.insert(combined, {label=name, path=path}) end
       end
     end
-    table.sort(combined, function(a, b) return a.label:lower() < b.label:lower() end)
+    table.sort(list, function(a, b) return a.label:lower() < b.label:lower() end)
   end
-  return combined
+  local map = {}
+  for _, f in ipairs(list) do map[f.label] = f.path end
+  _lsmFontList = list
+  _lsmFontMap  = map
 end
 
-NS.GetLSMStatusBars = function()
-  local combined = {
-    {label="Flat", path="Interface/Buttons/WHITE8X8"},
-    {label="Blizzard", path="Interface/TargetingFrame/UI-StatusBar"},
-    {label="Blizzard Raid", path="Interface/RaidFrame/Raid-Bar-Hp-Fill"},
+local function BuildBarCache()
+  local list = {
+    {label="Flat",            path="Interface/Buttons/WHITE8X8"},
+    {label="Blizzard",        path="Interface/TargetingFrame/UI-StatusBar"},
+    {label="Blizzard Raid",   path="Interface/RaidFrame/Raid-Bar-Hp-Fill"},
     {label="Blizzard Skills", path="Interface/PaperDollInfoFrame/UI-Character-Skills-Bar"},
   }
+  local existing = {}
+  for _, f in ipairs(list) do existing[f.label] = true end
   local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
   if LSM then
     for _, name in ipairs(LSM:List("statusbar")) do
-      local path = LSM:Fetch("statusbar", name, true)
-      if path then
-        local dup = false
-        for _, f in ipairs(combined) do
-          if f.label == name then dup = true; break end
+      if not existing[name] then
+        local path = LSM:Fetch("statusbar", name, true)
+        if path then
+          list[#list + 1] = {label=name, path=path}
+          existing[name] = true
         end
-        if not dup then table.insert(combined, {label=name, path=path}) end
       end
     end
-    table.sort(combined, function(a, b) return a.label:lower() < b.label:lower() end)
+    table.sort(list, function(a, b) return a.label:lower() < b.label:lower() end)
   end
-  return combined
+  local map = {}
+  for _, f in ipairs(list) do map[f.label] = f.path end
+  _lsmBarList = list
+  _lsmBarMap  = map
+end
+
+-- Invalidate caches when LSM registers new media (rare, but possible at login)
+NS.InvalidateLSMCache = function()
+  _lsmFontList = nil; _lsmFontMap = nil
+  _lsmBarList  = nil; _lsmBarMap  = nil
+end
+
+-- Hook LSM's callback so fonts from OTHER addons (e.g. SharedMedia packs that
+-- register fonts at PLAYER_LOGIN after our cache was already built during
+-- ADDON_LOADED) are picked up automatically.
+-- This fixes missing fonts like those registered by NaowhUI, SharedMedia_Causese,
+-- SharedMedia_TrinityFonts, ElvUI, etc.
+C_Timer.After(0, function()
+  local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
+  if LSM and LSM.RegisterCallback then
+    LSM:RegisterCallback("LibSharedMedia_Registered", function(_, mediatype)
+      if mediatype == "font" or mediatype == "statusbar" then
+        NS.InvalidateLSMCache()
+      end
+    end)
+  end
+end)
+
+NS.GetLSMFonts = function()
+  if not _lsmFontList then BuildFontCache() end
+  return _lsmFontList
+end
+
+NS.GetLSMStatusBars = function()
+  if not _lsmBarList then BuildBarCache() end
+  return _lsmBarList
 end
 
 NS.GetBarTexturePath = function(key)
   if not key or key == "Flat" then return "Interface/Buttons/WHITE8X8" end
-  for _, f in ipairs(NS.GetLSMStatusBars()) do
-    if f.label == key then return f.path end
-  end
-  return "Interface/Buttons/WHITE8X8"
+  if not _lsmBarMap then BuildBarCache() end
+  return _lsmBarMap[key] or "Interface/Buttons/WHITE8X8"
 end
 
 NS.GetFontPath = function(key)
   if not key or key == "default" then return "Fonts/FRIZQT__.TTF" end
-  for _, f in ipairs(NS.GetLSMFonts()) do
-    if f.label == key then return f.path end
-  end
-  return "Fonts/FRIZQT__.TTF"
+  if not _lsmFontMap then BuildFontCache() end
+  return _lsmFontMap[key] or "Fonts/FRIZQT__.TTF"
 end
 
 NS.ApplyFontSize = function()
