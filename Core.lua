@@ -483,20 +483,81 @@ NS.InvalidateLSMCache = function()
   _lsmBarList  = nil; _lsmBarMap  = nil
 end
 
--- Hook LSM's callback so fonts from OTHER addons (e.g. SharedMedia packs that
--- register fonts at PLAYER_LOGIN after our cache was already built during
--- ADDON_LOADED) are picked up automatically.
--- This fixes missing fonts like those registered by NaowhUI, SharedMedia_Causese,
--- SharedMedia_TrinityFonts, ElvUI, etc.
+-- Re-apply all fonts across all modules (called after LSM cache invalidation)
+NS.ReapplyAllFonts = function()
+  NS.InvalidateLSMCache()
+
+  -- Chat font (uses chatFont key, falls back to font)
+  local chatFontPath = NS.GetFontPath(NS.DB("chatFont") or NS.DB("font"))
+  local chatFontSize = NS.DB("chatFontSize") or 14
+  local chatFontOutline = NS.DB("chatFontOutline") or ""
+  local chatFontShadow = NS.DB("chatFontShadow")
+  -- Chat message display
+  if NS.chatDisplay and NS.chatDisplay.SetFont then
+    NS.chatDisplay:SetFont(chatFontPath, chatFontSize, chatFontOutline)
+    if NS.chatDisplay.SetShadowOffset then
+      NS.chatDisplay:SetShadowOffset(chatFontShadow and 1 or 0, chatFontShadow and -1 or 0)
+    end
+  end
+  -- Chat SMF (scrolling message frame)
+  if NS.smf then
+    NS.smf:SetFont(chatFontPath, chatFontSize, chatFontOutline)
+  end
+
+  -- LucidMeter: apply font to all bars immediately
+  if NS.LucidMeter and NS.LucidMeter.windows then
+    local dmFontPath = NS.GetFontPath(NS.DB("dmFont"))
+    local dmFontSize = NS.DB("dmFontSize") or 11
+    local dmFontFlags = NS.DB("dmTextOutline") and "OUTLINE" or ""
+    for _, w in ipairs(NS.LucidMeter.windows) do
+      if w.titleText then
+        w.titleText:SetFont(dmFontPath, NS.DB("dmTitleFontSize") or 10, dmFontFlags)
+      end
+      for _, bar in ipairs(w.bars or {}) do
+        bar._lastConfigStamp = nil
+        if bar._name then bar._name:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+        if bar._value then bar._value:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+        if bar._pct then bar._pct:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+        if bar._rankFS then bar._rankFS:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+      end
+      if w._selfBar then
+        w._selfBar._setupDone = false
+        if w._selfBar._name then w._selfBar._name:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+        if w._selfBar._value then w._selfBar._value:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+      end
+      -- Total bar
+      if w._totalBarLabel then w._totalBarLabel:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+      if w._totalBarValue then w._totalBarValue:SetFont(dmFontPath, dmFontSize, dmFontFlags) end
+    end
+  end
+
+  -- LootTracker window title
+  if NS.win and NS.titleText then
+    local lootFont = NS.GetFontPath(NS.DB("font"))
+    local lootSize = NS.DB("fontSize") or 11
+    local lootFlags = NS.DB("fontOutline") or ""
+    NS.titleText:SetFont(lootFont, lootSize, lootFlags)
+  end
+end
+
+-- Hook LSM callback to pick up fonts registered after our cache was built
 C_Timer.After(0, function()
   local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
   if LSM and LSM.RegisterCallback then
     LSM:RegisterCallback("LibSharedMedia_Registered", function(_, mediatype)
       if mediatype == "font" or mediatype == "statusbar" then
-        NS.InvalidateLSMCache()
+        NS.ReapplyAllFonts()
       end
     end)
   end
+end)
+
+-- Re-apply fonts after PLAYER_ENTERING_WORLD (all addons have loaded by then)
+local fontFixFrame = CreateFrame("Frame")
+fontFixFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+fontFixFrame:SetScript("OnEvent", function(self)
+  self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+  C_Timer.After(0.1, function() NS.ReapplyAllFonts() end)
 end)
 
 NS.GetLSMFonts = function()

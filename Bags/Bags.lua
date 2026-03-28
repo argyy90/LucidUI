@@ -903,6 +903,7 @@ local function BuildBagFrame()
     local rInvID = C_Container.ContainerIDToInventoryID(REAGENT_BAG)
     local rTexID = GetInventoryItemTexture("player", rInvID)
     rTex:SetTexture(rTexID or 4701557)
+    rBtn._tex = rTex
     rBtn:SetScript("OnEnter", function()
       GameTooltip:SetOwner(rBtn, "ANCHOR_TOP"); GameTooltip:SetInventoryItem("player", rInvID); GameTooltip:Show()
     end)
@@ -1079,10 +1080,7 @@ function B.RefreshLayout()
   end)
 end
 
--- ── Hook into default bag keybinds (ElvUI pattern: hooksecurefunc, no global override) ──
--- FIX: Direct global assignment (ToggleAllBags = function() ... end) risks Taint in Midnight
--- because these globals are part of the protected call chain.
--- ElvUI uses hooksecurefunc which is taint-safe; we do the same.
+-- ── Hook into default bag keybinds ──────────────────────────────────
 local hookFrame = CreateFrame("Frame")
 hookFrame:RegisterEvent("PLAYER_LOGIN")
 hookFrame:SetScript("OnEvent", function(self)

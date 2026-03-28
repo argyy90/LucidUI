@@ -34,27 +34,39 @@ local function ClearFmtCache() wipe(fmtCache); fmtCacheSize = 0 end
 
 function DM.FormatNumber(n)
   if not n or n == 0 then return "0" end
-  -- Round to reduce cache entries: M=2 decimals, K=1 decimal, raw=integer
   local key
   if n >= 1000000 then
-    key = math.floor(n / 10000) -- 2-decimal M precision
+    key = math.floor(n / 10000)
+  elseif n >= 10000 then
+    key = math.floor(n / 100)
   elseif n >= 1000 then
-    key = math.floor(n / 100)   -- 1-decimal K precision
+    key = math.floor(n / 10)
   else
     key = math.floor(n)
   end
   local cached = fmtCache[key]
   if cached then return cached end
-  -- Compute
   local result
   if n >= 1000000 then result = string.format("%.2fM", n / 1000000)
+  elseif n >= 10000 then result = string.format("%.1fK", n / 1000)
   elseif n >= 1000 then result = string.format("%.1fK", n / 1000)
   else result = string.format("%.0f", n) end
-  -- Store (cap cache size to prevent memory leak)
   if fmtCacheSize > 500 then ClearFmtCache() end
   fmtCache[key] = result
   fmtCacheSize = fmtCacheSize + 1
   return result
+end
+
+-- Secret-safe version: works with tainted values via pcall
+function DM.FormatNumberSafe(n)
+  local result
+  local ok = pcall(function()
+    if not n or n == 0 then result = "0"; return end
+    if n >= 1000000 then result = string.format("%.2fM", n / 1000000)
+    elseif n >= 1000 then result = string.format("%.2fK", n / 1000)
+    else result = string.format("%.0f", n) end
+  end)
+  return ok and result or nil
 end
 
 -- ── Fetch session data ───────────────────────────────────────────────

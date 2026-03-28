@@ -4,9 +4,6 @@
 local NS = LucidUINS
 local DB = NS.DB
 
--- FIX: Use C_Item.GetItemInfo (Midnight 12.x API) instead of deprecated global GetItemInfo
--- ElvUI (ElvUI/Game/Mainline/Skins/Bags.lua) uses the same pattern:
---   local GetItemInfo = C_Item.GetItemInfo
 local GetItemInfo = C_Item.GetItemInfo
 
 local function GetItemQualityFromLink(link)

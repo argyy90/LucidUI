@@ -643,8 +643,7 @@ local function SetupText(parent)
   table.insert(allFrames, lootFadeTime)
 
   container:SetScript("OnShow", function()
-    -- Invalidate font cache so fonts from other addons registered after our
-    -- ADDON_LOADED event (LSM packs, ElvUI, NaowhUI, etc.) are always included.
+    -- Invalidate font cache so late-registered LSM fonts are included
     NS.InvalidateLSMCache()
     -- Build font dropdown dynamically
     local fonts = NS.GetLSMFonts()
@@ -2032,7 +2031,7 @@ local function SetupQoL(parent)
     local matching, total = 0, #OPTIMAL_FPS_CVARS
     wipe(mismatchedCVars)
     for _, s in ipairs(OPTIMAL_FPS_CVARS) do
-      local ok, cur = pcall(GetCVar, s.cvar)
+      local ok, cur = pcall(C_CVar.GetCVar, s.cvar)
       if ok and tostring(cur) == s.optimal then matching = matching + 1
       else table.insert(mismatchedCVars, {cvar=s.cvar, current=ok and tostring(cur) or "?", optimal=s.optimal}) end
     end
@@ -2071,12 +2070,12 @@ local function SetupQoL(parent)
   fpsBtn:SetScript("OnClick", function()
     LucidUIDB._savedCVars = {}
     for _, s in ipairs(OPTIMAL_FPS_CVARS) do
-      local ok, cur = pcall(GetCVar, s.cvar)
+      local ok, cur = pcall(C_CVar.GetCVar, s.cvar)
       if ok and cur then LucidUIDB._savedCVars[s.cvar] = tostring(cur) end
     end
     local count = 0
     for _, s in ipairs(OPTIMAL_FPS_CVARS) do
-      if pcall(SetCVar, s.cvar, s.optimal) then count = count + 1 end
+      if pcall(C_CVar.SetCVar, s.cvar, s.optimal) then count = count + 1 end
     end
     print("|cff3bd2ed[LucidUI]|r Optimal FPS settings applied! ("..count.."/"..#OPTIMAL_FPS_CVARS..")")
     UpdateFPSStatus(); StaticPopup_Show("LUCIDUI_FPS_RELOAD")
@@ -2085,7 +2084,7 @@ local function SetupQoL(parent)
     if LucidUIDB and LucidUIDB._savedCVars then
       local restored = 0
       for cvar, value in pairs(LucidUIDB._savedCVars) do
-        if pcall(SetCVar, cvar, value) then restored = restored + 1 end
+        if pcall(C_CVar.SetCVar, cvar, value) then restored = restored + 1 end
       end
       LucidUIDB._savedCVars = nil
       print("|cff3bd2ed[LucidUI]|r Previous settings restored. ("..restored..")")

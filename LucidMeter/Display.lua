@@ -4,7 +4,39 @@ local DM = NS.LucidMeter
 local CYAN = NS.CYAN
 
 -- Defensive fallback: AbbreviateNumbers is a Blizzard global that may not exist in all Midnight builds
-local AbbreviateNumbers = AbbreviateNumbers or DM.FormatNumber
+local _AbbreviateNumbers = AbbreviateNumbers
+
+-- Custom abbreviation options matching our FormatNumber output (2 decimal M, 2 decimal K)
+-- Abbreviation options for total damage/healing (2 decimal M, 1 decimal K for >10K)
+local ABBR_TOTAL_OPTS = {
+  { breakpoint = 1000000000, abbreviation = "B", significandDivisor = 10000000, fractionDivisor = 100, abbreviationIsGlobal = false },
+  { breakpoint = 1000000,    abbreviation = "M", significandDivisor = 10000,    fractionDivisor = 100, abbreviationIsGlobal = false },
+  { breakpoint = 10000,      abbreviation = "K", significandDivisor = 1000,     fractionDivisor = 1,   abbreviationIsGlobal = false },
+  { breakpoint = 1000,       abbreviation = "K", significandDivisor = 100,      fractionDivisor = 10,  abbreviationIsGlobal = false },
+  { breakpoint = 1,          abbreviation = "",  significandDivisor = 1,        fractionDivisor = 1,   abbreviationIsGlobal = false },
+}
+-- Abbreviation options for DPS/HPS (1 decimal K for all K values)
+local ABBR_PERSEC_OPTS = {
+  { breakpoint = 1000000000, abbreviation = "B", significandDivisor = 10000000, fractionDivisor = 100, abbreviationIsGlobal = false },
+  { breakpoint = 1000000,    abbreviation = "M", significandDivisor = 10000,    fractionDivisor = 100, abbreviationIsGlobal = false },
+  { breakpoint = 1000,       abbreviation = "K", significandDivisor = 100,      fractionDivisor = 10,  abbreviationIsGlobal = false },
+  { breakpoint = 1,          abbreviation = "",  significandDivisor = 1,        fractionDivisor = 1,   abbreviationIsGlobal = false },
+}
+
+-- Wrap with CreateAbbreviateConfig if available
+if CreateAbbreviateConfig then
+  ABBR_TOTAL_OPTS = {config = CreateAbbreviateConfig(ABBR_TOTAL_OPTS)}
+  ABBR_PERSEC_OPTS = {config = CreateAbbreviateConfig(ABBR_PERSEC_OPTS)}
+end
+
+local function SafeAbbreviateTotal(n)
+  if _AbbreviateNumbers then return _AbbreviateNumbers(n, ABBR_TOTAL_OPTS) end
+  return DM.FormatNumber(n)
+end
+local function SafeAbbreviatePerSec(n)
+  if _AbbreviateNumbers then return _AbbreviateNumbers(n, ABBR_PERSEC_OPTS) end
+  return DM.FormatNumber(n)
+end
 
 local MAX_BARS = 40
 local TITLE_H = 22
@@ -809,7 +841,7 @@ local function CreateWindow(windowID, config)
     w.bars[i] = CreateBar(barContainer, i)
   end
 
-  -- NEW FEATURE (from Details): Total bar — shows group total at the very bottom
+  -- NEW FEATURE (from Details): Total bar — shows group total at the very top
   -- Shows a second bar representing the sum of all sources (useful for raid awareness)
   local totalBarFrame = CreateFrame("StatusBar", nil, barContainer)
   totalBarFrame:SetStatusBarTexture(NS.GetBarTexturePath(NS.DB("dmBarTexture")))
@@ -1074,21 +1106,30 @@ function DM.UpdateWindowDisplay(w)
   local classColors = DB("dmClassColors") ~= false
   local barAlpha = DB("dmBarBrightness") or 0.70
   local barColor = DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
+  local showTotalBar = DB("dmShowTotalBar")
   local totalAll = 0
-  if showPercent then
-    for _, s in ipairs(sources) do
-      local amt = s.totalAmount or 0
-      if not isSecret(amt) then totalAll = totalAll + amt end
-    end
+  if showPercent or showTotalBar then
+    pcall(function()
+      for _, s in ipairs(sources) do
+        local amt = s.totalAmount or 0
+        if not isSecret(amt) then totalAll = totalAll + amt end
+      end
+    end)
   end
 
   w._totalSources = #sources
   local offset = w.scrollOffset or 0
+  -- Only show total bar in group (party/raid) — solo total = own damage, not useful
+  local inGroup = IsInGroup() or IsInRaid()
+  local totalBarOffset = (showTotalBar and totalAll > 0 and inGroup) and (barH + barSpacing + 2) or 0
 
-  -- BUG FIX: use string key for configStamp to avoid numeric sum collisions
-  -- e.g. barH=12+fontSize=4+shadow=12 vs barH=18+fontSize=4+shadow=6 both summed to 28
+  -- Config stamp: includes all settings that affect bar appearance
+  -- When any of these change, bars get a full redraw
   local configStamp = barH .. "|" .. fontSize .. "|" .. fontShadowVal
     .. "|" .. (showRank and "R" or "") .. (showPercent and "P" or "")
+    .. "|" .. (classColors and "C" or "c") .. "|" .. barAlpha
+    .. "|" .. tr .. "," .. tg .. "," .. tb
+    .. "|" .. barColor.r .. "," .. barColor.g .. "," .. barColor.b
 
   for i = 1, MAX_BARS do
     local bar = w.bars[i]
@@ -1102,10 +1143,8 @@ function DM.UpdateWindowDisplay(w)
       end
       local total = src.totalAmount or 0
       local perSec = src.amountPerSecond or 0
-      -- Guard: isSecret() returns truthy userdata, not nil, so "secretVal or 0" = secretVal.
-      -- Sanitize before any arithmetic or StatusBar:SetValue call.
-      if isSecret(total) then total = 0 end
-      if isSecret(perSec) then perSec = 0 end
+      -- Note: total/perSec may be secret during combat — that's OK
+      -- SetValue and SetFormattedText handle secret values natively
 
       local srcName = src.name
       if not isSecret(srcName) and srcName then
@@ -1182,7 +1221,7 @@ function DM.UpdateWindowDisplay(w)
 
         bar:SetHeight(barH)
         bar:ClearAllPoints()
-        bar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, -((i - 1) * (barH + barSpacing)))
+        bar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, -(totalBarOffset + (i - 1) * (barH + barSpacing)))
         bar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
 
         bar._bg:SetTexture(barBgTexture); bar._bg:SetVertexColor(0.05, 0.05, 0.05, 0.8)
@@ -1225,13 +1264,31 @@ function DM.UpdateWindowDisplay(w)
       bar:SetMinMaxValues(0, maxVal)
       bar:SetValue(total)
 
+      -- Value text: during combat, values are secret/tainted
+      -- Secret values can be passed directly to SetFormattedText as %s
+      -- but NOT to Lua functions like FormatNumber or string concat
       local totalSecret = isSecret(total)
-      local fmtTotal = (not totalSecret) and DM.FormatNumber(total) or AbbreviateNumbers(total)
-      local fmtPerSec = (not isSecret(perSec)) and DM.FormatNumber(perSec) or AbbreviateNumbers(perSec)
-      if valFormat == "both" then
-        bar._value:SetText(fmtTotal .. " | " .. fmtPerSec)
-      elseif valFormat == "persec" then bar._value:SetText(fmtPerSec)
-      else bar._value:SetText(fmtTotal) end
+      local perSecSecret = isSecret(perSec)
+      if totalSecret or perSecSecret then
+        -- Secret path: SafeAbbreviate uses Blizzard's AbbreviateNumbers with our format options
+        if valFormat == "both" then
+          bar._value:SetFormattedText("%s | %s",
+            totalSecret and SafeAbbreviateTotal(total) or DM.FormatNumber(total),
+            perSecSecret and SafeAbbreviatePerSec(perSec) or DM.FormatNumber(perSec))
+        elseif valFormat == "persec" then
+          bar._value:SetFormattedText("%s", perSecSecret and SafeAbbreviatePerSec(perSec) or DM.FormatNumber(perSec))
+        else
+          bar._value:SetFormattedText("%s", totalSecret and SafeAbbreviateTotal(total) or DM.FormatNumber(total))
+        end
+      else
+        -- Non-secret path: format with our own formatter
+        local fmtTotal = DM.FormatNumber(total)
+        local fmtPerSec = DM.FormatNumber(perSec)
+        if valFormat == "both" then
+          bar._value:SetText(fmtTotal .. " | " .. fmtPerSec)
+        elseif valFormat == "persec" then bar._value:SetText(fmtPerSec)
+        else bar._value:SetText(fmtTotal) end
+      end
 
       if showPercent and not totalSecret and totalAll > 0 then
         local pct = math.floor(total / totalAll * 1000 + 0.5) / 10
@@ -1266,20 +1323,12 @@ function DM.UpdateWindowDisplay(w)
     end
   end
 
-  -- NEW FEATURE: Total bar (inspired by Details totalbar_enabled)
-  -- Shows sum of all group members' values at the very bottom of the window
-  local showTotalBar = DB("dmShowTotalBar")
+  -- Total bar: shows group total at the very top
   local tbar = w._totalBar
-  if showTotalBar and totalAll > 0 and not isSecret(totalAll) then
-    local barsShown2 = math.min(#sources, MAX_BARS)
-    local tbarY = barsShown2 * (barH + barSpacing) + 4
-    w._totalBarSep:ClearAllPoints()
-    w._totalBarSep:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 2, -tbarY + 2)
-    w._totalBarSep:SetPoint("RIGHT", w.barContainer, "RIGHT", -2, 0)
-    w._totalBarSep:Show()
+  if showTotalBar and totalAll > 0 and inGroup and not isSecret(totalAll) then
     tbar:SetHeight(barH)
     tbar:ClearAllPoints()
-    tbar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, -tbarY)
+    tbar:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 0, 0)
     tbar:SetPoint("RIGHT", w.barContainer, "RIGHT", 0, 0)
     tbar:SetStatusBarTexture(barTexture)
     tbar:SetMinMaxValues(0, 1); tbar:SetValue(1)
@@ -1287,6 +1336,11 @@ function DM.UpdateWindowDisplay(w)
     w._totalBarValue:SetFont(fontPath, fontSize, fontFlags)
     w._totalBarLabel:SetFont(fontPath, fontSize, fontFlags)
     tbar:Show()
+    -- Separator below total bar
+    w._totalBarSep:ClearAllPoints()
+    w._totalBarSep:SetPoint("TOPLEFT", w.barContainer, "TOPLEFT", 2, -(barH + 1))
+    w._totalBarSep:SetPoint("RIGHT", w.barContainer, "RIGHT", -2, 0)
+    w._totalBarSep:Show()
   else
     tbar:Hide()
     w._totalBarSep:Hide()
@@ -1371,16 +1425,28 @@ function DM.UpdateWindowDisplay(w)
       -- Fast update
       local total = selfSrc.totalAmount or 0
       local perSec = selfSrc.amountPerSecond or 0
-      if isSecret(total) then total = 0 end
-      if isSecret(perSec) then perSec = 0 end
       sbar:SetStatusBarColor(cr, cg, cb, barAlpha)
       sbar:SetMinMaxValues(0, maxVal)
       sbar:SetValue(total)
-      local fTotal = (not isSecret(total)) and DM.FormatNumber(total) or AbbreviateNumbers(total)
-      local fPerSec = (not isSecret(perSec)) and DM.FormatNumber(perSec) or AbbreviateNumbers(perSec)
-      if valFormat == "both" then sbar._value:SetText(fTotal .. " | " .. fPerSec)
-      elseif valFormat == "persec" then sbar._value:SetText(fPerSec)
-      else sbar._value:SetText(fTotal) end
+      local sTotalSecret = isSecret(total)
+      local sPerSecSecret = isSecret(perSec)
+      if sTotalSecret or sPerSecSecret then
+        if valFormat == "both" then
+          sbar._value:SetFormattedText("%s | %s",
+            sTotalSecret and SafeAbbreviateTotal(total) or DM.FormatNumber(total),
+            sPerSecSecret and SafeAbbreviatePerSec(perSec) or DM.FormatNumber(perSec))
+        elseif valFormat == "persec" then
+          sbar._value:SetFormattedText("%s", sPerSecSecret and SafeAbbreviatePerSec(perSec) or DM.FormatNumber(perSec))
+        else
+          sbar._value:SetFormattedText("%s", sTotalSecret and SafeAbbreviateTotal(total) or DM.FormatNumber(total))
+        end
+      else
+        local fTotal = DM.FormatNumber(total)
+        local fPerSec = DM.FormatNumber(perSec)
+        if valFormat == "both" then sbar._value:SetText(fTotal .. " | " .. fPerSec)
+        elseif valFormat == "persec" then sbar._value:SetText(fPerSec)
+        else sbar._value:SetText(fTotal) end
+      end
 
       local selfY = barsShown * (barH + barSpacing) + 4
       w._selfSep:ClearAllPoints()
@@ -1569,12 +1635,12 @@ function DM.ShowSpellBreakdown(bar)
 
     local fmtAmount, fmtDPS, pct
     if isSecret(spellAmount) then
-      fmtAmount = AbbreviateNumbers(spellAmount)
+      fmtAmount = SafeAbbreviateTotal(spellAmount)
     else
       fmtAmount = DM.FormatNumber(spellAmount)
     end
     if isSecret(spellDPS) then
-      fmtDPS = AbbreviateNumbers(spellDPS)
+      fmtDPS = SafeAbbreviatePerSec(spellDPS)
     else
       fmtDPS = DM.FormatNumber(spellDPS)
     end
@@ -1925,9 +1991,9 @@ function DM.OpenReportWindow(w)
           local cleanTarget = target:gsub("%s+", ""):gsub("(%a)([%a]*)", function(first, rest)
             return first:upper() .. rest:lower()
           end)
-          SendChatMessage(line, ch, nil, cleanTarget)
+          C_ChatInfo.SendChatMessage(line, ch, nil, cleanTarget)
         else
-          SendChatMessage(line, ch)
+          C_ChatInfo.SendChatMessage(line, ch)
         end
       end)
     end

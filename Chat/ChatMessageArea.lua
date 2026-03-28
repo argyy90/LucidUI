@@ -183,9 +183,7 @@ function NS.CreateChatMessageArea(parent, name)
     if slots[i] then return slots[i] end
     local s = {}
 
-    -- FIX: Use plain FontString instead of ScrollingMessageFrame for timestamp column.
-    -- SMF has a large internal buffer (128 lines) and is unnecessary for single-line static text.
-    -- Chattynator uses the same approach (CreateFontStringPool in ScrollingMessages.lua).
+    -- Use plain FontString for timestamp column (lightweight, no buffer overhead)
     s.tsFS = frame:CreateFontString(nil, "OVERLAY")
     applyFont(s.tsFS, FACE, SIZE, OUTLINE)
     s.tsFS:SetJustifyH("LEFT")

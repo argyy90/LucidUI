@@ -376,23 +376,36 @@ local function BuildItemRow(parent, session, yOffset)
   passedLbl:SetText("Passed")
   passedLbl:Hide()
 
+  -- "Rolled" indicator (bottom right, shown when local player rolled need/greed/transmog)
+  local rolledLbl = row:CreateFontString(nil, "OVERLAY")
+  rolledLbl:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  rolledLbl:SetPoint("BOTTOMRIGHT", -6, 5)
+  rolledLbl:SetTextColor(1, 0.82, 0, 1)
+  rolledLbl:SetText("Rolled")
+  rolledLbl:Hide()
+
   -- Status line (winner or animated dots)
   local statusLbl = row:CreateFontString(nil, "OVERLAY")
   statusLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "")
   statusLbl:SetPoint("BOTTOMLEFT", ICON_SZ + 10, 5)
-  statusLbl:SetPoint("BOTTOMRIGHT", passedLbl, "BOTTOMLEFT", -4, 0)
+  statusLbl:SetPoint("BOTTOMRIGHT", -70, 5)
   statusLbl:SetJustifyH("LEFT")
 
   local function RefreshStatus()
     local sorted = SortedRollers(session.rollers)
 
-    -- Check if local player passed
+    -- Check if local player passed or rolled
     local playerName = UnitName("player")
     local playerRoll = playerName and session.rollers[playerName]
     if playerRoll and playerRoll.rollType == "pass" then
       passedLbl:Show()
+      rolledLbl:Hide()
+    elseif playerRoll and playerRoll.rollType ~= "pass" then
+      rolledLbl:Show()
+      passedLbl:Hide()
     else
       passedLbl:Hide()
+      rolledLbl:Hide()
     end
 
     if #sorted == 0 then

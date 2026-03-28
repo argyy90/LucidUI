@@ -43,7 +43,7 @@ local function GetAddonData()
   for i = 1, C_AddOns.GetNumAddOns() do
     local name, _, _, enabled = C_AddOns.GetAddOnInfo(i)
     if enabled then
-      local mem = GetAddOnMemoryUsage(i)
+      local mem = GetAddOnMemoryUsage(i) -- no C_ equivalent yet
       local cpu = cpuEnabled and GetAddOnCPUUsage(i) or 0
       totalMem = totalMem + mem
       totalCPU = totalCPU + cpu
