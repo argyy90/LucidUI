@@ -1,6 +1,14 @@
 -- LucidUI GoldTracker.lua
 -- Tracks completed trades: items + gold exchanged, with whom.
 -- History window in cyberpunk card style matching the rest of LucidUI.
+--
+-- Derived from GLogger/modules/TradeLog.lua
+-- GLogger Copyright (C) 2025 Osiris the Kiwi
+-- GLogger is licensed under the GNU General Public License v3.
+-- Source: https://www.curseforge.com/wow/addons/glogger
+--
+-- LucidUI Copyright (C) 2026 Argyy
+-- Licensed under the GNU General Public License v3.
 
 local NS = LucidUINS
 NS.GoldTracker = NS.GoldTracker or {}
