@@ -63,7 +63,7 @@ Per-session tracking for dungeons and raids. Redesigned with cyberpunk window st
 - **PCB circuit trace background** in all windows
 - One-click reset
 
-### Gold Tracker *(new in 1.9)*
+### Gold Tracker
 A complete trade and gold tracking module.
 
 - **Automatic trade logging** — every completed trade is recorded with items given and received
@@ -76,7 +76,7 @@ A complete trade and gold tracking module.
 - **Export CSV** — export your full trade history as a spreadsheet
 - **PCB circuit trace background** decoration
 
-### Mythic+ Tracker *(new in 1.9)*
+### Mythic+ Tracker
 A full-featured Mythic+ run tracker matching GLogger's feature set.
 
 - **Automatic run tracking** — records every Mythic+ run with dungeon, key level, time, status, deaths, roster and loot
@@ -162,4 +162,4 @@ Missing translations fall back to English automatically.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [GNU GENERAL PUBLIC LICENSE Version 3](LICENSE).
