@@ -160,6 +160,18 @@ Missing translations fall back to English automatically.
 
 ---
 
+## Credits
+
+- **[GLogger (Gold Logger)](https://www.curseforge.com/wow/addons/glogger)** by Osiris the Kiwi — licensed under GPLv3.
+  Portions of this project (`Mythicplus/MythicPlus.lua`, `GoldTracker/GoldTracker.lua`) are derived from GLogger.
+
+- **SalesTools** — Original authors of the code GLogger was built upon:
+  - Emily Cohen / Emilýp-Illidan
+  - Honorax-Illidan
+  - David Martínez / Volthemar-Dalaran
+
+---
+
 ## License
 
 This project is licensed under the [GNU GENERAL PUBLIC LICENSE Version 3](LICENSE).
