@@ -9,6 +9,7 @@ NS.chatOptCheckboxFills  = {}
 NS.chatOptAccentLabels   = {}
 NS.chatOptDropdownArrows = {}
 NS.chatOptSliderThumbs   = {}
+NS.chatOptAccentTextures = {}   -- {tex, alpha} or {tex, isFS=true} for card stripes/titles
 
 local function GetAccentRGB()
   -- NS.CYAN is always kept in sync with the active accent color
@@ -64,8 +65,7 @@ function NS.ChatGetCheckbox(parent, label, spacing, callback, tooltip)
   end
 
   local highlight = holder:CreateTexture(nil, "BACKGROUND")
-  highlight:SetPoint("TOPLEFT", 18, 0)
-  highlight:SetPoint("BOTTOMRIGHT", -40, 0)
+  highlight:SetAllPoints(holder)
   highlight:SetColorTexture(1, 1, 1, 0.05)
   highlight:Hide()
   holder._highlight = highlight
@@ -371,41 +371,49 @@ function NS.RefreshSettingsAccent()
     thumb:SetColorTexture(ar, ag, ab, 1)
   end
 
+  -- Card stripes and section title fontstrings
+  if NS.chatOptAccentTextures then
+    for _, e in ipairs(NS.chatOptAccentTextures) do
+      if e.isFS then
+        e.tex:SetTextColor(ar, ag, ab, 1)
+      else
+        e.tex:SetColorTexture(ar, ag, ab, e.alpha or 1)
+      end
+    end
+  end
+
   -- Settings dialog elements
   if NS.chatOptWin then
     local win = NS.chatOptWin
 
-    -- Sidebar tabs: update selected tab accent color + selLine
+    -- Sidebar tabs (_label / _selLine / _selBg)
     if win.containers then
-      for _, c in ipairs(win.containers) do
-        local btn = c.button
+      for _,c in ipairs(win.containers) do
+        local btn=c.button
         if btn then
-          if btn.selLine then btn.selLine:SetColorTexture(ar, ag, ab, 1) end
-          if btn._selected and btn.label then btn.label:SetTextColor(ar, ag, ab) end
+          if btn._selLine then btn._selLine:SetColorTexture(ar,ag,ab,1) end
+          if btn._selBg   then btn._selBg:SetColorTexture(ar,ag,ab,0.06) end
+          if btn._selected and btn._label then btn._label:SetTextColor(ar,ag,ab) end
         end
       end
     end
 
-    -- Sidebar accent lines
-    if win._ltSidebarLine then win._ltSidebarLine:SetColorTexture(ar, ag, ab, 0.4) end
-    if win._ltHeaderLine then win._ltHeaderLine:SetColorTexture(ar, ag, ab, 0.6) end
-    if win._ltSidebarHLine then win._ltSidebarHLine:SetColorTexture(ar, ag, ab, 0.6) end
+    -- Window accent lines + border
+    if win._ltBorderFrame then win._ltBorderFrame:SetBackdropBorderColor(ar,ag,ab,0.38) end
+    if win._ltHeaderLine  then win._ltHeaderLine:SetColorTexture(ar,ag,ab,0.35) end
+    if win._ltSidebarLine then win._ltSidebarLine:SetColorTexture(ar,ag,ab,0.18) end
+    if win._ltLeftBar     then win._ltLeftBar:SetColorTexture(ar,ag,ab,1) end
 
-    -- Title: "LucidUI" + "> LucidUI Settings <"
-    local thex = string.format("|cff%02x%02x%02x", ar*255, ag*255, ab*255)
-    if win._ltTitleName then win._ltTitleName:SetText(thex .. "LucidUI|r") end
-    if win._ltCenterTitle then
-      win._ltCenterTitle:SetText(thex .. ">|r |cffffffff" .. "LucidUI Settings" .. "|r " .. thex .. "<|r")
-    end
-
-    -- Close button hover color is handled by HookScript, nothing to update
+    -- Title
+    local thex=string.format("|cff%02x%02x%02x",ar*255,ag*255,ab*255)
+    if win._ltTitleName then win._ltTitleName:SetText(thex.."LUCID|r|cffffffff".."UI|r") end
 
     -- Default/Custom theme buttons
     if NS._themeButtons then
-      local isCustom = NS.DB("theme") == "custom"
-      for _, b in ipairs(NS._themeButtons) do
-        local act = isCustom == (b.key == "custom")
-        b.btn:SetBackdropBorderColor(act and ar or 0.22, act and ag or 0.22, act and ab or 0.22, 1)
+      local isCustom=NS.DB("theme")=="custom"
+      for _,b in ipairs(NS._themeButtons) do
+        local act=isCustom==(b.key=="custom")
+        b.btn:SetBackdropBorderColor(act and ar or 0.22,act and ag or 0.22,act and ab or 0.22,1)
       end
     end
   end

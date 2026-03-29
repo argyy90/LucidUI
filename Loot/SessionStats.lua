@@ -458,36 +458,43 @@ NS.BuildStatsWindow = function()
   end)
   NS.statsWin:SetClampedToScreen(true)
   -- Not in UISpecialFrames so ESC doesn't close it
-  NS.statsWin:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  local function GetStatsAlpha()
-    return math.max(0.02, 0.97 - (NS.DB("statsTransparency") or 0))
+  local BD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local ar,ag,ab = CYAN[1],CYAN[2],CYAN[3]
+
+  NS.statsWin:SetBackdrop(BD)
+  NS.statsWin:SetBackdropColor(0.022,0.022,0.035,0.97)
+  NS.statsWin:SetBackdropBorderColor(ar,ag,ab,0.38)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(NS.statsWin,WIN_W,WIN_H,TITLE_H,0) end end)
+
+  -- Header bg
+  local hBg=NS.statsWin:CreateTexture(nil,"BACKGROUND",nil,2)
+  hBg:SetPoint("TOPLEFT",1,-1); hBg:SetPoint("TOPRIGHT",-1,-1)
+  hBg:SetHeight(TITLE_H); hBg:SetColorTexture(0.008,0.008,0.018,1)
+
+  -- Header separator (NO left accent bar per design)
+  local hLine=NS.statsWin:CreateTexture(nil,"OVERLAY",nil,5); hLine:SetHeight(1)
+  hLine:SetPoint("TOPLEFT",1,-TITLE_H); hLine:SetPoint("TOPRIGHT",-1,-TITLE_H)
+  hLine:SetColorTexture(ar,ag,ab,0.55); NS.statsWin._accentLine=hLine
+
+  -- Corner cuts
+  local function CutTex3(x,y,w,h,a)
+    local t3=NS.statsWin:CreateTexture(nil,"OVERLAY",nil,5); t3:SetSize(w,h)
+    t3:SetPoint("TOPLEFT",NS.statsWin,"TOPLEFT",x,-y); t3:SetColorTexture(ar,ag,ab,a or 0.55)
   end
-  local t0 = NS.GetTheme(NS.DB("theme"))
-  NS.statsWin:SetBackdropColor(t0.bg[1], t0.bg[2], t0.bg[3], GetStatsAlpha())
-  NS.statsWin:SetBackdropBorderColor(unpack(t0.border))
+  CutTex3(WIN_W-24,1,22,1,0.70); CutTex3(WIN_W-2,1,1,12,0.70); CutTex3(WIN_W-16,3,12,1,0.35)
+
   NS.statsWin._ApplyTheme = function()
-    local t = NS.GetTheme(NS.DB("theme"))
-    NS.statsWin:SetBackdropColor(t.bg[1], t.bg[2], t.bg[3], GetStatsAlpha())
-    NS.statsWin:SetBackdropBorderColor(unpack(t.border))
-    if NS.statsWin._titleBar then
-      NS.statsWin._titleBar:SetBackdropColor(t.titleBg[1], t.titleBg[2], t.titleBg[3], 1)
-    end
+    local C=NS.CYAN; local thex=string.format("%02x%02x%02x",math.floor(C[1]*255),math.floor(C[2]*255),math.floor(C[3]*255))
+    NS.statsWin:SetBackdropBorderColor(C[1],C[2],C[3],0.38)
+    if NS.statsWin._accentLine then NS.statsWin._accentLine:SetColorTexture(C[1],C[2],C[3],0.55) end
     if NS.statsWin._titleTxt then
-      local tc  = t.titleText or {1,1,1,1}
-      -- Use NS.CYAN directly — always in sync with the active accent
-      local C = NS.CYAN
-      local thex = string.format("%02x%02x%02x",
-        math.floor(C[1]*255), math.floor(C[2]*255), math.floor(C[3]*255))
-      NS.statsWin._titleTxt:SetTextColor(tc[1], tc[2], tc[3], 1)
       NS.statsWin._titleTxt:SetText("|cff"..thex..">|r"..L["Session Stats"].."|cff"..thex.."<|r")
     end
   end
 
-  -- Title bar
-  local titleBar = CreateFrame("Frame", nil, NS.statsWin, "BackdropTemplate")
+  -- Title bar (transparent — visuals from hBg)
+  local titleBar = CreateFrame("Frame", nil, NS.statsWin)
   titleBar:SetHeight(TITLE_H); titleBar:SetPoint("TOPLEFT",1,-1); titleBar:SetPoint("TOPRIGHT",-1,-1)
-  titleBar:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
-  titleBar:SetBackdropColor(t0.titleBg[1], t0.titleBg[2], t0.titleBg[3], 1)
   NS.statsWin._titleBar = titleBar
   titleBar:EnableMouse(true); titleBar:RegisterForDrag("LeftButton")
   titleBar:SetScript("OnDragStart", function() NS.statsWin:StartMoving() end)
@@ -497,21 +504,12 @@ NS.BuildStatsWindow = function()
     LucidUIDB.statsWinPos = {point, relPoint, math.floor(x), math.floor(y)}
   end)
 
-  local hex = string.format("%02x%02x%02x",
-    math.floor(CYAN[1]*255), math.floor(CYAN[2]*255), math.floor(CYAN[3]*255))
+  local hex = string.format("%02x%02x%02x",math.floor(ar*255),math.floor(ag*255),math.floor(ab*255))
   local titleTxt = titleBar:CreateFontString(nil, "OVERLAY")
-  titleTxt:SetFont("Fonts/FRIZQT__.TTF", 12, ""); titleTxt:SetPoint("LEFT", 10, 0)
-  titleTxt:SetTextColor(1, 1, 1, 1)
+  titleTxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
+  titleTxt:SetTextColor(1,1,1,1)
   titleTxt:SetText("|cff"..hex..">|r"..L["Session Stats"].."|cff"..hex.."<|r")
   NS.statsWin._titleTxt = titleTxt
-
-  -- Accent line under title bar
-  local statsAccentLine = NS.statsWin:CreateTexture(nil, "ARTWORK")
-  statsAccentLine:SetHeight(1)
-  statsAccentLine:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, 0)
-  statsAccentLine:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, 0)
-  statsAccentLine:SetColorTexture(CYAN[1], CYAN[2], CYAN[3], 0.6)
-  NS.statsWin._accentLine = statsAccentLine
 
   -- History button (settings cog)
   local histBtn = CreateFrame("Button", nil, titleBar)
@@ -561,25 +559,29 @@ NS.BuildStatsWindow = function()
     UpdateStatsCollapse()
   end)
 
-  -- Close button
-  local closeBtn = CreateFrame("Button", nil, titleBar, "UIPanelCloseButton")
-  closeBtn:SetSize(20, 20); closeBtn:SetPoint("RIGHT", -2, 0)
-  closeBtn:SetFrameLevel(titleBar:GetFrameLevel() + 10)
-  closeBtn:GetNormalTexture():SetVertexColor(0.8, 0.8, 0.8)
-  closeBtn:SetScript("OnEnter", function() closeBtn:GetNormalTexture():SetVertexColor(CYAN[1], CYAN[2], CYAN[3]) end)
-  closeBtn:SetScript("OnLeave", function() closeBtn:GetNormalTexture():SetVertexColor(0.8, 0.8, 0.8) end)
+  -- Close button (cyberpunk style)
+  local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+  closeBtn:SetSize(22,22); closeBtn:SetPoint("TOPRIGHT",-4,-6)
+  closeBtn:SetFrameLevel(titleBar:GetFrameLevel()+10)
+  closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09,0.02,0.02,1)
+  closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1)
+  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont("Fonts/FRIZQT__.TTF",11,""); cX:SetPoint("CENTER")
+  cX:SetTextColor(0.60,0.18,0.18); cX:SetText("X")
+  closeBtn:SetScript("OnEnter",function() closeBtn:SetBackdropBorderColor(0.82,0.16,0.16,1); cX:SetTextColor(1,0.30,0.30) end)
+  closeBtn:SetScript("OnLeave",function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
   closeBtn:SetScript("OnClick", function() NS.statsWin:Hide() end)
 
   -- Reset button (bottom right)
   local resetBtn = CreateFrame("Button", nil, NS.statsWin, "BackdropTemplate")
-  resetBtn:SetSize(48, 18); resetBtn:SetPoint("BOTTOMRIGHT", -4, 4)
-  resetBtn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  resetBtn:SetBackdropColor(0.08, 0.08, 0.08, 1); resetBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+  resetBtn:SetSize(56,20); resetBtn:SetPoint("BOTTOMRIGHT",-6,6)
+  resetBtn:SetBackdrop(BD); resetBtn:SetBackdropColor(0.04,0.04,0.07,1); resetBtn:SetBackdropBorderColor(0.12,0.12,0.20,1)
+  local rCut=resetBtn:CreateTexture(nil,"OVERLAY",nil,4); rCut:SetSize(7,1)
+  rCut:SetPoint("TOPRIGHT",resetBtn,"TOPRIGHT",0,-1); rCut:SetColorTexture(ar,ag,ab,0.22)
   local resetLbl = resetBtn:CreateFontString(nil, "OVERLAY")
-  resetLbl:SetFont("Fonts/FRIZQT__.TTF", 10, ""); resetLbl:SetPoint("CENTER")
-  resetLbl:SetTextColor(0.7, 0.7, 0.7, 1); resetLbl:SetText(L["stat_reset"])
-  resetBtn:SetScript("OnEnter", function() resetBtn:SetBackdropBorderColor(CYAN[1], CYAN[2], CYAN[3], 1) end)
-  resetBtn:SetScript("OnLeave", function() resetBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1) end)
+  resetLbl:SetFont("Fonts/FRIZQT__.TTF",10,""); resetLbl:SetPoint("CENTER")
+  resetLbl:SetTextColor(0.72,0.72,0.82,1); resetLbl:SetText(L["stat_reset"])
+  resetBtn:SetScript("OnEnter",function() resetBtn:SetBackdropBorderColor(CYAN[1],CYAN[2],CYAN[3],0.9) end)
+  resetBtn:SetScript("OnLeave",function() resetBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   resetBtn:SetScript("OnClick", NS.ResetSession)
   resetBtnRef = resetBtn
 
@@ -641,14 +643,39 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
     local p, _, rp, x, y = self:GetPoint()
     LucidUIDB[posKey] = {p, rp, math.floor(x), math.floor(y)}
   end)
-  win:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  win:SetBackdropColor(t.bg[1], t.bg[2], t.bg[3], 0.97)
-  win:SetBackdropBorderColor(unpack(t.border))
+  local BD3={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local ar3,ag3,ab3=CYAN[1],CYAN[2],CYAN[3]
 
-  local tb = CreateFrame("Frame", nil, win, "BackdropTemplate")
-  tb:SetHeight(TH); tb:SetPoint("TOPLEFT",1,-1); tb:SetPoint("TOPRIGHT",-1,-1)
-  tb:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
-  tb:SetBackdropColor(t.titleBg[1], t.titleBg[2], t.titleBg[3], 1)
+  win:SetBackdrop(BD3)
+  win:SetBackdropColor(0.022,0.022,0.035,0.97)
+  win:SetBackdropBorderColor(ar3,ag3,ab3,0.38)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(win,width,height,TH,0) end end)
+
+  -- Left accent bar
+  local lBar3=win:CreateTexture(nil,"OVERLAY",nil,5); lBar3:SetWidth(3)
+  lBar3:SetPoint("TOPLEFT",1,-1); lBar3:SetPoint("BOTTOMLEFT",1,1)
+  lBar3:SetColorTexture(ar3,ag3,ab3,1)
+
+  -- Header bg
+  local hBg3=win:CreateTexture(nil,"BACKGROUND",nil,2)
+  hBg3:SetPoint("TOPLEFT",1,-1); hBg3:SetPoint("TOPRIGHT",-1,-1)
+  hBg3:SetHeight(TH); hBg3:SetColorTexture(0.008,0.008,0.018,1)
+
+  -- Header separator
+  local hLine3=win:CreateTexture(nil,"OVERLAY",nil,5); hLine3:SetHeight(1)
+  hLine3:SetPoint("TOPLEFT",1,-TH); hLine3:SetPoint("TOPRIGHT",-1,-TH)
+  hLine3:SetColorTexture(ar3,ag3,ab3,0.55)
+
+  -- Corner cuts (TOPRIGHT so they stay on edge)
+  local function Cut3(xOff,y,w,h,a)
+    local t3=win:CreateTexture(nil,"OVERLAY",nil,5); t3:SetSize(w,h)
+    t3:SetPoint("TOPRIGHT",win,"TOPRIGHT",xOff,-y); t3:SetColorTexture(ar3,ag3,ab3,a or 0.55)
+  end
+  Cut3(-2,1,22,1,0.70); Cut3(0,1,1,12,0.70); Cut3(-8,3,12,1,0.35)
+
+  -- Title bar (plain Frame — visuals from hBg3)
+  local tb = CreateFrame("Frame", nil, win)
+  tb:SetHeight(TH); tb:SetPoint("TOPLEFT",4,-1); tb:SetPoint("TOPRIGHT",-1,-1)
   tb:EnableMouse(true); tb:RegisterForDrag("LeftButton")
   tb:SetScript("OnDragStart", function() win:StartMoving() end)
   tb:SetScript("OnDragStop", function()
@@ -658,21 +685,19 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
   end)
 
   local ttxt = tb:CreateFontString(nil, "OVERLAY")
-  ttxt:SetFont("Fonts/FRIZQT__.TTF", 12, ""); ttxt:SetPoint("LEFT", 10, 0)
+  ttxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); ttxt:SetPoint("LEFT",6,-1)
+  ttxt:SetTextColor(1,1,1,1)
   ttxt:SetText("|cff"..hex..">|r "..titleText.." |cff"..hex.."<|r")
 
-  local al = win:CreateTexture(nil, "ARTWORK")
-  al:SetHeight(1)
-  al:SetPoint("TOPLEFT", tb, "BOTTOMLEFT", 0, 0)
-  al:SetPoint("TOPRIGHT", tb, "BOTTOMRIGHT", 0, 0)
-  al:SetColorTexture(CYAN[1], CYAN[2], CYAN[3], 0.6)
-
-  local cb = CreateFrame("Button", nil, tb, "UIPanelCloseButton")
-  cb:SetSize(20, 20); cb:SetPoint("RIGHT", -2, 0)
-  cb:SetFrameLevel(tb:GetFrameLevel() + 10)
-  cb:GetNormalTexture():SetVertexColor(0.8, 0.8, 0.8)
-  cb:SetScript("OnEnter", function() cb:GetNormalTexture():SetVertexColor(CYAN[1], CYAN[2], CYAN[3]) end)
-  cb:SetScript("OnLeave", function() cb:GetNormalTexture():SetVertexColor(0.8, 0.8, 0.8) end)
+  -- Close button (cyberpunk)
+  local cb=CreateFrame("Button",nil,tb,"BackdropTemplate")
+  cb:SetSize(22,22); cb:SetPoint("TOPRIGHT",-3,-6)
+  cb:SetFrameLevel(tb:GetFrameLevel()+10)
+  cb:SetBackdrop(BD3); cb:SetBackdropColor(0.09,0.02,0.02,1); cb:SetBackdropBorderColor(0.34,0.09,0.09,1)
+  local cX3=cb:CreateFontString(nil,"OVERLAY"); cX3:SetFont("Fonts/FRIZQT__.TTF",11,""); cX3:SetPoint("CENTER")
+  cX3:SetTextColor(0.60,0.18,0.18); cX3:SetText("X")
+  cb:SetScript("OnEnter",function() cb:SetBackdropBorderColor(0.82,0.16,0.16,1); cX3:SetTextColor(1,0.30,0.30) end)
+  cb:SetScript("OnLeave",function() cb:SetBackdropBorderColor(0.34,0.09,0.09,1); cX3:SetTextColor(0.60,0.18,0.18) end)
   cb:SetScript("OnClick", function() win:Hide() end)
 
   return win, tb, TH
@@ -693,15 +718,17 @@ NS.BuildSessionHistoryWindow = function()
   local win, tb, TH = MakeDarkWindow("LUISessionHistoryWindow", HW, HH, L["Session History"], "histWinPos")
 
   -- Clear button in title bar
+  local BD4={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
   local clearBtn = CreateFrame("Button", nil, tb, "BackdropTemplate")
-  clearBtn:SetSize(48, 18); clearBtn:SetPoint("RIGHT", -26, 0)
-  clearBtn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  clearBtn:SetBackdropColor(0.08, 0.08, 0.08, 1); clearBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+  clearBtn:SetSize(56,20); clearBtn:SetPoint("RIGHT",-30,0)
+  clearBtn:SetBackdrop(BD4); clearBtn:SetBackdropColor(0.04,0.04,0.07,1); clearBtn:SetBackdropBorderColor(0.12,0.12,0.20,1)
+  local cCut=clearBtn:CreateTexture(nil,"OVERLAY",nil,4); cCut:SetSize(7,1)
+  cCut:SetPoint("TOPRIGHT",clearBtn,"TOPRIGHT",0,-1); cCut:SetColorTexture(CYAN[1],CYAN[2],CYAN[3],0.22)
   local clbl = clearBtn:CreateFontString(nil, "OVERLAY")
-  clbl:SetFont("Fonts/FRIZQT__.TTF", 10, ""); clbl:SetPoint("CENTER")
-  clbl:SetTextColor(0.7, 0.7, 0.7); clbl:SetText(L["Clear"])
-  clearBtn:SetScript("OnEnter", function() clearBtn:SetBackdropBorderColor(CYAN[1], CYAN[2], CYAN[3], 1) end)
-  clearBtn:SetScript("OnLeave", function() clearBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 1) end)
+  clbl:SetFont("Fonts/FRIZQT__.TTF",10,""); clbl:SetPoint("CENTER")
+  clbl:SetTextColor(0.72,0.72,0.82,1); clbl:SetText(L["Clear"])
+  clearBtn:SetScript("OnEnter", function() clearBtn:SetBackdropBorderColor(CYAN[1],CYAN[2],CYAN[3],0.9) end)
+  clearBtn:SetScript("OnLeave", function() clearBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   clearBtn:SetScript("OnClick", function()
     LucidUIDB._sessionHistory = {}
     NS.RefreshSessionHistory()
@@ -782,19 +809,31 @@ NS.RefreshSessionHistory = function()
     local e = history[i]
     local idx = i
 
+    local BD6={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+    local ar5,ag5,ab5=CYAN[1],CYAN[2],CYAN[3]
     local row = CreateFrame("Button", nil, sc, "BackdropTemplate")
     row:SetHeight(ROW_H)
     row:SetPoint("TOPLEFT", sc, "TOPLEFT", 0, yOff)
     row:SetPoint("RIGHT", sc, "RIGHT", 0, 0)
-    row:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
-    row:SetBackdropColor(0.06, 0.06, 0.06, 1)
-
+    row:SetBackdrop(BD6)
+    row:SetBackdropColor(0.025,0.025,0.040,0.95)
+    row:SetBackdropBorderColor(ar5*0.22,ag5*0.22,ab5*0.22,1)
+    -- Left accent bar
+    local rBar5=row:CreateTexture(nil,"OVERLAY",nil,5); rBar5:SetWidth(3)
+    rBar5:SetPoint("TOPLEFT",0,-2); rBar5:SetPoint("BOTTOMLEFT",0,2)
+    rBar5:SetColorTexture(ar5,ag5,ab5,0.75)
+    -- Staircase corner decoration
+    for si=0,2 do
+      local st=row:CreateTexture(nil,"OVERLAY",nil,4); st:SetSize(5-si*2,1)
+      st:SetPoint("TOPRIGHT",row,"TOPRIGHT",-(3+si*6),-(2+si*2))
+      st:SetColorTexture(ar5,ag5,ab5,0.18-si*0.04)
+    end
     -- Hover highlight
     row:SetScript("OnEnter", function()
-      row:SetBackdropColor(0.1, 0.1, 0.1, 1)
+      row:SetBackdropColor(ar5*0.08,ag5*0.08,ab5*0.08,1)
     end)
     row:SetScript("OnLeave", function()
-      row:SetBackdropColor(0.06, 0.06, 0.06, 1)
+      row:SetBackdropColor(0.025,0.025,0.040,0.95)
     end)
 
     -- Click → open detail

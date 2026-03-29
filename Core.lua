@@ -62,15 +62,23 @@ local function GetCustomTheme()
     if LucidUIDB and LucidUIDB[key] then return LucidUIDB[key]
     else return CUSTOM_DEFAULTS[key] end
   end
+  -- Normalize tilders: color picker saves {r,g,b}, defaults are {1,2,3,4}
+  -- Always return array format so tid[1]/[2]/[3] works everywhere
+  local function normalizeColor(c, fallback)
+    if not c then return fallback end
+    if c[1] then return c end  -- already array
+    if c.r then return {c.r, c.g, c.b, 1} end  -- dict → array
+    return fallback
+  end
   return {
     key       = "custom",
     label     = "Custom",
-    bg        = col("customBg"),
-    border    = col("customBorder"),
-    titleBg   = col("customTitleBg"),
-    titleText = col("customTitleText"),
-    tilders   = col("customTilders"),
-    btnColor  = col("customBtnColor"),
+    bg        = normalizeColor(col("customBg"),        CUSTOM_DEFAULTS.customBg),
+    border    = normalizeColor(col("customBorder"),     CUSTOM_DEFAULTS.customBorder),
+    titleBg   = normalizeColor(col("customTitleBg"),   CUSTOM_DEFAULTS.customTitleBg),
+    titleText = normalizeColor(col("customTitleText"),  CUSTOM_DEFAULTS.customTitleText),
+    tilders   = normalizeColor(col("customTilders"),    CUSTOM_DEFAULTS.customTilders),
+    btnColor  = normalizeColor(col("customBtnColor"),   CUSTOM_DEFAULTS.customBtnColor),
   }
 end
 
@@ -279,8 +287,11 @@ NS.ApplyTheme = function(themeKey)
   if NS.titleText then
     NS.titleText:SetTextColor(unpack(t.titleText))
     local tid = t.tilders or {59/255, 210/255, 237/255, 1}
+    local tr = tid[1] or tid.r or 59/255
+    local tg = tid[2] or tid.g or 210/255
+    local tb = tid[3] or tid.b or 237/255
     local hex = string.format("%02x%02x%02x",
-      math.floor(tid[1]*255), math.floor(tid[2]*255), math.floor(tid[3]*255))
+      math.floor(tr*255), math.floor(tg*255), math.floor(tb*255))
     local tname = (LucidUIDB and LucidUIDB.titleName ~= nil) and LucidUIDB.titleName or "LootTracker"
     if (LucidUIDB and LucidUIDB.showBrackets ~= false) then
       NS.titleText:SetText("|cff"..hex..">|r" .. tname .. "|cff"..hex.."<|r")
@@ -362,6 +373,11 @@ NS.ApplyTheme = function(themeKey)
       NS.rollWin._titleTxt:SetText("|cff"..hex2..">|r "..(L["LOOT ROLLS"] or "LOOT ROLLS").." |cff"..hex2.."<|r")
     end
   end
+
+  -- MythicPlus window live accent update
+  if NS.MythicPlus and NS.MythicPlus._ApplyTheme then NS.MythicPlus._ApplyTheme() end
+  -- GoldTracker window live accent update
+  if NS.GoldTracker and NS.GoldTracker._ApplyTheme then NS.GoldTracker._ApplyTheme() end
 
   NS.ApplyAlpha()
   NS.ApplyTitleAlpha()

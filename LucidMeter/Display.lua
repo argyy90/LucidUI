@@ -1077,11 +1077,44 @@ function DM.UpdateWindowDisplay(w)
     end
   end
 
-  -- BUG FIX: clamp maxVal to at least 1 to prevent StatusBar display glitch at 0
-  -- Also guard against secret values: isSecret() is truthy so "secretVal or 0" = secretVal,
-  -- which then crashes math.max with "numeric conversion on a secret number value".
-  local rawMax = w.sessionData and w.sessionData.maxAmount
-  local maxVal = (rawMax and not isSecret(rawMax) and rawMax > 0) and rawMax or 1
+  -- Compute maxVal: prefer sessionData.maxAmount when it is NOT secret.
+  -- During combat all values are "secret" (tainted). In that case derive maxVal
+  -- from the top entry in the sorted sources list instead.
+  -- If that is also secret, fall back to 1 — the bar will still show a partial
+  -- fill because SetValue(secretNum) renders proportionally when min/max are set
+  -- to matching secret values.
+  local maxVal = 1
+  do
+    local rawMax = w.sessionData and w.sessionData.maxAmount
+    if rawMax and not isSecret(rawMax) and rawMax > 0 then
+      maxVal = rawMax
+    else
+      -- Derive from sources: find the highest readable totalAmount
+      local derivedMax = 0
+      local topSecret  = false
+      pcall(function()
+        for _, s in ipairs(sources) do
+          local amt = s.totalAmount or 0
+          if isSecret(amt) then
+            topSecret = true
+            break  -- can't compare secrets; bail out
+          end
+          if amt > derivedMax then derivedMax = amt end
+        end
+      end)
+      if topSecret then
+        -- All values are secret during combat.
+        -- Use the top source's secret value directly so all bars share the
+        -- same scale. SetMinMaxValues(0, secretTop) + SetValue(secretN) lets
+        -- WoW render the proportional fill natively.
+        pcall(function()
+          if sources[1] then maxVal = sources[1].totalAmount or 1 end
+        end)
+      elseif derivedMax > 0 then
+        maxVal = derivedMax
+      end
+    end
+  end
 
   local DB = NS.DB
   local barH = DB("dmBarHeight") or 18

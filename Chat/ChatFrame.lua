@@ -102,7 +102,11 @@ end
 GetAccentColor = function()
   local t = NS.GetTheme(NS.DB("theme"))
   local tid = t.tilders or CYAN
-  return tid[1], tid[2], tid[3]
+  -- tilders can be array {r,g,b} or dict {r=,g=,b=} depending on how it was saved
+  local r = tid[1] or tid.r or CYAN[1]
+  local g = tid[2] or tid.g or CYAN[2]
+  local b = tid[3] or tid.b or CYAN[3]
+  return r, g, b
 end
 
 local function GetChatBgAlpha()
@@ -492,8 +496,8 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName, unixTime)
   else
     msg = ""
   end
-  -- Guard against tainted strings
-  if not pcall(string.len, msg) then return end
+  -- Note: msg from AddMessage is always a regular Lua string — never a secret value.
+  -- The previous pcall(string.len) guard was blocking combat chat. Removed.
   local d = customDisplays[index]
   if not d then return end
   if not isRerendering then
@@ -930,10 +934,10 @@ RebuildTabButtons = function()
 
       elseif mouseButton == "RightButton" then
         MenuUtil.CreateContextMenu(btn, function(_, root)
-          -- Rename (not for General or managed tabs)
+          -- Rename (not for managed tabs — General tab CAN be renamed)
           local isManagedTab = tabData[capturedI] and
             (tabData[capturedI]._isLootTab or tabData[capturedI]._isWhisperTab or tabData[capturedI]._isCombatLogTab)
-          if capturedI ~= 1 and not isManagedTab then
+          if not isManagedTab then
             root:CreateButton("Rename", function()
               if not StaticPopupDialogs["LUI_CHAT_RENAME_TAB"] then
                 StaticPopupDialogs["LUI_CHAT_RENAME_TAB"] = {
@@ -1431,9 +1435,14 @@ local function SetupEditBox(bg)
     -- Save before WoW resets to SAY
     local savedType = lastChatType
     local savedTarget = lastChatTarget
-    -- Defer restore so it runs AFTER WoW's own ActivateChat finishes
+    -- Defer restore so it runs AFTER WoW's own ActivateChat finishes.
+    -- COMBAT TAINT FIX: SetAttribute on the ChatFrame editbox taints it in combat,
+    -- which prevents further typing. Skip the restore entirely during combat —
+    -- WoW will default to SAY/last-used, which is fine.
     C_Timer.After(0, function()
       if not eb:HasFocus() then return end
+      -- Never call SetAttribute during combat — it taints the editbox
+      if InCombatLockdown() then return end
       -- Don't override if editbox is already in whisper mode (e.g. clicked player name)
       local currentType = eb:GetAttribute("chatType")
       if currentType == "WHISPER" or currentType == "BN_WHISPER" then return end

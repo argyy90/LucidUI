@@ -202,15 +202,11 @@ end
 function NS.ApplyRollWinTheme()
   if not NS.rollWin then return end
   local t = GetWinTheme()
-  NS.rollWin:SetBackdropColor(t.bg[1],t.bg[2],t.bg[3], t.bg[4] or 0.97)
-  NS.rollWin:SetBackdropBorderColor(t.border[1],t.border[2],t.border[3],1)
-  if NS.rollWin._titleBar then
-    NS.rollWin._titleBar:SetBackdropColor(t.titleBg[1],t.titleBg[2],t.titleBg[3],1)
-  end
-  if NS.rollWin._bottomBar then
-    local s = 0.75
-    NS.rollWin._bottomBar:SetBackdropColor(
-      t.titleBg[1]*s, t.titleBg[2]*s, t.titleBg[3]*s, 1)
+  NS.rollWin:SetBackdropColor(0.022,0.022,0.035,0.97)
+  NS.rollWin:SetBackdropBorderColor(NS.CYAN[1],NS.CYAN[2],NS.CYAN[3],0.38)
+  -- _titleBar is a plain Frame now (no backdrop) — skip SetBackdropColor
+  if NS.rollWin._bottomBar and NS.rollWin._bottomBar.SetBackdropColor then
+    NS.rollWin._bottomBar:SetBackdropColor(0.010,0.010,0.020,1)
   end
   -- Title text color + tilde/bracket color from theme
   if NS.rollWin._titleTxt then
@@ -303,16 +299,25 @@ local function BuildItemRow(parent, session, yOffset)
   local t = GetWinTheme()
   local pw = parent:GetWidth() - 2
 
+  local BD2={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
   local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
   row:SetSize(pw, ROW_H)
   row:SetPoint("TOPLEFT", 1, yOffset)
-  row:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",
-                   edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  row:SetBackdropColor(
-    t.bg[1]*0.55 + qr*0.08,
-    t.bg[2]*0.55 + qg*0.08,
-    t.bg[3]*0.55 + qb*0.08, 1)
-  row:SetBackdropBorderColor(qr*0.28, qg*0.28, qb*0.28, 1)
+  row:SetBackdrop(BD2)
+  row:SetBackdropColor(0.028,0.028,0.046,1)
+  row:SetBackdropBorderColor(qr*0.22, qg*0.22, qb*0.22, 1)
+
+  -- Left quality accent bar (cyberpunk style)
+  local qBar=row:CreateTexture(nil,"OVERLAY",nil,5); qBar:SetWidth(3)
+  qBar:SetPoint("TOPLEFT",0,-2); qBar:SetPoint("BOTTOMLEFT",0,2)
+  qBar:SetColorTexture(qr,qg,qb,0.90)
+
+  -- Tiny staircase corner decoration
+  for i=0,2 do
+    local st=row:CreateTexture(nil,"OVERLAY",nil,4); st:SetSize(5-i*2,1)
+    st:SetPoint("TOPRIGHT",row,"TOPRIGHT",-(4+i*5),-(2+i*2))
+    st:SetColorTexture(qr,qg,qb,0.20-i*0.05)
+  end
 
   -- Icon quality border
   local iconBorder = row:CreateTexture(nil, "BACKGROUND")
@@ -538,9 +543,16 @@ local function BuildEncounterHeader(parent, name, yOffset)
   hdr:SetBackdropBorderColor(tid[1]*0.35, tid[2]*0.35, tid[3]*0.35, 1)
 
   -- Accent line left (tilders color)
+  -- Left accent bar (quality color)
   local accent = hdr:CreateTexture(nil, "ARTWORK")
-  accent:SetWidth(2); accent:SetPoint("TOPLEFT", 0, 0); accent:SetPoint("BOTTOMLEFT", 0, 0)
-  accent:SetColorTexture(tid[1], tid[2], tid[3], 0.8)
+  accent:SetWidth(3); accent:SetPoint("TOPLEFT", 0, 0); accent:SetPoint("BOTTOMLEFT", 0, 0)
+  accent:SetColorTexture(tid[1], tid[2], tid[3], 1)
+  -- Dashed separator below header (3 segments)
+  for si=0,2 do
+    local seg=hdr:CreateTexture(nil,"OVERLAY",nil,4); seg:SetSize(16,1)
+    seg:SetPoint("BOTTOMLEFT",hdr,"BOTTOMLEFT",4+si*22,1)
+    seg:SetColorTexture(tid[1],tid[2],tid[3],0.20)
+  end
 
   local lbl = hdr:CreateFontString(nil, "OVERLAY")
   lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "OUTLINE")
@@ -594,94 +606,87 @@ local function BuildRollWindow()
   if NS.rollWin then return end
   local t = GetWinTheme()
 
+  local BD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local ar,ag,ab = NS.CYAN[1],NS.CYAN[2],NS.CYAN[3]
+  local HEADER_H_WIN = 34
+
   local win = CreateFrame("Frame", "LucidUIRollWindow", UIParent, "BackdropTemplate")
   win:SetSize(WIN_W, WIN_H)
-  -- Restore saved position or default
   local rpos = LucidUIDB and LucidUIDB.rollWinPos
-  if rpos then
-    win:SetPoint(rpos[1], UIParent, rpos[2], rpos[3], rpos[4])
-  else
-    win:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-  end
-  win:SetFrameStrata("MEDIUM")
-  win:SetToplevel(true)
-  win:SetMovable(true)
-  win:SetResizable(true)
-  win:SetResizeBounds(220, 180, 520, 720)
-  win:EnableMouse(true)
-  win:RegisterForDrag("LeftButton")
+  if rpos then win:SetPoint(rpos[1], UIParent, rpos[2], rpos[3], rpos[4])
+  else win:SetPoint("CENTER", UIParent, "CENTER", 0, 0) end
+  win:SetFrameStrata("MEDIUM"); win:SetToplevel(true)
+  win:SetMovable(true); win:SetResizable(true); win:SetResizeBounds(220,180,520,720)
+  win:EnableMouse(true); win:RegisterForDrag("LeftButton"); win:SetClampedToScreen(true)
   win:SetScript("OnDragStart", win.StartMoving)
   win:SetScript("OnDragStop", function()
     win:StopMovingOrSizing()
-    local point, _, relPoint, x, y = win:GetPoint(1)
-    if LucidUIDB then
-      LucidUIDB.rollWinPos = {point, relPoint, math.floor(x), math.floor(y)}
-    end
+    local point,_,relPoint,x,y = win:GetPoint(1)
+    if LucidUIDB then LucidUIDB.rollWinPos={point,relPoint,math.floor(x),math.floor(y)} end
   end)
-  win:SetClampedToScreen(true)
-  win:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",
-                   edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  win:SetBackdropColor(t.bg[1],t.bg[2],t.bg[3], t.bg[4] or 0.97)
-  win:SetBackdropBorderColor(t.border[1],t.border[2],t.border[3],1)
+  win:SetBackdrop(BD)
+  win:SetBackdropColor(0.022,0.022,0.035,0.97)
+  win:SetBackdropBorderColor(ar,ag,ab,0.38)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(win,WIN_W,WIN_H,TITLE_H,0) end end)
   -- Not in UISpecialFrames so ESC doesn't close it
 
-  -- Title bar
-  local titleBar = CreateFrame("Frame", nil, win, "BackdropTemplate")
-  titleBar:SetHeight(TITLE_H)
-  titleBar:SetPoint("TOPLEFT",  1, -1)
-  titleBar:SetPoint("TOPRIGHT", -1, -1)
-  titleBar:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
-  titleBar:SetBackdropColor(t.titleBg[1],t.titleBg[2],t.titleBg[3],1)
-  titleBar:EnableMouse(true)
-  titleBar:RegisterForDrag("LeftButton")
-  titleBar:SetScript("OnDragStart", function() win:StartMoving() end)
-  titleBar:SetScript("OnDragStop",  function()
+  -- Header bg (dark strip)
+  local hBg=win:CreateTexture(nil,"BACKGROUND",nil,2)
+  hBg:SetPoint("TOPLEFT",1,-1); hBg:SetPoint("TOPRIGHT",-1,-1)
+  hBg:SetHeight(HEADER_H_WIN); hBg:SetColorTexture(0.008,0.008,0.018,1)
+
+  -- Header separator line (NO left accent bar per design)
+  local hLine=win:CreateTexture(nil,"OVERLAY",nil,5); hLine:SetHeight(1)
+  hLine:SetPoint("TOPLEFT",1,-HEADER_H_WIN); hLine:SetPoint("TOPRIGHT",-1,-HEADER_H_WIN)
+  hLine:SetColorTexture(ar,ag,ab,0.55); win._accentLine=hLine
+
+  -- Corner cuts (use TOPRIGHT anchor so they follow resize)
+  local function CutTex(xOff,y,w,h,a)
+    local t2=win:CreateTexture(nil,"OVERLAY",nil,5); t2:SetSize(w,h)
+    t2:SetPoint("TOPRIGHT",win,"TOPRIGHT",xOff,-y); t2:SetColorTexture(ar,ag,ab,a or 0.55)
+  end
+  CutTex(-2,1,22,1,0.70); CutTex(0,1,1,12,0.70); CutTex(-8,3,12,1,0.35)
+
+  -- Title bar (draggable, transparent — visuals come from hBg)
+  local titleBar=CreateFrame("Frame",nil,win)
+  titleBar:SetHeight(HEADER_H_WIN); titleBar:SetPoint("TOPLEFT",1,-1); titleBar:SetPoint("TOPRIGHT",-1,-1)
+  titleBar:EnableMouse(true); titleBar:RegisterForDrag("LeftButton")
+  titleBar:SetScript("OnDragStart",function() win:StartMoving() end)
+  titleBar:SetScript("OnDragStop",function()
     win:StopMovingOrSizing()
-    local point, _, relPoint, x, y = win:GetPoint(1)
-    if LucidUIDB then
-      LucidUIDB.rollWinPos = {point, relPoint, math.floor(x), math.floor(y)}
-    end
+    local point,_,relPoint,x,y=win:GetPoint(1)
+    if LucidUIDB then LucidUIDB.rollWinPos={point,relPoint,math.floor(x),math.floor(y)} end
   end)
-  win._titleBar = titleBar
+  win._titleBar=titleBar
 
-  local titleTxt = titleBar:CreateFontString(nil, "OVERLAY")
-  titleTxt:SetFont("Fonts/FRIZQT__.TTF", 11, "")
-  titleTxt:SetPoint("LEFT", 8, 0)
-  titleTxt:SetTextColor(1, 1, 1, 1)
-  -- Title with both > and < using accent color
-  local initAcc = GetAccentColorRGB()
-  local initHex = string.format("%02x%02x%02x", math.floor(initAcc[1]*255), math.floor(initAcc[2]*255), math.floor(initAcc[3]*255))
-  titleTxt:SetText("|cff"..initHex..">|r "..L["LOOT ROLLS"].." |cff"..initHex.."<|r")
-  win._titleTxt = titleTxt
+  -- Title text
+  local hex=string.format("%02x%02x%02x",math.floor(ar*255),math.floor(ag*255),math.floor(ab*255))
+  local titleTxt=titleBar:CreateFontString(nil,"OVERLAY")
+  titleTxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
+  titleTxt:SetTextColor(1,1,1,1)
+  titleTxt:SetText("|cff"..hex..">|r "..L["LOOT ROLLS"].." |cff"..hex.."<|r")
+  win._titleTxt=titleTxt
 
-  -- Accent line under title bar
-  local rollAccentLine = win:CreateTexture(nil, "ARTWORK")
-  rollAccentLine:SetHeight(1)
-  rollAccentLine:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, 0)
-  rollAccentLine:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, 0)
-  rollAccentLine:SetColorTexture(NS.CYAN[1], NS.CYAN[2], NS.CYAN[3], 0.6)
-  win._accentLine = rollAccentLine
-
-  local closeBtn = CreateFrame("Button", nil, titleBar, "UIPanelCloseButton")
-  closeBtn:SetSize(20, 20)
-  closeBtn:SetPoint("RIGHT", -2, 0)
-  closeBtn:SetFrameLevel(titleBar:GetFrameLevel() + 5)
-  closeBtn:GetNormalTexture():SetVertexColor(0.8, 0.8, 0.8)
-  closeBtn:SetScript("OnEnter", function()
-    local acc = GetAccentColorRGB()
-    closeBtn:GetNormalTexture():SetVertexColor(acc[1], acc[2], acc[3])
-  end)
-  closeBtn:SetScript("OnLeave", function() closeBtn:GetNormalTexture():SetVertexColor(0.8, 0.8, 0.8) end)
-  closeBtn:SetScript("OnClick", function() win:Hide() end)
+  -- Close button (cyberpunk style)
+  local closeBtn=CreateFrame("Button",nil,titleBar,"BackdropTemplate")
+  closeBtn:SetSize(22,22); closeBtn:SetPoint("TOPRIGHT",-4,-6)
+  closeBtn:SetFrameLevel(titleBar:GetFrameLevel()+5)
+  closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09,0.02,0.02,1)
+  closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1)
+  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont("Fonts/FRIZQT__.TTF",11,""); cX:SetPoint("CENTER")
+  cX:SetTextColor(0.60,0.18,0.18); cX:SetText("X")
+  closeBtn:SetScript("OnEnter",function() closeBtn:SetBackdropBorderColor(0.82,0.16,0.16,1); cX:SetTextColor(1,0.30,0.30) end)
+  closeBtn:SetScript("OnLeave",function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
+  closeBtn:SetScript("OnClick",function() win:Hide() end)
 
   -- Boss filter dropdown in title bar
   local filterBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
-  filterBtn:SetSize(110, 18)
-  filterBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
+  filterBtn:SetSize(110, 20)
+  filterBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
   filterBtn:SetFrameLevel(titleBar:GetFrameLevel() + 5)
-  filterBtn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  filterBtn:SetBackdropColor(0.07, 0.07, 0.07, 1)
-  filterBtn:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
+  filterBtn:SetBackdrop(BD)
+  filterBtn:SetBackdropColor(0.04,0.04,0.07,1)
+  filterBtn:SetBackdropBorderColor(0.12,0.12,0.20,1)
   local filterLbl = filterBtn:CreateFontString(nil, "OVERLAY")
   filterLbl:SetFont("Fonts/FRIZQT__.TTF", 9, "")
   filterLbl:SetPoint("LEFT", 4, 0)
@@ -692,14 +697,14 @@ local function BuildRollWindow()
   local filterArrow = filterBtn:CreateFontString(nil, "OVERLAY")
   filterArrow:SetFont("Fonts/FRIZQT__.TTF", 8, "")
   filterArrow:SetPoint("RIGHT", -3, 0)
-  filterArrow:SetTextColor(initAcc[1], initAcc[2], initAcc[3], 1)
+  filterArrow:SetTextColor(ar, ag, ab, 1)
   filterArrow:SetText("v")
   win._filterArrow = filterArrow
   filterBtn:SetScript("OnEnter", function()
-    local acc = GetAccentColorRGB()
-    filterBtn:SetBackdropBorderColor(acc[1], acc[2], acc[3], 1)
+    local _ar,_ag,_ab=NS.CYAN[1],NS.CYAN[2],NS.CYAN[3]
+    filterBtn:SetBackdropBorderColor(_ar,_ag,_ab,0.9)
   end)
-  filterBtn:SetScript("OnLeave", function() filterBtn:SetBackdropBorderColor(0.22, 0.22, 0.22, 1) end)
+  filterBtn:SetScript("OnLeave", function() filterBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   filterBtn:SetScript("OnClick", function()
     MenuUtil.CreateContextMenu(filterBtn, function(_, rootDescription)
       rootDescription:CreateButton(NS.rollBossFilter and L["All Bosses"] or "|cff00ff00> "..L["All Bosses"].."|r", function()
@@ -738,26 +743,34 @@ local function BuildRollWindow()
   BuildResizeGrip(win)
 
   -- Bottom bar
+  -- Bottom separator line
+  local botLine=win:CreateTexture(nil,"OVERLAY",nil,4); botLine:SetHeight(1)
+  botLine:SetPoint("BOTTOMLEFT",win,"BOTTOMLEFT",1,BOTTOM_H+1)
+  botLine:SetPoint("BOTTOMRIGHT",win,"BOTTOMRIGHT",-1,BOTTOM_H+1)
+  botLine:SetColorTexture(ar,ag,ab,0.30)
+
   local bottomBar = CreateFrame("Frame", nil, win, "BackdropTemplate")
   bottomBar:SetHeight(BOTTOM_H)
   bottomBar:SetPoint("BOTTOMLEFT",  1, 1)
   bottomBar:SetPoint("BOTTOMRIGHT", -1, 1)
-  bottomBar:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
-  bottomBar:SetBackdropColor(t.titleBg[1]*0.75, t.titleBg[2]*0.75, t.titleBg[3]*0.75, 1)
+  bottomBar:SetBackdrop(BD)
+  bottomBar:SetBackdropColor(0.010,0.010,0.020,1)
+  bottomBar:SetBackdropBorderColor(0,0,0,0)
   win._bottomBar = bottomBar
 
   local function MakeBtn(label, anchor, xOff, onClick)
     local btn = CreateFrame("Button", nil, bottomBar, "BackdropTemplate")
     btn:SetSize(90, 22)
     btn:SetPoint(anchor, bottomBar, anchor, xOff, 0)
-    btn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",
-                     edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-    btn:SetBackdropColor(0.07,0.07,0.07,1)
-    btn:SetBackdropBorderColor(0.22,0.22,0.22,1)
+    btn:SetBackdrop(BD)
+    btn:SetBackdropColor(0.04,0.04,0.07,1)
+    btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
+    local cut2=btn:CreateTexture(nil,"OVERLAY",nil,4); cut2:SetSize(7,1)
+    cut2:SetPoint("TOPRIGHT",btn,"TOPRIGHT",0,-1); cut2:SetColorTexture(ar,ag,ab,0.22)
     local lbl = btn:CreateFontString(nil,"OVERLAY")
     lbl:SetFont("Fonts/FRIZQT__.TTF",10,""); lbl:SetPoint("CENTER")
-    lbl:SetTextColor(0.85,0.85,0.85,1); lbl:SetText(label)
-    btn:SetScript("OnEnter", function() btn:SetBackdropBorderColor(CYAN[1],CYAN[2],CYAN[3],1) end)
+    lbl:SetTextColor(0.72,0.72,0.82,1); lbl:SetText(label)
+    btn:SetScript("OnEnter", function() btn:SetBackdropBorderColor(NS.CYAN[1],NS.CYAN[2],NS.CYAN[3],0.9) end)
     btn:SetScript("OnLeave", function() btn:SetBackdropBorderColor(0.22,0.22,0.22,1) end)
     btn:SetScript("OnClick", onClick)
     return btn

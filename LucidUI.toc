@@ -1,43 +1,57 @@
 ## Interface: 120001, 120000
 ## Title: LucidUI
 ## Notes: Complete chat replacement, loot tracking, session stats & QoL features
-## Version: 1.8
+## Version: 1.9
 ## SavedVariables: LucidUIDB
 ## IconTexture: Interface\\AddOns\\LucidUI\\Assets\\Logo.png
 
-## Category-enUS: Chat
-## Category-deDE: Chat
+## Category-enUS: User Interface
+## Category-deDE: Benutzerinterface
+## Category-esES: Interfaz de usuario
+## Category-esMX: Interfaz de usuario
+## Category-frFR: Interface utilisateur
+## Category-itIT: Interfaccia utente
+## Category-koKR: 사용자 인터페이스
+## Category-ptBR: Interface do usuário
+## Category-ruRU: Интерфейс пользователя
+## Category-zhCN: 用户界面
+## Category-zhTW: 使用者介面
 
 Locales.lua
 Core.lua
 
-Chat\\Messages.lua
-Chat\\ChatFormat.lua
-Chat\\ChatMessageArea.lua
-Chat\\ChatComponents.lua
-Chat\\ChatBar.lua
-Chat\\ChatFrame.lua
-Chat\\ChatOptions.lua
+Chat\Messages.lua
+Chat\ChatFormat.lua
+Chat\ChatMessageArea.lua
+Chat\ChatComponents.lua
+Chat\ChatBar.lua
+Chat\ChatFrame.lua
 
-Loot\\LootHandlers.lua
-Loot\\LootRolls.lua
-Loot\\LootTracker.lua
-Loot\\SessionStats.lua
+Loot\LootHandlers.lua
+Loot\LootRolls.lua
+Loot\LootTracker.lua
+Loot\SessionStats.lua
 
-LucidMeter\\Main.lua
-LucidMeter\\Display.lua
-LucidMeter\\Settings.lua
+LucidMeter\Main.lua
+LucidMeter\Display.lua
+LucidMeter\Settings.lua
 
-Bags\\Bags.lua
+Bags\Bags.lua
 
-Debug\\Main.lua
-Debug\\AddonProfiler.lua
+GoldTracker\GoldTracker.lua
 
-QoL\\Main.lua
-QoL\\MouseRing.lua
-QoL\\CombatTimer.lua
-QoL\\CombatAlert.lua
-QoL\\SystemOpt.lua
-QoL\\AutoVendor.lua
-QoL\\SkipCinematics.lua
-QoL\\Misc.lua
+MythicPlus\MythicPlus.lua
+
+Settings\Main.lua
+
+Debug\Main.lua
+Debug\AddonProfiler.lua
+
+QoL\Main.lua
+QoL\MouseRing.lua
+QoL\CombatTimer.lua
+QoL\CombatAlert.lua
+QoL\SystemOpt.lua
+QoL\AutoVendor.lua
+QoL\SkipCinematics.lua
+QoL\Misc.lua

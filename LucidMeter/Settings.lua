@@ -1,650 +1,429 @@
--- LucidMeter — Settings tab for ChatOptions
-local NS   = LucidUINS
-local L    = LucidUIL
-local DM   = NS.LucidMeter
+-- LucidMeter — Settings tab  ::  Card layout redesign
+local NS = LucidUINS
+local L  = LucidUIL
+local DM = NS.LucidMeter
 
 function DM.SetupSettings(parent)
   local container = CreateFrame("Frame", nil, parent)
+  local MakeCard  = NS._SMakeCard
+  local MakePage  = NS._SMakePage
+  local Sep       = NS._SSep
+  local R         = NS._SR
+  local BD        = NS._SBD
+  local sc, Add   = MakePage(container)
 
-  local scrollFrame = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
-  scrollFrame:SetPoint("TOPLEFT", 0, 0); scrollFrame:SetPoint("BOTTOMRIGHT", -24, 0)
-  local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-  scrollChild:SetWidth(560)
-  scrollFrame:SetScrollChild(scrollChild)
-  scrollFrame:HookScript("OnSizeChanged", function(_, w) scrollChild:SetWidth(w - 24) end)
-  if scrollFrame.ScrollBar then scrollFrame.ScrollBar:SetAlpha(0.5) end
+  local function DB(k)    return NS.DB(k)       end
+  local function DBSet(k,v) NS.DBSet(k, v)       end
 
-  local allFrames = {}
-  -- BUG FIX: track actual frame heights for correct scrollChild height calculation
-  local allFrameHeights = {}
+  -- ── Card: General ────────────────────────────────────────────────
+  local cGen = MakeCard(sc, "General")
 
-  local function DB(k) return NS.DB(k) end
-  local function DBSet(k, v) NS.DBSet(k, v) end
-
-  -- Helper: row with two checkboxes side by side
-  local function MakeDualCheckboxRow(parent2, leftLabel, leftKey, leftCB_func, rightLabel, rightKey, rightCB_func, leftTip, rightTip)
-    local row = CreateFrame("Frame", nil, parent2)
-    row:SetHeight(28)
-    local leftCB = NS.ChatGetCheckbox(row, leftLabel, 28, leftCB_func, leftTip)
-    leftCB.option = leftKey
-    leftCB:ClearAllPoints()
-    leftCB:SetPoint("TOPLEFT", 0, 0); leftCB:SetSize(260, 28)
-    local rightCB = NS.ChatGetCheckbox(row, rightLabel, 28, rightCB_func, rightTip)
-    rightCB.option = rightKey
-    rightCB:ClearAllPoints()
-    rightCB:SetPoint("TOPLEFT", 260, 0); rightCB:SetSize(260, 28)
-    row._left = leftCB; row._right = rightCB
-    return row
-  end
-
-  -- ══ General ════════════════════════════════════════════════════════
-  local hdrGeneral = NS.ChatGetHeader(scrollChild, "General")
-  table.insert(allFrames, hdrGeneral)
-  table.insert(allFrameHeights, hdrGeneral:GetHeight() or 30)
-
-  local enableCB = NS.ChatGetCheckbox(scrollChild, "Enable LucidMeter", 28, function(state)
+  local enableCB = NS.ChatGetCheckbox(cGen.inner, "Enable LucidMeter", 26, function(state)
     DBSet("dmEnabled", state)
     if state then
       if DM.RegisterEvents then DM.RegisterEvents() end
-      if DM.BuildDisplay then DM.BuildDisplay() end
+      if DM.BuildDisplay   then DM.BuildDisplay()   end
     else
       if DM.UnregisterEvents then DM.UnregisterEvents() end
       if DM.windows then for _, w in ipairs(DM.windows) do w.frame:Hide() end end
     end
   end, "Show a damage meter window")
-  enableCB.option = "dmEnabled"
-  table.insert(allFrames, enableCB)
-  table.insert(allFrameHeights, 28)
+  enableCB.option = "dmEnabled"; R(cGen, enableCB, 26)
 
-  -- Icons on Mouseover + Lock position
-  local row0 = MakeDualCheckboxRow(scrollChild,
-    "Icons on Mouseover", "dmIconsOnHover", function(state)
-      DBSet("dmIconsOnHover", state)
-      if DM.windows then
-        for _, w in ipairs(DM.windows) do
-          if w.frame._titleIcons then
-            for _, ic in ipairs(w.frame._titleIcons) do ic:SetShown(not state) end
-          end
-        end
-      end
-    end,
-    "Lock position", "dmLocked", function(state)
-      DBSet("dmLocked", state)
-      if DM.windows then
-        for _, w in ipairs(DM.windows) do
-          if w.frame and w.frame._resizeBtn then w.frame._resizeBtn:SetShown(not state) end
-        end
-      end
-    end,
-    "Only show titlebar icons when hovering over the window",
-    "Prevent moving and resizing the meter windows"
-  )
-  table.insert(allFrames, row0)
-  table.insert(allFrameHeights, 28)
-
-  -- Show only in combat + Always Show Self
-  local row1 = MakeDualCheckboxRow(scrollChild,
-    "Show only in combat", "dmShowInCombatOnly", function(state)
-      DBSet("dmShowInCombatOnly", state)
-    end,
-    "Always show self", "dmAlwaysShowSelf", function(state)
-      DBSet("dmAlwaysShowSelf", state)
-      if DM.UpdateDisplay then DM.UpdateDisplay() end
-    end,
-    "Hide the meter windows when out of combat",
-    "Show your bar at the bottom even if not in the top list"
-  )
-  table.insert(allFrames, row1)
-  table.insert(allFrameHeights, 28)
-
-  -- Show Rank + Show Percent
-  local row2g = MakeDualCheckboxRow(scrollChild,
-    "Show Rank", "dmShowRank", function(state)
-      DBSet("dmShowRank", state)
-      if DM.UpdateDisplay then DM.UpdateDisplay() end
-    end,
-    "Show %", "dmShowPercent", function(state)
-      DBSet("dmShowPercent", state)
-      if DM.UpdateDisplay then DM.UpdateDisplay() end
-    end,
-    "Show position numbers and a crown for #1",
-    "Show each player's percentage of total on the right side"
-  )
-  table.insert(allFrames, row2g)
-  table.insert(allFrameHeights, 28)
-
-  -- Auto Reset dropdown (own row)
-  local resetRow = CreateFrame("Frame", nil, scrollChild); resetRow:SetHeight(58)
-  local resetDD = NS.ChatGetDropdown(resetRow, "Auto Reset", function(value)
-    return (DB("dmAutoReset") or "off") == value
-  end, function(value)
-    DBSet("dmAutoReset", value)
-  end)
-  resetDD:Init({"Off", "Enter Instance", "Leave Instance", "Both"}, {"off", "enter", "leave", "both"})
-  resetDD:ClearAllPoints(); resetDD:SetPoint("LEFT", resetRow, "LEFT", 0, 0); resetDD:SetWidth(260)
-  table.insert(allFrames, resetRow)
-  table.insert(allFrameHeights, 58)
-
-  -- ══ NEW FEATURE: Click-Through ════════════════════════════════════
-  -- Inspired by Details' clickthrough_window + clickthrough_incombatonly
-  local hdrCT = NS.ChatGetHeader(scrollChild, "Click-Through")
-  table.insert(allFrames, hdrCT)
-  table.insert(allFrameHeights, hdrCT:GetHeight() or 30)
-
-  local ctRow = MakeDualCheckboxRow(scrollChild,
-    "Enable click-through", "dmClickThrough", function(state)
-      DBSet("dmClickThrough", state)
-      if DM.windows then
-        for _, w in ipairs(DM.windows) do
-          local combatOnly = DB("dmClickThroughCombat")
-          local active = state and (not combatOnly or DM.inCombat)
-          w.frame:EnableMouse(not active)
-        end
-      end
-    end,
-    "In combat only", "dmClickThroughCombat", function(state)
-      DBSet("dmClickThroughCombat", state)
-      if DM.windows then
-        for _, w in ipairs(DM.windows) do
-          local enabled = DB("dmClickThrough")
-          local active = enabled and (not state or DM.inCombat)
-          w.frame:EnableMouse(not active)
-        end
-      end
-    end,
-    "Mouse clicks pass through the meter window (useful in raids)",
-    "Enable click-through only during combat — out of combat you can still interact"
-  )
-  table.insert(allFrames, ctRow)
-  table.insert(allFrameHeights, 28)
-
-  -- ══ Text ═════════════════════════════════════════════════════════
-  local hdrText = NS.ChatGetHeader(scrollChild, "Text")
-  table.insert(allFrames, hdrText)
-  table.insert(allFrameHeights, hdrText:GetHeight() or 30)
-
-  local function MakeColorRow(parent2, label, dbKey, defaultColor, applyFunc)
-    local row = CreateFrame("Frame", nil, parent2); row:SetHeight(24)
-    local btn = CreateFrame("Button", nil, row)
-    btn:SetAllPoints()
-    local swatch = btn:CreateTexture(nil, "OVERLAY")
-    swatch:SetSize(13, 13); swatch:SetPoint("LEFT", 4, 0)
-    local cur = DB(dbKey) or defaultColor
-    swatch:SetColorTexture(cur.r, cur.g, cur.b, 1)
-    local lbl = btn:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 11, ""); lbl:SetPoint("LEFT", swatch, "RIGHT", 6, 0)
-    lbl:SetTextColor(0.78, 0.78, 0.78); lbl:SetText(label)
-    btn:SetScript("OnEnter", function() local a,b,c = NS.ChatGetAccentRGB(); lbl:SetTextColor(a,b,c) end)
-    btn:SetScript("OnLeave", function() lbl:SetTextColor(0.78, 0.78, 0.78) end)
-    btn:SetScript("OnClick", function()
-      local c = DB(dbKey) or defaultColor
-      ColorPickerFrame:SetupColorPickerAndShow({
-        r = c.r, g = c.g, b = c.b,
-        swatchFunc = function()
-          local r, g, b = ColorPickerFrame:GetColorRGB()
-          DBSet(dbKey, {r=r, g=g, b=b}); swatch:SetColorTexture(r, g, b, 1)
-          if applyFunc then applyFunc(r, g, b) end
-        end,
-        cancelFunc = function(prev)
-          DBSet(dbKey, {r=prev.r, g=prev.g, b=prev.b}); swatch:SetColorTexture(prev.r, prev.g, prev.b, 1)
-          if applyFunc then applyFunc(prev.r, prev.g, prev.b) end
-        end,
-      })
-    end)
-    row._swatch = swatch
-    return row
+  local function PairRow(lbl1,key1,cb1,tip1, lbl2,key2,cb2,tip2)
+    local row = CreateFrame("Frame", nil, cGen.inner); row:SetHeight(26)
+    local w1 = NS.ChatGetCheckbox(row, lbl1, 26, cb1, tip1); w1.option = key1
+    w1:SetParent(row); w1:ClearAllPoints()
+    w1:SetPoint("TOPLEFT",  row, "TOPLEFT",  0, 0)
+    w1:SetPoint("TOPRIGHT", row, "TOP",     -4, 0)
+    w1:SetHeight(26)
+    local w2 = NS.ChatGetCheckbox(row, lbl2, 26, cb2, tip2); w2.option = key2
+    w2:SetParent(row); w2:ClearAllPoints()
+    w2:SetPoint("TOPLEFT",  row, "TOP",      4, 0)
+    w2:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, 0)
+    w2:SetHeight(26)
+    row._left = w1; row._right = w2
+    cGen:Row(row, 26); return row
   end
 
-  local fontShadow = NS.ChatGetSlider(scrollChild, "Font Shadow", 0, 3, "%.1f", function(value)
-    DBSet("dmFontShadow", value)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-    if DM.windows then
-      for _, w in ipairs(DM.windows) do
-        if w.titleText then
-          if value > 0 then
-            w.titleText:SetShadowOffset(value, -value); w.titleText:SetShadowColor(0, 0, 0, 1)
-          else
-            w.titleText:SetShadowOffset(0, 0)
-          end
-        end
-      end
+  local row0 = PairRow(
+    "Icons on Mouseover","dmIconsOnHover",function(s)
+      DBSet("dmIconsOnHover",s)
+      if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._titleIcons then for _,ic in ipairs(w.frame._titleIcons) do ic:SetShown(not s) end end end end
+    end,"Only show titlebar icons when hovering",
+    "Lock position","dmLocked",function(s)
+      DBSet("dmLocked",s)
+      if DM.windows then for _,w in ipairs(DM.windows) do if w.frame and w.frame._resizeBtn then w.frame._resizeBtn:SetShown(not s) end end end
+    end,"Prevent moving and resizing")
+
+  local function TripleRow(items)
+    local row = CreateFrame("Frame",nil,cGen.inner); row:SetHeight(26)
+    row._cbs = {}
+    local W = math.floor(100/3)
+    for i,item in ipairs(items) do
+      local w = NS.ChatGetCheckbox(row,item.label,26,item.func,item.tip); w.option=item.key
+      w:SetParent(row); w:ClearAllPoints()
+      local xL = (i-1)*W; local xR = i*W
+      w:SetPoint("TOPLEFT", row,"TOPLEFT", xL == 0 and 0 or xL.."%"==xL and 0 or 0, 0)
+      -- Simplified: just divide into thirds by absolute math after show
+      w._triIdx = i
+      row._cbs[i] = w
     end
-  end)
-  fontShadow.option = "dmFontShadow"
-  table.insert(allFrames, fontShadow)
-  table.insert(allFrameHeights, fontShadow:GetHeight() or 40)
-
-  local textRow = MakeDualCheckboxRow(scrollChild,
-    "Text Outline", "dmTextOutline", function(state)
-      DBSet("dmTextOutline", state)
-      if DM.UpdateDisplay then DM.UpdateDisplay() end
-      if DM.windows then
-        local fp  = NS.GetFontPath(NS.DB("dmFont"))
-        local fts = NS.DB("dmTitleFontSize") or 10
-        local flags = state and "OUTLINE" or ""
-        for _, w2 in ipairs(DM.windows) do
-          if w2.titleText then
-            w2.titleText:SetFont(fp, fts, flags)
-          end
-        end
+    -- Position on show
+    row:SetScript("OnShow", function(self)
+      local tw = self:GetWidth()
+      local third = math.floor(tw/3)
+      for ii,cb in ipairs(self._cbs) do
+        cb:ClearAllPoints()
+        cb:SetPoint("TOPLEFT",  self,"TOPLEFT",  (ii-1)*third, 0)
+        cb:SetPoint("TOPRIGHT", self,"TOPLEFT",   ii*third, 0)
+        cb:SetHeight(26)
       end
-    end,
-    "Show server name", "dmShowRealm", function(state)
-      DBSet("dmShowRealm", state)
-      if DM.UpdateDisplay then DM.UpdateDisplay() end
-    end,
-    "Add an outline to bar and title text for better readability",
-    "Show realm names for other players (your own name stays short)"
-  )
-  table.insert(allFrames, textRow)
-  table.insert(allFrameHeights, 28)
-
-  local txtColorRow = CreateFrame("Frame", nil, scrollChild); txtColorRow:SetHeight(24)
-  local COL_W_T = 170
-  local COL_GAP_T = 5
-  local TOTAL_W_T = COL_W_T * 3 + COL_GAP_T * 2
-  local COL1_T = -TOTAL_W_T / 2
-  local COL2_T = COL1_T + COL_W_T + COL_GAP_T
-  local COL3_T = COL2_T + COL_W_T + COL_GAP_T
-
-  local titleColorPicker = MakeColorRow(txtColorRow, "Title Color", "dmTitleColor", {r=1, g=1, b=1}, function(r, g, b)
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.titleText then w.titleText:SetTextColor(r, g, b) end end end
-  end)
-  titleColorPicker:ClearAllPoints()
-  titleColorPicker:SetPoint("LEFT", txtColorRow, "CENTER", COL1_T, 0); titleColorPicker:SetSize(COL_W_T, 24)
-
-  local textColorPicker = MakeColorRow(txtColorRow, "Text Color", "dmTextColor", {r=1, g=1, b=1}, function()
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  textColorPicker:ClearAllPoints()
-  textColorPicker:SetPoint("LEFT", txtColorRow, "CENTER", COL2_T, 0); textColorPicker:SetSize(COL_W_T, 24)
-
-  local barColorPicker = MakeColorRow(txtColorRow, "Bar Color", "dmBarColor", {r=0.5, g=0.5, b=0.5}, function()
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  barColorPicker:ClearAllPoints()
-  barColorPicker:SetPoint("LEFT", txtColorRow, "CENTER", COL3_T, 0); barColorPicker:SetSize(COL_W_T, 24)
-
-  table.insert(allFrames, txtColorRow)
-  table.insert(allFrameHeights, 24)
-
-  -- ══ Windows ══════════════════════════════════════════════════════════
-  local hdrWindows = NS.ChatGetHeader(scrollChild, "Windows")
-  table.insert(allFrames, hdrWindows)
-  table.insert(allFrameHeights, hdrWindows:GetHeight() or 30)
-
-  local winRow = CreateFrame("Frame", nil, scrollChild)
-  winRow:SetHeight(28)
-  local BTN_W = 200
-  local BTN_GAP = 10
-
-  local function MakeStyledBtn(parent, text)
-    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    btn:SetSize(BTN_W, 22)
-    btn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-    btn:SetBackdropColor(0.12, 0.12, 0.12, 1)
-    btn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-    local lbl = btn:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
-    lbl:SetPoint("CENTER")
-    lbl:SetText(text)
-    lbl:SetTextColor(0.85, 0.85, 0.85)
-    btn._label = lbl
-    btn:SetScript("OnEnter", function()
-      local ar, ag, ab = NS.ChatGetAccentRGB()
-      btn:SetBackdropBorderColor(ar, ag, ab, 1)
-      lbl:SetTextColor(1, 1, 1)
     end)
-    btn:SetScript("OnLeave", function()
-      btn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-      lbl:SetTextColor(0.85, 0.85, 0.85)
+    cGen:Row(row, 26); return row
+  end
+
+  local row1 = TripleRow({
+    {label="Combat only",    key="dmShowInCombatOnly", func=function(s) DBSet("dmShowInCombatOnly",s) end, tip="Hide out of combat"},
+    {label="Always self",    key="dmAlwaysShowSelf",   func=function(s) DBSet("dmAlwaysShowSelf",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end, tip="Always show your bar"},
+    {label="Show rank",      key="dmShowRank",         func=function(s) DBSet("dmShowRank",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end, tip="Crown for #1"},
+  })
+  local row2g = PairRow(
+    "Show %","dmShowPercent",function(s) DBSet("dmShowPercent",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end,"Percentage of total",
+    "Server name","dmShowRealm",function(s) DBSet("dmShowRealm",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end,"Show realm for others")
+
+  local resetDD = NS.ChatGetDropdown(cGen.inner,"Auto Reset",
+    function(v) return (DB("dmAutoReset") or "off")==v end,
+    function(v) DBSet("dmAutoReset",v) end)
+  resetDD:Init({"Off","Enter Instance","Leave Instance","Both"},{"off","enter","leave","both"})
+  R(cGen, resetDD, 50)
+
+  cGen:Finish(); Add(cGen); Add(Sep(sc),9)
+
+  -- ── Card: Click-Through ──────────────────────────────────────────
+  local cCT = MakeCard(sc, "Click-Through")
+  local ctRow = CreateFrame("Frame", nil, cCT.inner); ctRow:SetHeight(26)
+  local ctL = NS.ChatGetCheckbox(ctRow, "Enable click-through", 26, function(s)
+    DBSet("dmClickThrough",s)
+    if DM.windows then for _,w in ipairs(DM.windows) do local combat=DB("dmClickThroughCombat"); local act=s and(not combat or DM.inCombat); w.frame:EnableMouse(not act) end end
+  end, "Clicks pass through the meter window")
+  ctL.option="dmClickThrough"
+  ctL:SetParent(ctRow); ctL:ClearAllPoints()
+  ctL:SetPoint("TOPLEFT", ctRow,"TOPLEFT", 0,0)
+  ctL:SetPoint("TOPRIGHT",ctRow,"TOP",    -4,0)
+  ctL:SetHeight(26)
+  local ctR = NS.ChatGetCheckbox(ctRow, "In combat only", 26, function(s)
+    DBSet("dmClickThroughCombat",s)
+    if DM.windows then for _,w in ipairs(DM.windows) do local en=DB("dmClickThrough"); local act=en and(not s or DM.inCombat); w.frame:EnableMouse(not act) end end
+  end, "Only during combat")
+  ctR.option="dmClickThroughCombat"
+  ctR:SetParent(ctRow); ctR:ClearAllPoints()
+  ctR:SetPoint("TOPLEFT", ctRow,"TOP",      4,0)
+  ctR:SetPoint("TOPRIGHT",ctRow,"TOPRIGHT", 0,0)
+  ctR:SetHeight(26)
+  ctRow._left=ctL; ctRow._right=ctR
+  cCT:Row(ctRow, 26); cCT:Finish(); Add(cCT); Add(Sep(sc),9)
+
+  -- ── Card: Text & Colors ──────────────────────────────────────────
+  local cText = MakeCard(sc, "Text & Colors")
+
+  local fontShadow
+  fontShadow = NS.ChatGetSlider(cText.inner,"Font Shadow",0,3,"%.1f",function(value)
+    DBSet("dmFontShadow",value)
+    if DM.UpdateDisplay then DM.UpdateDisplay() end
+    if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then
+      if value>0 then w.titleText:SetShadowOffset(value,-value); w.titleText:SetShadowColor(0,0,0,1)
+      else w.titleText:SetShadowOffset(0,0) end
+    end end end
+  end)
+  fontShadow.option="dmFontShadow"; R(cText, fontShadow, 40)
+
+  local textOutline = NS.ChatGetCheckbox(cText.inner,"Text Outline",26,function(s)
+    DBSet("dmTextOutline",s)
+    if DM.UpdateDisplay then DM.UpdateDisplay() end
+    if DM.windows then local fp=NS.GetFontPath(NS.DB("dmFont")); local fts=NS.DB("dmTitleFontSize") or 10; local fl=s and "OUTLINE" or ""
+      for _,w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp,fts,fl) end end end
+  end,"Add outline to text for readability")
+  textOutline.option="dmTextOutline"; R(cText, textOutline, 26)
+
+  -- Color pickers row
+  local function MakeDMColor(par,lbl,key,def,applyFn)
+    local row=CreateFrame("Frame",nil,par); row:SetHeight(26)
+    local sw=CreateFrame("Frame",nil,row,"BackdropTemplate"); sw:SetSize(14,14); sw:SetPoint("LEFT",0,0)
+    sw:SetBackdrop(BD)
+    local c=DB(key) or def
+    sw:SetBackdropColor(c.r,c.g,c.b,1); sw:SetBackdropBorderColor(0.28,0.28,0.38,1)
+    local fl=row:CreateFontString(nil,"OVERLAY"); fl:SetFont("Fonts/FRIZQT__.TTF",11,"")
+    fl:SetPoint("LEFT",sw,"RIGHT",6,0); fl:SetTextColor(0.75,0.75,0.85); fl:SetText(lbl)
+    local hl=row:CreateTexture(nil,"BACKGROUND"); hl:SetAllPoints(); hl:SetColorTexture(1,1,1,0.03); hl:Hide()
+    local hit=CreateFrame("Button",nil,row); hit:SetAllPoints(); hit:SetFrameLevel(row:GetFrameLevel()+3)
+    hit:SetScript("OnEnter",function() hl:Show(); local cr,cg,cb=NS.ChatGetAccentRGB(); sw:SetBackdropBorderColor(cr,cg,cb,1) end)
+    hit:SetScript("OnLeave",function() hl:Hide(); sw:SetBackdropBorderColor(0.28,0.28,0.38,1) end)
+    hit:SetScript("OnClick",function()
+      local cur=DB(key) or def
+      ColorPickerFrame:SetupColorPickerAndShow({r=cur.r,g=cur.g,b=cur.b,
+        swatchFunc=function() local r,g,b=ColorPickerFrame:GetColorRGB(); DBSet(key,{r=r,g=g,b=b}); sw:SetBackdropColor(r,g,b,1); if applyFn then applyFn(r,g,b) end end,
+        cancelFunc=function(prev) DBSet(key,{r=prev.r,g=prev.g,b=prev.b}); sw:SetBackdropColor(prev.r,prev.g,prev.b,1); if applyFn then applyFn(prev.r,prev.g,prev.b) end end,
+      })
     end)
+    row._swatch=sw; return row
+  end
+
+  -- Title Color | Text Color | Bar Color — all three side by side
+  local titleColorRow, textColorRow, barColorRow
+  do
+    local triColor = CreateFrame("Frame",nil,cText.inner); triColor:SetHeight(26)
+    cText:Row(triColor,26)
+    triColor:SetPoint("LEFT",cText.inner,"LEFT",0,0); triColor:SetPoint("RIGHT",cText.inner,"RIGHT",0,0)
+    -- build a sub-row for each third
+    local colorDefs = {
+      {lbl="Title Color", key="dmTitleColor", def={r=1,g=1,b=1}, apply=function(r,g,b)
+        if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then w.titleText:SetTextColor(r,g,b) end end end end},
+      {lbl="Text Color",  key="dmTextColor",  def={r=1,g=1,b=1}, apply=function()
+        if DM.UpdateDisplay then DM.UpdateDisplay() end end},
+      {lbl="Bar Color",   key="dmBarColor",   def={r=0.5,g=0.5,b=0.5}, apply=function()
+        if DM.UpdateDisplay then DM.UpdateDisplay() end end},
+    }
+    local rows = {}
+    for i,cd in ipairs(colorDefs) do
+      local holder = CreateFrame("Frame",nil,triColor); holder:SetHeight(26)
+      local r = MakeDMColor(holder,cd.lbl,cd.key,cd.def,cd.apply)
+      r:SetParent(holder); r:ClearAllPoints(); r:SetAllPoints(holder)
+      rows[i] = {holder=holder, row=r}
+    end
+    triColor:SetScript("OnShow",function(self)
+      local tw = self:GetWidth()
+      local third = math.floor(tw/3)
+      for i,item in ipairs(rows) do
+        item.holder:ClearAllPoints()
+        item.holder:SetPoint("TOPLEFT",  self,"TOPLEFT",  (i-1)*third, 0)
+        item.holder:SetPoint("BOTTOMRIGHT",self,"TOPLEFT", i*third,  -26)
+      end
+    end)
+    titleColorRow = rows[1].row
+    textColorRow  = rows[2].row
+    barColorRow   = rows[3].row
+  end
+
+  cText:Finish(); Add(cText); Add(Sep(sc),9)
+
+  -- ── Card: Windows ────────────────────────────────────────────────
+  local cWin = MakeCard(sc, "Windows")
+  local winBtnRow=CreateFrame("Frame",nil,cWin.inner); winBtnRow:SetHeight(32)
+
+  local function SBtn(par,txt,w)
+    local btn=CreateFrame("Button",nil,par,"BackdropTemplate"); btn:SetSize(w,28); btn:SetBackdrop(BD)
+    btn:SetBackdropColor(0.04,0.04,0.07,1); btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
+    local cut=btn:CreateTexture(nil,"OVERLAY",nil,4); cut:SetSize(10,1); cut:SetPoint("TOPRIGHT",btn,"TOPRIGHT",0,-1); cut:SetColorTexture(0,1,1,0.22)
+    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",11,""); fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.75,0.75,0.85); fs:SetText(txt)
+    btn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); btn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
+    btn:SetScript("OnLeave",function() btn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
     return btn
   end
 
-  local newWinBtn = MakeStyledBtn(winRow, "New Window")
-  newWinBtn:SetPoint("RIGHT", winRow, "CENTER", -(BTN_GAP / 2), 0)
-  newWinBtn:SetScript("OnClick", function()
-    if DM.CreateNewWindow then DM.CreateNewWindow() end
+  -- Buttons centered, each half the row minus a gap
+  local newWinBtn  = SBtn(winBtnRow,"New Window",  0)
+  local closeWinBtn= SBtn(winBtnRow,"Close Window",0)
+  local GAP = 6
+  winBtnRow:SetScript("OnShow",function(self)
+    local w = math.floor((self:GetWidth() - GAP) / 2)
+    newWinBtn:SetWidth(w)
+    newWinBtn:ClearAllPoints()
+    newWinBtn:SetPoint("LEFT",  self,"LEFT",  0, 0)
+    newWinBtn:SetPoint("RIGHT", self,"CENTER",-math.ceil(GAP/2), 0)
+    closeWinBtn:SetWidth(w)
+    closeWinBtn:ClearAllPoints()
+    closeWinBtn:SetPoint("LEFT",  self,"CENTER", math.floor(GAP/2), 0)
+    closeWinBtn:SetPoint("RIGHT", self,"RIGHT",  0, 0)
   end)
+  newWinBtn:SetScript("OnClick",function() if DM.CreateNewWindow then DM.CreateNewWindow() end end)
 
-  local closeWinBtn = MakeStyledBtn(winRow, "Close Window")
-  closeWinBtn:SetPoint("LEFT", winRow, "CENTER", (BTN_GAP / 2), 0)
-
-  local closeArrow = closeWinBtn:CreateFontString(nil, "OVERLAY")
-  closeArrow:SetFont("Fonts/FRIZQT__.TTF", 9, "")
-  closeArrow:SetPoint("RIGHT", -6, 0)
-  closeArrow:SetTextColor(0.5, 0.5, 0.5)
-  closeArrow:SetText("v")
-
-  local closePopup = nil
-  closeWinBtn:SetScript("OnClick", function(self)
-    if closePopup then closePopup:Hide(); closePopup = nil; return end
-
-    local extra = DM.windows
-    local items = {}
-    for _, w in ipairs(extra) do
-      if w.id ~= 1 then
-        local label = "Window " .. w.id
-        if DM.METER_TYPES then
-          for _, mt in ipairs(DM.METER_TYPES) do
-            if mt.id == w.meterType then label = "Window " .. w.id .. "  —  " .. mt.label; break end
-          end
-        end
-        items[#items + 1] = {id = w.id, text = label}
+  local closePopup=nil
+  closeWinBtn:SetScript("OnClick",function(self)
+    if closePopup then closePopup:Hide(); closePopup=nil; return end
+    local items={}
+    for _,w in ipairs(DM.windows or {}) do
+      if w.id~=1 then
+        local lbl2="Window "..w.id
+        if DM.METER_TYPES then for _,mt in ipairs(DM.METER_TYPES) do if mt.id==w.meterType then lbl2=lbl2.."  —  "..mt.label; break end end end
+        items[#items+1]={id=w.id,text=lbl2}
       end
     end
-
-    if #items == 0 then
-      items[#items + 1] = {text = "|cff808080No extra windows|r", disabled = true}
-    end
-
-    closePopup = CreateFrame("Frame", nil, self, "BackdropTemplate")
-    closePopup:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-    closePopup:SetBackdropColor(0.06, 0.06, 0.06, 0.97)
-    closePopup:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-    closePopup:SetFrameStrata("TOOLTIP")
-    closePopup:SetClampedToScreen(true)
-
-    local ITEM_H = 20
-    local totalH = 0
-
-    for _, item in ipairs(items) do
-      local row = CreateFrame("Button", nil, closePopup)
-      row:SetHeight(ITEM_H)
-      row:SetPoint("TOPLEFT", 2, -(totalH))
-      row:SetPoint("TOPRIGHT", -2, -(totalH))
-      local hl = row:CreateTexture(nil, "BACKGROUND")
-      hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.06); hl:Hide()
-      local lbl = row:CreateFontString(nil, "OVERLAY")
-      lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
-      lbl:SetPoint("LEFT", 8, 0)
-      lbl:SetText(item.text)
-      lbl:SetTextColor(0.85, 0.85, 0.85)
+    if #items==0 then items[#items+1]={text="|cff808080No extra windows|r",disabled=true} end
+    closePopup=CreateFrame("Frame",nil,self,"BackdropTemplate")
+    closePopup:SetBackdrop(BD); closePopup:SetBackdropColor(0.05,0.05,0.08,0.97); closePopup:SetBackdropBorderColor(0.12,0.12,0.20,1)
+    closePopup:SetFrameStrata("TOOLTIP"); closePopup:SetClampedToScreen(true)
+    local ITEM_H=22; local totalH=0
+    for _,item in ipairs(items) do
+      local row=CreateFrame("Button",nil,closePopup); row:SetHeight(ITEM_H)
+      row:SetPoint("TOPLEFT",2,-totalH); row:SetPoint("TOPRIGHT",-2,-totalH)
+      local hl=row:CreateTexture(nil,"BACKGROUND"); hl:SetAllPoints(); hl:SetColorTexture(1,1,1,0.05); hl:Hide()
+      local lbl3=row:CreateFontString(nil,"OVERLAY"); lbl3:SetFont("Fonts/FRIZQT__.TTF",10,""); lbl3:SetPoint("LEFT",8,0); lbl3:SetText(item.text); lbl3:SetTextColor(0.80,0.80,0.88)
       if not item.disabled then
-        row:SetScript("OnEnter", function() hl:Show(); lbl:SetTextColor(1, 0.4, 0.4) end)
-        row:SetScript("OnLeave", function() hl:Hide(); lbl:SetTextColor(0.85, 0.85, 0.85) end)
-        local capturedID = item.id
-        row:SetScript("OnClick", function()
-          if DM.CloseWindow then DM.CloseWindow(capturedID) end
-          closePopup:Hide(); closePopup = nil
-        end)
+        row:SetScript("OnEnter",function() hl:Show(); lbl3:SetTextColor(1,0.35,0.35) end)
+        row:SetScript("OnLeave",function() hl:Hide(); lbl3:SetTextColor(0.80,0.80,0.88) end)
+        local cid=item.id
+        row:SetScript("OnClick",function() if DM.CloseWindow then DM.CloseWindow(cid) end; closePopup:Hide(); closePopup=nil end)
       end
-      totalH = totalH + ITEM_H
+      totalH=totalH+ITEM_H
     end
+    closePopup:SetSize(self:GetWidth(),totalH+4); closePopup:ClearAllPoints(); closePopup:SetPoint("TOP",self,"BOTTOM",0,-2); closePopup:Show()
+    local ct=C_Timer.NewTicker(0.3,function() if closePopup and not closePopup:IsMouseOver() and not self:IsMouseOver() then closePopup:Hide(); closePopup=nil end end)
+    closePopup:HookScript("OnHide",function() ct:Cancel() end)
+  end)
+  cWin:Row(winBtnRow,32); cWin:Finish(); Add(cWin); Add(Sep(sc),9)
 
-    closePopup:SetSize(BTN_W, totalH + 4)
-    closePopup:ClearAllPoints()
-    closePopup:SetPoint("TOP", self, "BOTTOM", 0, -2)
-    closePopup:Show()
+  -- ── Card: Appearance ────────────────────────────────────────────
+  local cApp = MakeCard(sc, "Appearance")
 
-    local closeTicker = C_Timer.NewTicker(0.3, function()
-      if not closePopup or not closePopup:IsShown() then return end
-      if not closePopup:IsMouseOver() and not self:IsMouseOver() then
-        closePopup:Hide(); closePopup = nil
+  local fontDD=NS.ChatGetDropdown(cApp.inner,"Font",
+    function(v) return (DB("dmFont") or "Friz Quadrata")==v end,
+    function(v) DBSet("dmFont",v); local fp=NS.GetFontPath(v); if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp,NS.DB("dmTitleFontSize") or 10,"") end end end; if DM.UpdateDisplay then DM.UpdateDisplay() end end)
+  fontDD:Init({"Friz Quadrata"},{"Friz Quadrata"},20*15); R(cApp,fontDD,50)
+
+  -- Row 1: Icon Mode | Values | Bar Highlight  — three dropdowns side by side
+  local iconDD, valDD, highlightDD
+  do
+    local triRow = CreateFrame("Frame",nil,cApp.inner); triRow:SetHeight(50)
+    cApp:Row(triRow,50)
+    triRow:SetPoint("LEFT",cApp.inner,"LEFT",0,0); triRow:SetPoint("RIGHT",cApp.inner,"RIGHT",0,0)
+    -- Icon Mode (left third)
+    local h1 = CreateFrame("Frame",nil,triRow)
+    iconDD = NS.ChatGetDropdown(h1,"Icon Mode",
+      function(v) return (DB("dmIconMode") or "spec")==v end,
+      function(v) DBSet("dmIconMode",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
+    iconDD:Init({"Spec","Class","None"},{"spec","class","none"})
+    iconDD:ClearAllPoints(); iconDD:SetAllPoints(h1)
+    -- Values (middle third)
+    local h2 = CreateFrame("Frame",nil,triRow)
+    valDD = NS.ChatGetDropdown(h2,"Values",
+      function(v) return (DB("dmValueFormat") or "both")==v end,
+      function(v) DBSet("dmValueFormat",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
+    valDD:Init({"Total | DPS","Total","DPS"},{"both","total","persec"})
+    valDD:ClearAllPoints(); valDD:SetAllPoints(h2)
+    -- Bar Highlight (right third)
+    local h3 = CreateFrame("Frame",nil,triRow)
+    highlightDD = NS.ChatGetDropdown(h3,"Bar Highlight",
+      function(v) return (DB("dmBarHighlight") or "none")==v end,
+      function(v) DBSet("dmBarHighlight",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
+    highlightDD:Init({"None","Border","Bar"},{"none","border","bar"})
+    highlightDD:ClearAllPoints(); highlightDD:SetAllPoints(h3)
+    triRow:SetScript("OnShow",function(self)
+      local tw = self:GetWidth()
+      local third = math.floor(tw/3)
+      for i,h in ipairs({h1,h2,h3}) do
+        h:ClearAllPoints()
+        h:SetPoint("TOPLEFT",   self,"TOPLEFT",  (i-1)*third, 0)
+        h:SetPoint("BOTTOMRIGHT",self,"TOPLEFT",  i*third,   -50)
       end
     end)
-    closePopup:HookScript("OnHide", function() closeTicker:Cancel() end)
-  end)
-  table.insert(allFrames, winRow)
-  table.insert(allFrameHeights, 28)
+  end
 
-  -- ══ Appearance ═════════════════════════════════════════════════════
-  local hdrAppearance = NS.ChatGetHeader(scrollChild, "Appearance")
-  table.insert(allFrames, hdrAppearance)
-  table.insert(allFrameHeights, hdrAppearance:GetHeight() or 30)
-
-  local ddRow = CreateFrame("Frame", nil, scrollChild); ddRow:SetHeight(58)
-
-  local fontDD = NS.ChatGetDropdown(ddRow, "Font", function(value)
-    return (DB("dmFont") or "Friz Quadrata") == value
-  end, function(value)
-    DBSet("dmFont", value)
-    local fp = NS.GetFontPath(value)
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp, NS.DB("dmTitleFontSize") or 10, "") end end end
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  fontDD:Init({"Friz Quadrata"}, {"Friz Quadrata"}, 20 * 15)
-  local COL_W = 170
-  local COL_GAP = 5
-  local TOTAL_W = COL_W * 3 + COL_GAP * 2
-  local COL1 = -TOTAL_W / 2
-  local COL2 = COL1 + COL_W + COL_GAP
-  local COL3 = COL2 + COL_W + COL_GAP
-
-  fontDD:ClearAllPoints(); fontDD:SetPoint("LEFT", ddRow, "CENTER", COL1, 0); fontDD:SetWidth(COL_W)
-
-  local iconDD = NS.ChatGetDropdown(ddRow, "Icon", function(value)
-    return (DB("dmIconMode") or "spec") == value
-  end, function(value)
-    DBSet("dmIconMode", value); if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  iconDD:Init({"Spec", "Class", "None"}, {"spec", "class", "none"})
-  iconDD:ClearAllPoints(); iconDD:SetPoint("LEFT", ddRow, "CENTER", COL2, 0); iconDD:SetWidth(COL_W)
-
-  local valDD = NS.ChatGetDropdown(ddRow, "Values", function(value)
-    return (DB("dmValueFormat") or "both") == value
-  end, function(value)
-    DBSet("dmValueFormat", value); if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  valDD:Init({"Total | DPS", "Total", "DPS"}, {"both", "total", "persec"})
-  valDD:ClearAllPoints(); valDD:SetPoint("LEFT", ddRow, "CENTER", COL3, 0); valDD:SetWidth(COL_W)
-
-  table.insert(allFrames, ddRow)
-  table.insert(allFrameHeights, 58)
-
-  local ddRow2 = CreateFrame("Frame", nil, scrollChild); ddRow2:SetHeight(58)
+  -- Row 2: Bar Texture | Bar Background  — side by side
+  local barTexDD, barBgDD
   local barTexNames, barTexValues = {}, {}
-  for _, bt in ipairs(NS.GetLSMStatusBars()) do
-    barTexNames[#barTexNames + 1] = bt.label; barTexValues[#barTexValues + 1] = bt.label
+  for _,bt in ipairs(NS.GetLSMStatusBars()) do barTexNames[#barTexNames+1]=bt.label; barTexValues[#barTexValues+1]=bt.label end
+  do
+    local pairRow = CreateFrame("Frame",nil,cApp.inner); pairRow:SetHeight(50)
+    cApp:Row(pairRow,50)
+    pairRow:SetPoint("LEFT",cApp.inner,"LEFT",0,0); pairRow:SetPoint("RIGHT",cApp.inner,"RIGHT",0,0)
+    local ph1 = CreateFrame("Frame",nil,pairRow)
+    barTexDD = NS.ChatGetDropdown(ph1,"Bar Texture",
+      function(v) return (DB("dmBarTexture") or "Flat")==v end,
+      function(v) DBSet("dmBarTexture",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
+    barTexDD:Init(barTexNames,barTexValues,20*15)
+    barTexDD:ClearAllPoints(); barTexDD:SetAllPoints(ph1)
+    local ph2 = CreateFrame("Frame",nil,pairRow)
+    barBgDD = NS.ChatGetDropdown(ph2,"Bar Background",
+      function(v) return (DB("dmBarBgTexture") or "Flat")==v end,
+      function(v) DBSet("dmBarBgTexture",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
+    barBgDD:Init(barTexNames,barTexValues,20*15)
+    barBgDD:ClearAllPoints(); barBgDD:SetAllPoints(ph2)
+    pairRow:SetScript("OnShow",function(self)
+      local tw = self:GetWidth()
+      local half = math.floor(tw/2)
+      ph1:ClearAllPoints(); ph1:SetPoint("TOPLEFT",self,"TOPLEFT",0,0); ph1:SetPoint("BOTTOMRIGHT",self,"TOPLEFT",half,-50)
+      ph2:ClearAllPoints(); ph2:SetPoint("TOPLEFT",self,"TOPLEFT",half,0); ph2:SetPoint("BOTTOMRIGHT",self,"BOTTOMRIGHT",0,-50)
+    end)
   end
-  local barTexDD = NS.ChatGetDropdown(ddRow2, "Bar Texture", function(value)
-    return (DB("dmBarTexture") or "Flat") == value
-  end, function(value)
-    DBSet("dmBarTexture", value)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  barTexDD:Init(barTexNames, barTexValues, 20 * 15)
-  barTexDD:ClearAllPoints(); barTexDD:SetPoint("LEFT", ddRow2, "CENTER", COL1, 0); barTexDD:SetWidth(COL_W)
 
-  local highlightDD = NS.ChatGetDropdown(ddRow2, "Bar Highlight", function(value)
-    return (DB("dmBarHighlight") or "none") == value
-  end, function(value)
-    DBSet("dmBarHighlight", value)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  highlightDD:Init({"None", "Border", "Bar"}, {"none", "border", "bar"})
-  highlightDD:ClearAllPoints(); highlightDD:SetPoint("LEFT", ddRow2, "CENTER", COL2, 0); highlightDD:SetWidth(COL_W)
-
-  local barBgDD = NS.ChatGetDropdown(ddRow2, "Bar Background", function(value)
-    return (DB("dmBarBgTexture") or "Flat") == value
-  end, function(value)
-    DBSet("dmBarBgTexture", value)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  barBgDD:Init(barTexNames, barTexValues, 20 * 15)
-  barBgDD:ClearAllPoints(); barBgDD:SetPoint("LEFT", ddRow2, "CENTER", COL3, 0); barBgDD:SetWidth(COL_W)
-  table.insert(allFrames, ddRow2)
-  table.insert(allFrameHeights, 58)
-
-  local classColorCB = NS.ChatGetCheckbox(scrollChild, "Class colors", 24, function(state)
-    DBSet("dmClassColors", state)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end, "Color bars by player class instead of a fixed color")
-  classColorCB.option = "dmClassColors"
-  table.insert(allFrames, classColorCB)
-  table.insert(allFrameHeights, 24)
-
-  -- NEW FEATURE: Total bar checkbox (from Details totalbar_enabled)
-  local totalBarCB = NS.ChatGetCheckbox(scrollChild, "Show total bar", 24, function(state)
-    DBSet("dmShowTotalBar", state)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end, "Show a bar at the bottom of the list with the combined total of all players")
-  totalBarCB.option = "dmShowTotalBar"
-  table.insert(allFrames, totalBarCB)
-  table.insert(allFrameHeights, 24)
-
-  local row2 = CreateFrame("Frame", nil, scrollChild); row2:SetHeight(28)
-  local accentCB = NS.ChatGetCheckbox(row2, "Accent line", 28, function(state)
-    DBSet("dmAccentLine", state)
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.frame._accentLine then w.frame._accentLine:SetShown(state) end end end
-  end, "Show a colored accent line below the title bar")
-  accentCB.option = "dmAccentLine"; accentCB:ClearAllPoints()
-  accentCB:SetPoint("LEFT", row2, "CENTER", COL1, 0); accentCB:SetSize(COL_W, 28)
-
-  local winBorderCB = NS.ChatGetCheckbox(row2, "Window border", 28, function(state)
-    DBSet("dmWindowBorder", state)
-    if DM.windows then for _, w in ipairs(DM.windows) do w.frame:SetBackdropBorderColor(0.15, 0.15, 0.15, state and 1 or 0) end end
-  end, "Show a thin border around the meter window")
-  winBorderCB.option = "dmWindowBorder"; winBorderCB:ClearAllPoints()
-  winBorderCB:SetPoint("LEFT", row2, "CENTER", COL2, 0); winBorderCB:SetSize(COL_W, 28)
-
-  local titleBorderCB = NS.ChatGetCheckbox(row2, "Title border", 28, function(state)
-    DBSet("dmTitleBorder", state)
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.frame._titleBorder then w.frame._titleBorder:SetShown(state) end end end
-  end, "Show a separator line between title bar and bars")
-  titleBorderCB.option = "dmTitleBorder"; titleBorderCB:ClearAllPoints()
-  titleBorderCB:SetPoint("LEFT", row2, "CENTER", COL3, 0); titleBorderCB:SetSize(COL_W, 28)
-  table.insert(allFrames, row2)
-  table.insert(allFrameHeights, 28)
-
-  -- ══ Bars ═══════════════════════════════════════════════════════════
-  local hdrBars = NS.ChatGetHeader(scrollChild, "Bars")
-  table.insert(allFrames, hdrBars)
-  table.insert(allFrameHeights, hdrBars:GetHeight() or 30)
-
-  local barHeight = NS.ChatGetSlider(scrollChild, "Bar Height", 12, 28, "%dpx", function(value)
-    DBSet("dmBarHeight", value); if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  barHeight.option = "dmBarHeight"
-  table.insert(allFrames, barHeight)
-  table.insert(allFrameHeights, barHeight:GetHeight() or 40)
-
-  local barSpacing = NS.ChatGetSlider(scrollChild, "Bar Spacing", 0, 4, "%dpx", function(value)
-    DBSet("dmBarSpacing", value); if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  barSpacing.option = "dmBarSpacing"
-  table.insert(allFrames, barSpacing)
-  table.insert(allFrameHeights, barSpacing:GetHeight() or 40)
-
-  local fontSize = NS.ChatGetSlider(scrollChild, "Bar Font Size", 8, 16, "%dpt", function(value)
-    DBSet("dmFontSize", value); if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  fontSize.option = "dmFontSize"
-  table.insert(allFrames, fontSize)
-  table.insert(allFrameHeights, fontSize:GetHeight() or 40)
-
-  local titleFontSize = NS.ChatGetSlider(scrollChild, "Title Font Size", 8, 16, "%dpt", function(value)
-    DBSet("dmTitleFontSize", value)
-    local fp = NS.GetFontPath(NS.DB("dmFont"))
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp, value, "") end end end
-  end)
-  titleFontSize.option = "dmTitleFontSize"
-  table.insert(allFrames, titleFontSize)
-  table.insert(allFrameHeights, titleFontSize:GetHeight() or 40)
-
-  local barBright = NS.ChatGetSlider(scrollChild, "Bar Brightness", 10, 100, "%d%%", function(value)
-    DBSet("dmBarBrightness", value / 100)
-    if DM.UpdateDisplay then DM.UpdateDisplay() end
-  end)
-  barBright.option = "dmBarBrightness"
-  table.insert(allFrames, barBright)
-  table.insert(allFrameHeights, barBright:GetHeight() or 40)
-
-  -- ══ Transparency ═══════════════════════════════════════════════════
-  local hdrTrans = NS.ChatGetHeader(scrollChild, "Transparency")
-  table.insert(allFrames, hdrTrans)
-  table.insert(allFrameHeights, hdrTrans:GetHeight() or 30)
-
-  local bgAlpha = NS.ChatGetSlider(scrollChild, "Window", 0, 100, "%d%%", function(value)
-    DBSet("dmBgAlpha", value / 100)
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.frame._bodyBg then w.frame._bodyBg:SetAlpha(value / 100) end end end
-  end)
-  table.insert(allFrames, bgAlpha)
-  table.insert(allFrameHeights, bgAlpha:GetHeight() or 40)
-
-  local titleAlpha = NS.ChatGetSlider(scrollChild, "Title Bar", 0, 100, "%d%%", function(value)
-    DBSet("dmTitleAlpha", value / 100)
-    if DM.windows then for _, w in ipairs(DM.windows) do if w.frame._titleBg then w.frame._titleBg:SetAlpha(value / 100) end end end
-  end)
-  table.insert(allFrames, titleAlpha)
-  table.insert(allFrameHeights, titleAlpha:GetHeight() or 40)
-
-  -- ══ Performance ════════════════════════════════════════════════════
-  local hdrPerf = NS.ChatGetHeader(scrollChild, "Performance")
-  table.insert(allFrames, hdrPerf)
-  table.insert(allFrameHeights, hdrPerf:GetHeight() or 30)
-
-  local updateInt = NS.ChatGetSlider(scrollChild, "Update Interval", 100, 2000, "%dms", function(value)
-    DBSet("dmUpdateInterval", value / 1000)
-  end)
-  table.insert(allFrames, updateInt)
-  table.insert(allFrameHeights, updateInt:GetHeight() or 40)
-
-  -- ══ Layout ═════════════════════════════════════════════════════════
-  -- BUG FIX: compute actual total height from per-frame sizes, not a hardcoded 40px multiplier
-  -- previously: #allFrames * 40 — caused dropdown rows (58px), headers (30px) etc. to be cut off
-  local totalH = 0
-  for i, f in ipairs(allFrames) do
-    f:ClearAllPoints()
-    if i == 1 then
-      f:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, 0)
-      f:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, 0)
-    else
-      f:SetPoint("TOPLEFT", allFrames[i-1], "BOTTOMLEFT", 0, 0)
-      f:SetPoint("TOPRIGHT", allFrames[i-1], "BOTTOMRIGHT", 0, 0)
-    end
-    totalH = totalH + (allFrameHeights[i] or 40)
+  -- Toggles row
+  -- Helper: two CBs side by side in cApp
+  local function AppPair(lbl1,key1,cb1,tip1, lbl2,key2,cb2,tip2)
+    local row=CreateFrame("Frame",nil,cApp.inner); row:SetHeight(26)
+    cApp:Row(row,26); row:SetPoint("LEFT",cApp.inner,"LEFT",0,0); row:SetPoint("RIGHT",cApp.inner,"RIGHT",0,0)
+    local lh=CreateFrame("Frame",nil,row); lh:SetPoint("TOPLEFT",row,"TOPLEFT",0,0); lh:SetPoint("BOTTOMRIGHT",row,"BOTTOM",-2,0)
+    local rh=CreateFrame("Frame",nil,row); rh:SetPoint("TOPLEFT",row,"TOP",2,0); rh:SetPoint("BOTTOMRIGHT",row,"BOTTOMRIGHT",0,0)
+    local w1=NS.ChatGetCheckbox(lh,lbl1,26,cb1,tip1); w1:ClearAllPoints(); w1:SetAllPoints(lh); w1.option=key1
+    local w2=NS.ChatGetCheckbox(rh,lbl2,26,cb2,tip2); w2:ClearAllPoints(); w2:SetAllPoints(rh); w2.option=key2
+    return w1,w2
   end
-  -- Add a small bottom padding so the last slider isn't right against the edge
-  scrollChild:SetHeight(math.max(totalH + 16, 1))
+  local function AppCB(lbl,key,cb,tip) local w=NS.ChatGetCheckbox(cApp.inner,lbl,26,cb,tip); w.option=key; R(cApp,w,26); return w end
+  local classCB,totalCB   = AppPair("Class colors","dmClassColors",function(s) DBSet("dmClassColors",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end,"Color bars by class",
+                                     "Show total bar","dmShowTotalBar",function(s) DBSet("dmShowTotalBar",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end,"Group total at top")
+  local accentCB,winBorderCB = AppPair("Accent line","dmAccentLine",function(s) DBSet("dmAccentLine",s); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._accentLine then w.frame._accentLine:SetShown(s) end end end end,"Accent line below title",
+                                        "Window border","dmWindowBorder",function(s) DBSet("dmWindowBorder",s); if DM.windows then for _,w in ipairs(DM.windows) do w.frame:SetBackdropBorderColor(0.15,0.15,0.15,s and 1 or 0) end end end,"Border around meter")
+  local titleBorderCB = AppCB("Title separator","dmTitleBorder",function(s) DBSet("dmTitleBorder",s); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._titleBorder then w.frame._titleBorder:SetShown(s) end end end end,"Line between title and bars")
 
-  -- ══ OnShow ═════════════════════════════════════════════════════════
+  cApp:Finish(); Add(cApp); Add(Sep(sc),9)
+
+  -- ── Card: Bars ───────────────────────────────────────────────────
+  local cBars = MakeCard(sc, "Bars")
+  local barHeight,barSpacing,barFontSize,titleFontSize,barBright
+  barHeight    = NS.ChatGetSlider(cBars.inner,"Bar Height",   12, 28, "%dpx",function(v) DBSet("dmBarHeight",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barHeight.option="dmBarHeight"; R(cBars,barHeight,40)
+  barSpacing   = NS.ChatGetSlider(cBars.inner,"Bar Spacing",   0,  4, "%dpx",function(v) DBSet("dmBarSpacing",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barSpacing.option="dmBarSpacing"; R(cBars,barSpacing,40)
+  barFontSize  = NS.ChatGetSlider(cBars.inner,"Bar Font Size",  8, 16, "%dpt",function(v) DBSet("dmFontSize",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barFontSize.option="dmFontSize"; R(cBars,barFontSize,40)
+  titleFontSize= NS.ChatGetSlider(cBars.inner,"Title Font Size",8, 16, "%dpt",function(v) DBSet("dmTitleFontSize",v); local fp=NS.GetFontPath(NS.DB("dmFont")); if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp,v,"") end end end end); titleFontSize.option="dmTitleFontSize"; R(cBars,titleFontSize,40)
+  barBright    = NS.ChatGetSlider(cBars.inner,"Bar Brightness",10,100,"%d%%", function(v) DBSet("dmBarBrightness",v/100); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barBright.option="dmBarBrightness"; barBright._isPercent=true; R(cBars,barBright,40)
+  cBars:Finish(); Add(cBars); Add(Sep(sc),9)
+
+  -- ── Card: Transparency & Performance ────────────────────────────
+  local cTP = MakeCard(sc, "Transparency & Performance")
+  local bgAlpha, titleAlpha, updateInt
+  bgAlpha   = NS.ChatGetSlider(cTP.inner,"Window",    0,100,"%d%%",function(v) DBSet("dmBgAlpha",v/100); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._bodyBg then w.frame._bodyBg:SetAlpha(v/100) end end end end); bgAlpha.option="dmBgAlpha"; bgAlpha._isPercent=true; R(cTP,bgAlpha,40)
+  titleAlpha= NS.ChatGetSlider(cTP.inner,"Title Bar", 0,100,"%d%%",function(v) DBSet("dmTitleAlpha",v/100); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._titleBg then w.frame._titleBg:SetAlpha(v/100) end end end end); titleAlpha.option="dmTitleAlpha"; titleAlpha._isPercent=true; R(cTP,titleAlpha,40)
+  updateInt = NS.ChatGetSlider(cTP.inner,"Update Interval",100,2000,"%dms",function(v) DBSet("dmUpdateInterval",v/1000) end); updateInt.option="dmUpdateInterval"; R(cTP,updateInt,40)
+  cTP:Finish(); Add(cTP)
+
+  -- ── OnShow ───────────────────────────────────────────────────────
   container:SetScript("OnShow", function()
-    local fontNames2, fontValues2 = {}, {}
-    for _, f in ipairs(NS.GetLSMFonts()) do
-      fontNames2[#fontNames2 + 1] = f.label; fontValues2[#fontValues2 + 1] = f.label
+    local fontNames,fontValues={},{}
+    for _,f in ipairs(NS.GetLSMFonts()) do fontNames[#fontNames+1]=f.label; fontValues[#fontValues+1]=f.label end
+    fontDD:Init(fontNames,fontValues,20*15); if fontDD.SetValue then fontDD:SetValue() end
+    enableCB:SetValue(DB("dmEnabled")==true)
+    row0._left:SetValue(DB("dmIconsOnHover")==true)
+    row0._right:SetValue(DB("dmLocked")==true)
+    if row1._cbs then
+      row1._cbs[1]:SetValue(DB("dmShowInCombatOnly")==true)
+      row1._cbs[2]:SetValue(DB("dmAlwaysShowSelf")~=false)
+      row1._cbs[3]:SetValue(DB("dmShowRank")==true)
     end
-    fontDD:Init(fontNames2, fontValues2, 20 * 15)
-    if fontDD.SetValue then fontDD:SetValue() end
-    enableCB:SetValue(DB("dmEnabled") == true)
-    row0._left:SetValue(DB("dmIconsOnHover") == true)
-    row0._right:SetValue(DB("dmLocked") == true)
-    row1._left:SetValue(DB("dmShowInCombatOnly") == true)
-    row1._right:SetValue(DB("dmAlwaysShowSelf") ~= false)
-    row2g._left:SetValue(DB("dmShowRank") == true)
-    row2g._right:SetValue(DB("dmShowPercent") == true)
+    row2g._left:SetValue(DB("dmShowPercent")==true)
+    row2g._right:SetValue(DB("dmShowRealm")==true)
     if resetDD.SetValue then resetDD:SetValue() end
-    -- NEW: click-through settings
-    ctRow._left:SetValue(DB("dmClickThrough") == true)
-    ctRow._right:SetValue(DB("dmClickThroughCombat") == true)
-    local fsVal = DB("dmFontShadow") or 0
-    if type(fsVal) == "boolean" then fsVal = fsVal and 1.5 or 0 end
-    if fontShadow.SetValue then fontShadow:SetValue(fsVal) end
-    textRow._left:SetValue(DB("dmTextOutline") == true)
-    textRow._right:SetValue(DB("dmShowRealm") == true)
-    classColorCB:SetValue(DB("dmClassColors") ~= false)
-    totalBarCB:SetValue(DB("dmShowTotalBar") == true)  -- NEW
-    local tcCur = DB("dmTitleColor") or {r=1, g=1, b=1}
-    if titleColorPicker._swatch then titleColorPicker._swatch:SetColorTexture(tcCur.r, tcCur.g, tcCur.b, 1) end
-    local txCur = DB("dmTextColor") or {r=1, g=1, b=1}
-    if textColorPicker._swatch then textColorPicker._swatch:SetColorTexture(txCur.r, txCur.g, txCur.b, 1) end
-    local bcCur = DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
-    if barColorPicker._swatch then barColorPicker._swatch:SetColorTexture(bcCur.r, bcCur.g, bcCur.b, 1) end
-    accentCB:SetValue(DB("dmAccentLine") ~= false)
-    winBorderCB:SetValue(DB("dmWindowBorder") ~= false)
-    titleBorderCB:SetValue(DB("dmTitleBorder") ~= false)
-    if barHeight.SetValue then barHeight:SetValue(DB("dmBarHeight") or 18) end
-    if barSpacing.SetValue then barSpacing:SetValue(DB("dmBarSpacing") or 1) end
-    if fontSize.SetValue then fontSize:SetValue(DB("dmFontSize") or 11) end
-    if titleFontSize.SetValue then titleFontSize:SetValue(DB("dmTitleFontSize") or 10) end
-    if barBright.SetValue then barBright:SetValue((DB("dmBarBrightness") or 0.70) * 100) end
-    if updateInt.SetValue then updateInt:SetValue((DB("dmUpdateInterval") or 0.3) * 1000) end
-    if bgAlpha.SetValue then bgAlpha:SetValue((DB("dmBgAlpha") or 0.92) * 100) end
-    if titleAlpha.SetValue then titleAlpha:SetValue((DB("dmTitleAlpha") or 1) * 100) end
+    ctRow._left:SetValue(DB("dmClickThrough")==true)
+    ctRow._right:SetValue(DB("dmClickThroughCombat")==true)
+    local fsv=DB("dmFontShadow") or 0; if type(fsv)=="boolean" then fsv=fsv and 1.5 or 0 end
+    if fontShadow.SetValue then fontShadow:SetValue(fsv) end
+    textOutline:SetValue(DB("dmTextOutline")==true)
+    local tc=DB("dmTitleColor") or {r=1,g=1,b=1}; if titleColorRow._swatch then titleColorRow._swatch:SetBackdropColor(tc.r,tc.g,tc.b,1) end
+    local tx=DB("dmTextColor") or {r=1,g=1,b=1};  if textColorRow._swatch  then textColorRow._swatch:SetBackdropColor(tx.r,tx.g,tx.b,1) end
+    local bc=DB("dmBarColor") or {r=0.5,g=0.5,b=0.5}; if barColorRow._swatch then barColorRow._swatch:SetBackdropColor(bc.r,bc.g,bc.b,1) end
+    classCB:SetValue(DB("dmClassColors")~=false); totalCB:SetValue(DB("dmShowTotalBar")==true)
+    accentCB:SetValue(DB("dmAccentLine")~=false); winBorderCB:SetValue(DB("dmWindowBorder")~=false); titleBorderCB:SetValue(DB("dmTitleBorder")~=false)
+    if iconDD.SetValue    then iconDD:SetValue()    end
+    if valDD.SetValue     then valDD:SetValue()     end
     if highlightDD.SetValue then highlightDD:SetValue() end
-    if barTexDD.SetValue then barTexDD:SetValue() end
-    if barBgDD.SetValue then barBgDD:SetValue() end
+    if barTexDD.SetValue  then barTexDD:SetValue()  end
+    if barBgDD.SetValue   then barBgDD:SetValue()   end
+    if barHeight.SetValue    then barHeight:SetValue(DB("dmBarHeight") or 18) end
+    if barSpacing.SetValue   then barSpacing:SetValue(DB("dmBarSpacing") or 1) end
+    if barFontSize.SetValue  then barFontSize:SetValue(DB("dmFontSize") or 11) end
+    if titleFontSize.SetValue then titleFontSize:SetValue(DB("dmTitleFontSize") or 10) end
+    if barBright.SetValue    then barBright:SetValue((DB("dmBarBrightness") or 0.70)*100) end
+    if bgAlpha.SetValue      then bgAlpha:SetValue((DB("dmBgAlpha") or 0.92)*100) end
+    if titleAlpha.SetValue   then titleAlpha:SetValue((DB("dmTitleAlpha") or 1)*100) end
+    if updateInt.SetValue    then updateInt:SetValue((DB("dmUpdateInterval") or 0.3)*1000) end
   end)
 
   return container

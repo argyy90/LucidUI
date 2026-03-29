@@ -1164,149 +1164,149 @@ end)
 -- ── Settings Tab ─────────────────────────────────────────────────────
 function B.SetupSettings(parent)
   local container = CreateFrame("Frame", nil, parent)
-  local scrollFrame = CreateFrame("ScrollFrame", nil, container, "UIPanelScrollFrameTemplate")
-  scrollFrame:SetPoint("TOPLEFT", 0, 0); scrollFrame:SetPoint("BOTTOMRIGHT", -24, 0)
-  local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-  scrollChild:SetSize(560, 1)
-  scrollFrame:SetScrollChild(scrollChild)
-  container:SetScript("OnSizeChanged", function(_, w) scrollChild:SetWidth(w - 24) end)
-  NS.AddSmoothScroll(scrollFrame)
+  local MakeCard  = NS._SMakeCard
+  local MakePage  = NS._SMakePage
+  local Sep       = NS._SSep
+  local R         = NS._SR
 
-  local allFrames = {}
+  local sc, Add = MakePage(container)
 
-  local function MakePairRow(cb1, cb2)
-    local row = CreateFrame("Frame", nil, scrollChild); row:SetHeight(28)
-    cb1:SetParent(row); cb1:ClearAllPoints()
-    cb1:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0); cb1:SetSize(250, 28)
-    if cb1._highlight then cb1._highlight:ClearAllPoints(); cb1._highlight:SetPoint("TOPLEFT"); cb1._highlight:SetPoint("BOTTOMRIGHT", cb1, "BOTTOMRIGHT") end
-    cb2:SetParent(row); cb2:ClearAllPoints()
-    cb2:SetPoint("TOPLEFT", row, "TOPLEFT", 250, 0); cb2:SetSize(250, 28)
-    if cb2._highlight then cb2._highlight:ClearAllPoints(); cb2._highlight:SetPoint("TOPLEFT"); cb2._highlight:SetPoint("BOTTOMRIGHT", cb2, "BOTTOMRIGHT") end
-    row._cb1 = cb1; row._cb2 = cb2
-    return row
-  end
-
+  -- ── Card: Enable ──────────────────────────────────────────────────
+  local cEn = MakeCard(sc, "LucidUI Bags")
   local enableCB
-  enableCB = NS.ChatGetCheckbox(scrollChild, "Enable LucidUI Bags", 28, function(state)
+  enableCB = NS.ChatGetCheckbox(cEn.inner, "Enable LucidUI Bags", 26, function(state)
     DBSet("bagEnabled", state)
     StaticPopupDialogs["LUCIDUI_BAGS_RELOAD"] = {
-      text = "LucidUI Bags requires a UI reload to " .. (state and "activate" or "deactivate") .. ".\n\nReload now?",
+      text    = "LucidUI Bags requires a UI reload to " .. (state and "activate" or "deactivate") .. ".\n\nReload now?",
       button1 = "Reload", button2 = "Cancel",
       OnAccept = function() ReloadUI() end,
       OnCancel = function() DBSet("bagEnabled", not state); if enableCB then enableCB:SetValue(not state) end end,
       timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
     }
     StaticPopup_Show("LUCIDUI_BAGS_RELOAD")
-  end, "Replace default bags with LucidUI Bags (requires reload)")
-  enableCB.option = "bagEnabled"
-  table.insert(allFrames, enableCB)
+  end, "Replace default bags (requires reload)")
+  enableCB.option = "bagEnabled"; R(cEn, enableCB, 26)
+  cEn:Finish(); Add(cEn); Add(Sep(sc), 9)
 
-  local layoutHeader = NS.ChatGetHeader(scrollChild, "Layout")
-  table.insert(allFrames, layoutHeader)
+  -- ── Card: Layout ──────────────────────────────────────────────────
+  local cLayout = MakeCard(sc, "Layout")
+  local iconSize = NS.ChatGetSlider(cLayout.inner, "Icon Size",  20, 64, "%dpx", function(v) DBSet("bagIconSize", v);    B.RefreshLayout() end); iconSize.option    = "bagIconSize";    R(cLayout, iconSize, 40)
+  local spacing  = NS.ChatGetSlider(cLayout.inner, "Spacing",     0, 12, "%dpx", function(v) DBSet("bagSpacing", v);     B.RefreshLayout() end); spacing.option     = "bagSpacing";     R(cLayout, spacing, 40)
+  local columns  = NS.ChatGetSlider(cLayout.inner, "Columns",      4, 20, "%d",   function(v) DBSet("bagColumns", v);     B.RefreshLayout() end); columns.option     = "bagColumns";     R(cLayout, columns, 40)
+  cLayout:Finish(); Add(cLayout); Add(Sep(sc), 9)
 
-  local iconSize = NS.ChatGetSlider(scrollChild, "Icon Size", 20, 64, "%dpx", function(v) DBSet("bagIconSize", v); B.RefreshLayout() end)
-  iconSize.option = "bagIconSize"; table.insert(allFrames, iconSize)
+  -- ── Card: Display flags ───────────────────────────────────────────
+  local cDisp = MakeCard(sc, "Display")
+  local function DCB(lbl, key, cb, tip)
+    local w = NS.ChatGetCheckbox(cDisp.inner, lbl, 26, cb, tip); w.option = key; R(cDisp, w, 26); return w
+  end
+  local function DPair(lbl1,key1,cb1,tip1, lbl2,key2,cb2,tip2)
+    local row=CreateFrame("Frame",nil,cDisp.inner); row:SetHeight(26)
+    cDisp:Row(row,26); row:SetPoint("LEFT",cDisp.inner,"LEFT",0,0); row:SetPoint("RIGHT",cDisp.inner,"RIGHT",0,0)
+    local lh=CreateFrame("Frame",nil,row); lh:SetPoint("TOPLEFT",row,"TOPLEFT",0,0); lh:SetPoint("BOTTOMRIGHT",row,"BOTTOM",-2,0)
+    local rh=CreateFrame("Frame",nil,row); rh:SetPoint("TOPLEFT",row,"TOP",2,0); rh:SetPoint("BOTTOMRIGHT",row,"BOTTOMRIGHT",0,0)
+    local w1=NS.ChatGetCheckbox(lh,lbl1,26,cb1,tip1); w1:ClearAllPoints(); w1:SetAllPoints(lh); w1.option=key1
+    local w2=NS.ChatGetCheckbox(rh,lbl2,26,cb2,tip2); w2:ClearAllPoints(); w2:SetAllPoints(rh); w2.option=key2
+    return w1,w2
+  end
+  local showIlvl,   showCount   = DPair("Item Level",      "bagShowIlvl",       function(s) DBSet("bagShowIlvl",s);       B.RefreshLayout() end, "Show item level on gear",
+                                         "Stack Count",      "bagShowCount",       function(s) DBSet("bagShowCount",s);      B.RefreshLayout() end, "Show stack count")
+  local showQuality,showJunk    = DPair("Quality Borders",  "bagShowQuality",    function(s) DBSet("bagShowQuality",s);    B.RefreshLayout() end, "Colored borders by quality",
+                                         "Junk Icon",        "bagShowJunk",        function(s) DBSet("bagShowJunk",s);       B.RefreshLayout() end, "Coin icon on junk items")
+  local junkDesat,  newGlow     = DPair("Desaturate Junk",  "bagJunkDesaturate", function(s) DBSet("bagJunkDesaturate",s); B.RefreshLayout() end, "Grey out junk items",
+                                         "New Item Glow",    "bagNewItemGlow",     function(s) DBSet("bagNewItemGlow",s);    B.RefreshLayout() end, "Gold pulse on new items")
+  local questIcon,  upgradeArrow= DPair("Quest Icon",       "bagQuestIcon",      function(s) DBSet("bagQuestIcon",s);      B.RefreshLayout() end, "Quest icon on quest items",
+                                         "Upgrade Arrow",    "bagShowUpgrade",     function(s) DBSet("bagShowUpgrade",s);    B.RefreshLayout() end, "Arrow on upgrade items")
+  local reverseSlots,transpCB  = DPair("Reverse Slot Order","bagSortReverse",    function(s) DBSet("bagSortReverse",s);    B.RefreshLayout() end, "Reverse item order",
+                                         "Transparent Slots","bagTransparent",     function(s) DBSet("bagTransparent",s);    B.RefreshLayout() end, "Semi-transparent slot backgrounds")
+  cDisp:Finish(); Add(cDisp); Add(Sep(sc), 9)
 
-  local spacingSlider = NS.ChatGetSlider(scrollChild, "Spacing", 0, 12, "%dpx", function(v) DBSet("bagSpacing", v); B.RefreshLayout() end)
-  spacingSlider.option = "bagSpacing"; table.insert(allFrames, spacingSlider)
+  -- ── Card: Splitting ───────────────────────────────────────────────
+  local cSplit = MakeCard(sc, "Splitting")
+  local splitReagent = DCB and nil  -- reuse pattern via local helper
+  local function SPair(lbl1,key1,cb1,tip1, lbl2,key2,cb2,tip2)
+    local row=CreateFrame("Frame",nil,cSplit.inner); row:SetHeight(26)
+    cSplit:Row(row,26); row:SetPoint("LEFT",cSplit.inner,"LEFT",0,0); row:SetPoint("RIGHT",cSplit.inner,"RIGHT",0,0)
+    local lh=CreateFrame("Frame",nil,row); lh:SetPoint("TOPLEFT",row,"TOPLEFT",0,0); lh:SetPoint("BOTTOMRIGHT",row,"BOTTOM",-2,0)
+    local rh=CreateFrame("Frame",nil,row); rh:SetPoint("TOPLEFT",row,"TOP",2,0); rh:SetPoint("BOTTOMRIGHT",row,"BOTTOMRIGHT",0,0)
+    local w1=NS.ChatGetCheckbox(lh,lbl1,26,cb1,tip1); w1:ClearAllPoints(); w1:SetAllPoints(lh); w1.option=key1
+    local w2=NS.ChatGetCheckbox(rh,lbl2,26,cb2,tip2); w2:ClearAllPoints(); w2:SetAllPoints(rh); w2.option=key2
+    return w1,w2
+  end
+  local splitBags
+  splitReagent, splitBags = SPair("Separate Reagent Bag","bagSplitReagent",function(s) DBSet("bagSplitReagent",s); B.RefreshLayout() end,"Reagent bag in own window",
+                                   "Split Individual Bags","bagSplitBags",   function(s) DBSet("bagSplitBags",s);    B.RefreshLayout() end,"Gap between each bag")
+  local splitSpacing  = NS.ChatGetSlider(cSplit.inner, "Split Spacing", 2, 20, "%dpx", function(v) DBSet("bagSplitSpacing",v); B.RefreshLayout() end); splitSpacing.option = "bagSplitSpacing"; R(cSplit, splitSpacing, 40)
+  cSplit:Finish(); Add(cSplit); Add(Sep(sc), 9)
 
-  local columnsSlider = NS.ChatGetSlider(scrollChild, "Columns", 4, 20, "%d", function(v) DBSet("bagColumns", v); B.RefreshLayout() end)
-  columnsSlider.option = "bagColumns"; table.insert(allFrames, columnsSlider)
+  -- ── Card: Auto Open ───────────────────────────────────────────────
+  local cAuto = MakeCard(sc, "Auto Open")
+  local function APair(lbl1,key1,tip1, lbl2,key2,tip2)
+    local row=CreateFrame("Frame",nil,cAuto.inner); row:SetHeight(26)
+    cAuto:Row(row,26); row:SetPoint("LEFT",cAuto.inner,"LEFT",0,0); row:SetPoint("RIGHT",cAuto.inner,"RIGHT",0,0)
+    local lh=CreateFrame("Frame",nil,row); lh:SetPoint("TOPLEFT",row,"TOPLEFT",0,0); lh:SetPoint("BOTTOMRIGHT",row,"BOTTOM",-2,0)
+    local rh=CreateFrame("Frame",nil,row); rh:SetPoint("TOPLEFT",row,"TOP",2,0); rh:SetPoint("BOTTOMRIGHT",row,"BOTTOMRIGHT",0,0)
+    local w1=NS.ChatGetCheckbox(lh,lbl1,26,function(s) DBSet(key1,s) end,tip1); w1:ClearAllPoints(); w1:SetAllPoints(lh); w1.option=key1
+    local w2=NS.ChatGetCheckbox(rh,lbl2,26,function(s) DBSet(key2,s) end,tip2); w2:ClearAllPoints(); w2:SetAllPoints(rh); w2.option=key2
+    return w1,w2
+  end
+  local function ACB(lbl,key,tip) local w=NS.ChatGetCheckbox(cAuto.inner,lbl,26,function(s) DBSet(key,s) end,tip); w.option=key; R(cAuto,w,26); return w end
+  local autoBank,autoMail = APair("Bank","bagAutoBank","Auto-open at bank", "Mailbox","bagAutoMail","Auto-open at mailbox")
+  local autoAH            = ACB("Auction House","bagAutoAH","Auto-open at AH")
+  cAuto:Finish(); Add(cAuto); Add(Sep(sc), 9)
 
-  local displayHeader = NS.ChatGetHeader(scrollChild, "Display")
-  table.insert(allFrames, displayHeader)
+  -- ── Card: Font & Opacity ──────────────────────────────────────────
+  local cFont = MakeCard(sc, "Font & Opacity")
 
-  local showIlvl  = NS.ChatGetCheckbox(scrollChild, "Item Level",    28, function(s) DBSet("bagShowIlvl", s);    B.RefreshLayout() end, "Show item level on gear");    showIlvl.option  = "bagShowIlvl"
-  local showCount = NS.ChatGetCheckbox(scrollChild, "Stack Count",    28, function(s) DBSet("bagShowCount", s);   B.RefreshLayout() end, "Show stack count");           showCount.option = "bagShowCount"
-  table.insert(allFrames, MakePairRow(showIlvl, showCount))
+  local ilvlPosDD = NS.ChatGetDropdown(cFont.inner, "Item Level Position",
+    function(v) return (DB("bagIlvlPos") or "BOTTOMLEFT")==v end,
+    function(v) DBSet("bagIlvlPos",v); B.RefreshLayout() end)
+  ilvlPosDD:Init({"Bottom Left","Bottom Right","Center Bottom"},{"BOTTOMLEFT","BOTTOMRIGHT","BOTTOM"})
+  R(cFont, ilvlPosDD, 50)
 
-  local showQuality = NS.ChatGetCheckbox(scrollChild, "Quality Borders", 28, function(s) DBSet("bagShowQuality", s); B.RefreshLayout() end, "Colored borders by quality"); showQuality.option = "bagShowQuality"
-  local showJunk    = NS.ChatGetCheckbox(scrollChild, "Junk Icon",        28, function(s) DBSet("bagShowJunk", s);   B.RefreshLayout() end, "Coin icon on junk items");    showJunk.option    = "bagShowJunk"
-  table.insert(allFrames, MakePairRow(showQuality, showJunk))
+  local ilvlSize = NS.ChatGetSlider(cFont.inner,"Item Level Font Size",6,16,"%dpt",function(v) DBSet("bagIlvlSize",v); B.RefreshLayout() end); ilvlSize.option="bagIlvlSize"; R(cFont, ilvlSize, 40)
 
-  local junkDesat = NS.ChatGetCheckbox(scrollChild, "Desaturate Junk", 28, function(s) DBSet("bagJunkDesaturate", s); B.RefreshLayout() end, "Grey out junk items"); junkDesat.option = "bagJunkDesaturate"
-  local newGlow   = NS.ChatGetCheckbox(scrollChild, "New Item Glow",    28, function(s) DBSet("bagNewItemGlow", s);   B.RefreshLayout() end, "Gold pulsing border on new items"); newGlow.option = "bagNewItemGlow"
-  table.insert(allFrames, MakePairRow(junkDesat, newGlow))
+  local countPosDD = NS.ChatGetDropdown(cFont.inner, "Count Position",
+    function(v) return (DB("bagCountPos") or "BOTTOMRIGHT")==v end,
+    function(v) DBSet("bagCountPos",v); B.RefreshLayout() end)
+  countPosDD:Init({"Top Left","Top Right","Bottom Left","Bottom Right"},{"TOPLEFT","TOPRIGHT","BOTTOMLEFT","BOTTOMRIGHT"})
+  R(cFont, countPosDD, 50)
 
-  local questIcon    = NS.ChatGetCheckbox(scrollChild, "Quest Icon",     28, function(s) DBSet("bagQuestIcon", s);    B.RefreshLayout() end, "Quest icon on quest items");   questIcon.option    = "bagQuestIcon"
-  local upgradeArrow = NS.ChatGetCheckbox(scrollChild, "Upgrade Arrow",  28, function(s) DBSet("bagShowUpgrade", s);  B.RefreshLayout() end, "Green arrow on upgrade items"); upgradeArrow.option = "bagShowUpgrade"
-  table.insert(allFrames, MakePairRow(questIcon, upgradeArrow))
+  local countSize = NS.ChatGetSlider(cFont.inner,"Count Font Size",6,16,"%dpt",function(v) DBSet("bagCountSize",v); B.RefreshLayout() end); countSize.option="bagCountSize"; R(cFont, countSize, 40)
 
-  local reverseSlots = NS.ChatGetCheckbox(scrollChild, "Reverse Slot Order", 28, function(s) DBSet("bagSortReverse", s); B.RefreshLayout() end, "Reverse item order"); reverseSlots.option = "bagSortReverse"
-  table.insert(allFrames, reverseSlots)
-
-  local splitHeader = NS.ChatGetHeader(scrollChild, "Splitting")
-  table.insert(allFrames, splitHeader)
-
-  local splitReagent = NS.ChatGetCheckbox(scrollChild, "Separate Reagent Bag",  28, function(s) DBSet("bagSplitReagent", s); B.RefreshLayout() end, "Reagent bag in own window"); splitReagent.option = "bagSplitReagent"
-  local splitBags    = NS.ChatGetCheckbox(scrollChild, "Split Individual Bags",  28, function(s) DBSet("bagSplitBags", s);    B.RefreshLayout() end, "Gap between each bag");      splitBags.option    = "bagSplitBags"
-  table.insert(allFrames, MakePairRow(splitReagent, splitBags))
-
-  local splitSpacing = NS.ChatGetSlider(scrollChild, "Split Spacing", 2, 20, "%dpx", function(v) DBSet("bagSplitSpacing", v); B.RefreshLayout() end)
-  splitSpacing.option = "bagSplitSpacing"; table.insert(allFrames, splitSpacing)
-
-  local autoHeader = NS.ChatGetHeader(scrollChild, "Auto Open")
-  table.insert(allFrames, autoHeader)
-
-  local autoBank = NS.ChatGetCheckbox(scrollChild, "Bank",          28, function(s) DBSet("bagAutoBank", s) end, "Auto-open at bank");    autoBank.option = "bagAutoBank"
-  local autoMail = NS.ChatGetCheckbox(scrollChild, "Mailbox",       28, function(s) DBSet("bagAutoMail", s) end, "Auto-open at mailbox"); autoMail.option = "bagAutoMail"
-  table.insert(allFrames, MakePairRow(autoBank, autoMail))
-
-  local autoAH        = NS.ChatGetCheckbox(scrollChild, "Auction House",    28, function(s) DBSet("bagAutoAH", s) end,       "Auto-open at AH");            autoAH.option        = "bagAutoAH"
-  local transparentCB = NS.ChatGetCheckbox(scrollChild, "Transparent Slots", 28, function(s) DBSet("bagTransparent", s); B.RefreshLayout() end, "Semi-transparent slot backgrounds"); transparentCB.option = "bagTransparent"
-  table.insert(allFrames, MakePairRow(autoAH, transparentCB))
-
-  local fontHeader = NS.ChatGetHeader(scrollChild, "Font & Position")
-  table.insert(allFrames, fontHeader)
-
-  local ilvlPosDD = NS.ChatGetDropdown(scrollChild, "Item Level Position", function(v) return (DB("bagIlvlPos") or "BOTTOMLEFT") == v end, function(v) DBSet("bagIlvlPos", v); B.RefreshLayout() end)
-  ilvlPosDD:Init({"Bottom Left", "Bottom Right", "Center Bottom"}, {"BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOM"})
-  table.insert(allFrames, ilvlPosDD)
-
-  local ilvlSizeSlider = NS.ChatGetSlider(scrollChild, "Item Level Font Size", 6, 16, "%dpt", function(v) DBSet("bagIlvlSize", v); B.RefreshLayout() end)
-  ilvlSizeSlider.option = "bagIlvlSize"; table.insert(allFrames, ilvlSizeSlider)
-
-  local countPosDD = NS.ChatGetDropdown(scrollChild, "Count Position", function(v) return (DB("bagCountPos") or "BOTTOMRIGHT") == v end, function(v) DBSet("bagCountPos", v); B.RefreshLayout() end)
-  countPosDD:Init({"Top Left","Top Right","Top Center","Bottom Left","Bottom Right"}, {"TOPLEFT","TOPRIGHT","TOPCENTER","BOTTOMLEFT","BOTTOMRIGHT"})
-  table.insert(allFrames, countPosDD)
-
-  local countSizeSlider = NS.ChatGetSlider(scrollChild, "Count Font Size", 6, 16, "%dpt", function(v) DBSet("bagCountSize", v); B.RefreshLayout() end)
-  countSizeSlider.option = "bagCountSize"; table.insert(allFrames, countSizeSlider)
-
-  local slotAlpha = NS.ChatGetSlider(scrollChild, "Slot Opacity", 0, 100, "%d%%", function(value)
-    DBSet("bagSlotBgAlpha", value / 100)
-    local transparent = DB("bagTransparent")
-    local alpha = transparent and (value / 100 * 0.3) or (value / 100)
-    for _, slot in ipairs(slots) do
+  local slotAlpha = NS.ChatGetSlider(cFont.inner,"Slot Opacity",0,100,"%d%%",function(value)
+    DBSet("bagSlotBgAlpha",value/100)
+    local alpha=(DB("bagTransparent") and (value/100*0.3) or (value/100))
+    for _,slot in ipairs(slots) do
       if slot:IsShown() and slot._bg then
-        local r, g, b = slot._bg:GetVertexColor()
-        slot._bg:SetColorTexture(r, g, b, alpha); slot._bgAlpha = alpha
+        local r,g,b=slot._bg:GetVertexColor()
+        slot._bg:SetColorTexture(r,g,b,alpha); slot._bgAlpha=alpha
       end
     end
   end)
-  slotAlpha.option = "bagSlotBgAlpha"; slotAlpha._isPercent = true
-  table.insert(allFrames, slotAlpha)
+  slotAlpha.option="bagSlotBgAlpha"; slotAlpha._isPercent=true; R(cFont, slotAlpha, 40)
 
-  local function RepositionAll()
-    local y = 0
-    for _, f in ipairs(allFrames) do
-      f:ClearAllPoints()
-      f:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
-      f:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
-      y = y + (f:GetHeight() or 28) + 2
-    end
-    scrollChild:SetHeight(math.max(y, 1))
-  end
-  RepositionAll()
+  cFont:Finish(); Add(cFont)
 
+  -- ── OnShow ───────────────────────────────────────────────────────
   container:SetScript("OnShow", function()
-    for _, f in ipairs(allFrames) do
-      if f.SetValue and f.option then
-        local val = DB(f.option); if val ~= nil then f:SetValue(val) end
+    local all = {
+      enableCB, showIlvl, showCount, showQuality, showJunk,
+      junkDesat, newGlow, questIcon, upgradeArrow, reverseSlots, transpCB,
+      splitReagent, splitBags, autoBank, autoMail, autoAH,
+      iconSize, spacing, columns, splitSpacing,
+      ilvlSize, countSize, slotAlpha,
+    }
+    for _, f in ipairs(all) do
+      if f and f.SetValue and f.option then
+        local v = DB(f.option)
+        if v ~= nil then
+          if f._isPercent then f:SetValue(v*100) else f:SetValue(v) end
+        end
       end
-      if f._cb1 and f._cb1.SetValue and f._cb1.option then local v = DB(f._cb1.option); if v ~= nil then f._cb1:SetValue(v) end end
-      if f._cb2 and f._cb2.SetValue and f._cb2.option then local v = DB(f._cb2.option); if v ~= nil then f._cb2:SetValue(v) end end
     end
+    if ilvlPosDD.SetValue  then ilvlPosDD:SetValue()  end
+    if countPosDD.SetValue then countPosDD:SetValue() end
   end)
 
   return container
