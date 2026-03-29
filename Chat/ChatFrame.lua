@@ -562,6 +562,7 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName, unixTime)
       end
     else
       d:AddMessage(msg, r, g, b)
+
     end
     return
   end
@@ -1613,6 +1614,20 @@ local function CreateMainDisplay()
   bg:SetBackdropColor(0, 0, 0, ba)
   NS.chatBg = bg
 
+  -- bg is the root parent of all chat display frames.
+  -- SetHyperlinksEnabled lets it receive hyperlink clicks propagated from children.
+  -- Clicks on |Haddon:lucidurl:| links fire SetItemRef → caught in ChatFormat.lua.
+  bg:SetHyperlinksEnabled(true)
+  bg:SetScript("OnHyperlinkClick", function(self, link, text, btn)
+    local lt = link and link:match("^([^:]+)")
+    if lt == "addon" then
+      -- Handled by EventRegistry:RegisterCallback("SetItemRef") in ChatFormat.lua
+      SetItemRef(link, text, btn, self)
+    else
+      SetItemRef(link, text, btn, self)
+    end
+  end)
+
   BuildTabBar(bg)
 
   -- Resize handle
@@ -1700,13 +1715,20 @@ local function CreateMainDisplay()
   ApplyFontToDisplay(d)
   ApplyFadeToDisplay(d)
   d:EnableMouseWheel(true)
-  d:EnableMouse(true)
   d:SetScript("OnMouseWheel", function(self, delta)
     if delta > 0 then self:ScrollUp() else self:ScrollDown() end
   end)
   d:Show()
   customDisplays[1] = d
   NS.chatDisplay = d  -- expose for timestamp recompute
+
+
+
+  -- Hide the XML HyperlinkHandler so it doesn't block clicks on contentFS hyperlinks
+  C_Timer.After(0.5, function()
+    local hf = _G["LucidUIHyperlinkFrame"]
+    if hf then hf:Hide(); hf:EnableMouse(false) end
+  end)
 
   C_Timer.After(0, function() SetupEditBox(bg) end)
 

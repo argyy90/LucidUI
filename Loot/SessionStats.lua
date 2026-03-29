@@ -316,7 +316,7 @@ NS.RefreshStatsWindow = function()
     math.floor(CYAN[1]*255), math.floor(CYAN[2]*255), math.floor(CYAN[3]*255))
 
   local function hdr(text)
-    return "|cff"..hex..">|r |cff909090"..text.."|r"
+    return "|cff"..hex..":|r |cff909090"..text.."|r"
   end
   local DIV = "|cff2a2a2a"..string.rep("-", 44).."|r"
 
@@ -464,7 +464,7 @@ NS.BuildStatsWindow = function()
   NS.statsWin:SetBackdrop(BD)
   NS.statsWin:SetBackdropColor(0.022,0.022,0.035,0.97)
   NS.statsWin:SetBackdropBorderColor(ar,ag,ab,0.38)
-  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(NS.statsWin,WIN_W,WIN_H,TITLE_H,0) end end)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.statsWin._pcbTextures=NS.DrawPCBBackground(NS.statsWin,WIN_W,WIN_H,TITLE_H,0) end end)
 
   -- Header bg
   local hBg=NS.statsWin:CreateTexture(nil,"BACKGROUND",nil,2)
@@ -488,8 +488,10 @@ NS.BuildStatsWindow = function()
     NS.statsWin:SetBackdropBorderColor(C[1],C[2],C[3],0.38)
     if NS.statsWin._accentLine then NS.statsWin._accentLine:SetColorTexture(C[1],C[2],C[3],0.55) end
     if NS.statsWin._titleTxt then
-      NS.statsWin._titleTxt:SetText("|cff"..thex..">|r"..L["Session Stats"].."|cff"..thex.."<|r")
+      local f,r = L["Session Stats"]:match("^(%S+)%s*(.*)")
+      NS.statsWin._titleTxt:SetText("|cff"..thex..(f or L["Session Stats"]).."|r"..(r and r ~= "" and (" |cffffffff"..r.."|r") or ""))
     end
+    if NS.UpdatePCBTextures then NS.UpdatePCBTextures(NS.statsWin._pcbTextures) end
   end
 
   -- Title bar (transparent — visuals from hBg)
@@ -508,7 +510,8 @@ NS.BuildStatsWindow = function()
   local titleTxt = titleBar:CreateFontString(nil, "OVERLAY")
   titleTxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
   titleTxt:SetTextColor(1,1,1,1)
-  titleTxt:SetText("|cff"..hex..">|r"..L["Session Stats"].."|cff"..hex.."<|r")
+  local ssFirst, ssRest = L["Session Stats"]:match("^(%S+)%s*(.*)")
+  titleTxt:SetText("|cff"..hex..(ssFirst or L["Session Stats"]).."|r"..(ssRest and ssRest ~= "" and (" |cffffffff"..ssRest.."|r") or ""))
   NS.statsWin._titleTxt = titleTxt
 
   -- History button (settings cog)
@@ -649,7 +652,7 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
   win:SetBackdrop(BD3)
   win:SetBackdropColor(0.022,0.022,0.035,0.97)
   win:SetBackdropBorderColor(ar3,ag3,ab3,0.38)
-  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(win,width,height,TH,0) end end)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then win._pcbTextures=NS.DrawPCBBackground(win,width,height,TH,0) end end)
 
   -- Left accent bar
   local lBar3=win:CreateTexture(nil,"OVERLAY",nil,5); lBar3:SetWidth(3)
@@ -667,11 +670,16 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
   hLine3:SetColorTexture(ar3,ag3,ab3,0.55)
 
   -- Corner cuts (TOPRIGHT so they stay on edge)
+  local cutTextures3 = {}
   local function Cut3(xOff,y,w,h,a)
     local t3=win:CreateTexture(nil,"OVERLAY",nil,5); t3:SetSize(w,h)
     t3:SetPoint("TOPRIGHT",win,"TOPRIGHT",xOff,-y); t3:SetColorTexture(ar3,ag3,ab3,a or 0.55)
+    cutTextures3[#cutTextures3+1] = {tex=t3, alpha=a or 0.55}
   end
   Cut3(-2,1,22,1,0.70); Cut3(0,1,1,12,0.70); Cut3(-8,3,12,1,0.35)
+
+  win._accentTextures = {lBar3, hLine3}
+  win._cutTextures = cutTextures3
 
   -- Title bar (plain Frame — visuals from hBg3)
   local tb = CreateFrame("Frame", nil, win)
@@ -687,7 +695,14 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
   local ttxt = tb:CreateFontString(nil, "OVERLAY")
   ttxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); ttxt:SetPoint("LEFT",6,-1)
   ttxt:SetTextColor(1,1,1,1)
-  ttxt:SetText("|cff"..hex..">|r "..titleText.." |cff"..hex.."<|r")
+  local firstWord, rest = titleText:match("^(%S+)%s*(.*)")
+  if firstWord then
+    ttxt:SetText("|cff"..hex..firstWord.."|r"..(rest ~= "" and (" |cffffffff"..rest.."|r") or ""))
+  else
+    ttxt:SetText("|cff"..hex..titleText.."|r")
+  end
+  win._titleTxt = ttxt
+  win._titleRaw = titleText
 
   -- Close button (cyberpunk)
   local cb=CreateFrame("Button",nil,tb,"BackdropTemplate")
@@ -730,8 +745,18 @@ NS.BuildSessionHistoryWindow = function()
   clearBtn:SetScript("OnEnter", function() clearBtn:SetBackdropBorderColor(CYAN[1],CYAN[2],CYAN[3],0.9) end)
   clearBtn:SetScript("OnLeave", function() clearBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   clearBtn:SetScript("OnClick", function()
-    LucidUIDB._sessionHistory = {}
-    NS.RefreshSessionHistory()
+    if not StaticPopupDialogs["LUI_CLEAR_HISTORY"] then
+      StaticPopupDialogs["LUI_CLEAR_HISTORY"] = {
+        text = "Clear all session history?",
+        button1 = ACCEPT, button2 = CANCEL,
+        OnAccept = function()
+          LucidUIDB._sessionHistory = {}
+          NS.RefreshSessionHistory()
+        end,
+        timeout = 0, whileDead = true, hideOnEscape = true,
+      }
+    end
+    StaticPopup_Show("LUI_CLEAR_HISTORY")
   end)
 
   -- Scroll frame with clickable rows
@@ -745,6 +770,22 @@ NS.BuildSessionHistoryWindow = function()
   table.insert(UISpecialFrames, "LUISessionHistoryWindow")
   NS._histScrollChild = sc
   NS._histScrollFrame = sf
+
+  win._ApplyTheme = function()
+    local C = NS.CYAN
+    local thex = string.format("%02x%02x%02x", math.floor(C[1]*255), math.floor(C[2]*255), math.floor(C[3]*255))
+    win:SetBackdropBorderColor(C[1], C[2], C[3], 0.38)
+    for _, t in ipairs(win._accentTextures or {}) do t:SetColorTexture(C[1], C[2], C[3], 1) end
+    for _, e in ipairs(win._cutTextures or {}) do e.tex:SetColorTexture(C[1], C[2], C[3], e.alpha) end
+    if NS.UpdatePCBTextures then NS.UpdatePCBTextures(win._pcbTextures) end
+    -- Update title text
+    if win._titleTxt and win._titleRaw then
+      local f,r = win._titleRaw:match("^(%S+)%s*(.*)")
+      win._titleTxt:SetText("|cff"..thex..(f or win._titleRaw).."|r"..(r and r ~= "" and (" |cffffffff"..r.."|r") or ""))
+    end
+    -- Refresh rows with new accent
+    if win:IsShown() then NS.RefreshSessionHistory() end
+  end
 
   NS.RefreshSessionHistory()
 end
@@ -913,8 +954,21 @@ NS.RefreshSessionHistory = function()
       delBtn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1); delLbl:SetTextColor(0.5, 0.5, 0.5)
     end)
     delBtn:SetScript("OnClick", function()
-      table.remove(LucidUIDB._sessionHistory, idx)
-      NS.RefreshSessionHistory()
+      if not StaticPopupDialogs["LUI_DELETE_SESSION"] then
+        StaticPopupDialogs["LUI_DELETE_SESSION"] = {
+          text = "Delete this session entry?",
+          button1 = ACCEPT, button2 = CANCEL,
+          OnAccept = function(self)
+            local i = self.data
+            if i and LucidUIDB._sessionHistory then
+              table.remove(LucidUIDB._sessionHistory, i)
+              NS.RefreshSessionHistory()
+            end
+          end,
+          timeout = 0, whileDead = true, hideOnEscape = true,
+        }
+      end
+      StaticPopup_Show("LUI_DELETE_SESSION", nil, nil, idx)
     end)
 
     -- Separator line
@@ -972,12 +1026,33 @@ NS.ShowSessionDetail = function(historyIndex)
   sf:SetScrollChild(eb)
 
   NS.sessionDetailWin = win
+  win._historyIndex = historyIndex
   table.insert(UISpecialFrames, "LUISessionDetailWindow")
+
+  win._ApplyTheme = function()
+    local C = NS.CYAN
+    local thex = string.format("%02x%02x%02x", math.floor(C[1]*255), math.floor(C[2]*255), math.floor(C[3]*255))
+    win:SetBackdropBorderColor(C[1], C[2], C[3], 0.38)
+    for _, t in ipairs(win._accentTextures or {}) do t:SetColorTexture(C[1], C[2], C[3], 1) end
+    for _, ct in ipairs(win._cutTextures or {}) do ct.tex:SetColorTexture(C[1], C[2], C[3], ct.alpha) end
+    if NS.UpdatePCBTextures then NS.UpdatePCBTextures(win._pcbTextures) end
+    if win._titleTxt and win._titleRaw then
+      local f2,r2 = win._titleRaw:match("^(%S+)%s*(.*)")
+      win._titleTxt:SetText("|cff"..thex..(f2 or win._titleRaw).."|r"..(r2 and r2 ~= "" and (" |cffffffff"..r2.."|r") or ""))
+    end
+    -- Rebuild content with fresh accent
+    if win:IsShown() and win._historyIndex then
+      local hist = LucidUIDB and LucidUIDB._sessionHistory
+      if hist and hist[win._historyIndex] then
+        NS.ShowSessionDetail(win._historyIndex)
+      end
+    end
+  end
 
   local hex = string.format("%02x%02x%02x",
     math.floor(CYAN[1]*255), math.floor(CYAN[2]*255), math.floor(CYAN[3]*255))
   local function hdr(text)
-    return "|cff"..hex..">|r |cff909090"..text.."|r"
+    return "|cff"..hex..":|r |cff909090"..text.."|r"
   end
   local DIV = "|cff2a2a2a"..string.rep("-", 46).."|r"
 

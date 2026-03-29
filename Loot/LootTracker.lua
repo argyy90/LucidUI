@@ -43,7 +43,7 @@ local function BuildWindow()
   NS.titleText:SetFont("Fonts/FRIZQT__.TTF", 15)
   NS.titleText:SetPoint("LEFT", 6, 0)
   NS.titleText:SetTextColor(1, 1, 1, 1)
-  NS.titleText:SetText(">LootTracker<")
+  NS.titleText:SetText("Loot Tracker")
 
   -- Accent line under title bar
   local accentLine = NS.win:CreateTexture(nil, "ARTWORK")
@@ -59,10 +59,11 @@ local function BuildWindow()
     local hex = string.format("%02x%02x%02x",
       math.floor(tid[1]*255), math.floor(tid[2]*255), math.floor(tid[3]*255))
     local tname = DB("titleName") or ""
-    if DB("showBrackets") ~= false then
-      NS.titleText:SetText("|cff"..hex..">|r" .. tname .. "|cff"..hex.."<|r")
+    local f, r = tname:match("^(%S+)%s*(.*)")
+    if f then
+      NS.titleText:SetText("|cff"..hex..f.."|r"..(r ~= "" and (" |cffffffff"..r.."|r") or ""))
     else
-      NS.titleText:SetText(tname)
+      NS.titleText:SetText("|cff"..hex..tname.."|r")
     end
   end
   UpdateTitleBrackets(DB("theme"))
@@ -384,7 +385,7 @@ SlashCmdList["LUCIDUI"] = function(input)
       NS.win.locked = false; NS.win:SetMovable(true); NS.win:SetResizable(true)
       if NS.resizeWidget then NS.resizeWidget:Show() end
     end
-    NS.DBSet("titleName", "LootTracker"); NS.DBSet("showBrackets", true)
+    NS.DBSet("titleName", "Loot Tracker"); NS.DBSet("showBrackets", true)
     NS.DBSet("autoScroll", true);         NS.DBSet("maxLines", 50)
     NS.DBSet("showOnlyOwnLoot", false);   NS.DBSet("showRealmName", false)
     NS.DBSet("minQuality", 0)

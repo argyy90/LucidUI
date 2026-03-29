@@ -214,11 +214,8 @@ function NS.ApplyRollWinTheme()
     local tc  = t.titleText  or {1,1,1,1}
     local hex = string.format("%02x%02x%02x",
       math.floor(tid[1]*255), math.floor(tid[2]*255), math.floor(tid[3]*255))
-    if NS.DB("showBrackets") ~= false then
-      NS.rollWin._titleTxt:SetText("|cff"..hex..">|r "..L["LOOT ROLLS"].." |cff"..hex.."<|r")
-    else
-      NS.rollWin._titleTxt:SetText(L["LOOT ROLLS"])
-    end
+    local f,r = L["LOOT ROLLS"]:match("^(%S+)%s*(.*)")
+    NS.rollWin._titleTxt:SetText("|cff"..hex..(f or L["LOOT ROLLS"]).."|r"..(r and r ~= "" and (" |cffffffff"..r.."|r") or ""))
     NS.rollWin._titleTxt:SetTextColor(tc[1], tc[2], tc[3], 1)
   end
   -- Update filter dropdown arrow accent color
@@ -231,6 +228,7 @@ function NS.ApplyRollWinTheme()
     local cr, cg, cb = NS.CYAN[1], NS.CYAN[2], NS.CYAN[3]
     NS.rollWin._accentLine:SetColorTexture(cr, cg, cb, 0.6)
   end
+  if NS.UpdatePCBTextures then NS.UpdatePCBTextures(NS.rollWin._pcbTextures) end
 end
 
 -- Hook NS.ApplyTheme so theme changes immediately update the roll window too
@@ -590,7 +588,7 @@ local function BuildResizeGrip(parent)
     rTex:SetVertexColor(0.8, 0.8, 0.8, 0.8)
   end)
   widget:SetScript("OnMouseDown", function()
-    parent:StartSizing("BOTTOMRIGHT")
+    parent:StartSizing("BOTTOM")
   end)
   widget:SetScript("OnMouseUp", function()
     parent:StopMovingOrSizing()
@@ -616,7 +614,7 @@ local function BuildRollWindow()
   if rpos then win:SetPoint(rpos[1], UIParent, rpos[2], rpos[3], rpos[4])
   else win:SetPoint("CENTER", UIParent, "CENTER", 0, 0) end
   win:SetFrameStrata("MEDIUM"); win:SetToplevel(true)
-  win:SetMovable(true); win:SetResizable(true); win:SetResizeBounds(220,180,520,720)
+  win:SetMovable(true); win:SetResizable(true); win:SetResizeBounds(WIN_W,180,WIN_W,720)
   win:EnableMouse(true); win:RegisterForDrag("LeftButton"); win:SetClampedToScreen(true)
   win:SetScript("OnDragStart", win.StartMoving)
   win:SetScript("OnDragStop", function()
@@ -627,7 +625,7 @@ local function BuildRollWindow()
   win:SetBackdrop(BD)
   win:SetBackdropColor(0.022,0.022,0.035,0.97)
   win:SetBackdropBorderColor(ar,ag,ab,0.38)
-  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(win,WIN_W,WIN_H,TITLE_H,0) end end)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then win._pcbTextures=NS.DrawPCBBackground(win,WIN_W,WIN_H,TITLE_H,0) end end)
   -- Not in UISpecialFrames so ESC doesn't close it
 
   -- Header bg (dark strip)
@@ -664,7 +662,8 @@ local function BuildRollWindow()
   local titleTxt=titleBar:CreateFontString(nil,"OVERLAY")
   titleTxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
   titleTxt:SetTextColor(1,1,1,1)
-  titleTxt:SetText("|cff"..hex..">|r "..L["LOOT ROLLS"].." |cff"..hex.."<|r")
+  local lrFirst, lrRest = L["LOOT ROLLS"]:match("^(%S+)%s*(.*)")
+  titleTxt:SetText("|cff"..hex..(lrFirst or L["LOOT ROLLS"]).."|r"..(lrRest and lrRest ~= "" and (" |cffffffff"..lrRest.."|r") or ""))
   win._titleTxt=titleTxt
 
   -- Close button (cyberpunk style)

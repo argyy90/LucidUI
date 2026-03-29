@@ -105,11 +105,14 @@ local URL_PATTERN = "https?://[%w%.%-_~:/?#%[%]@!$&'%(%)%*%+,;=%%]+"
 
 NS.ChatFormatURLs = function(msg)
   if NS.DB("chatClickableUrls") == false then return msg end
-  if not msg or not msg:find("https?://", 1, true) then return msg end
-  -- NS.CYAN is always kept in sync with the active accent color
+  if not msg or not msg:find("https?://") then return msg end
   local C = NS.CYAN
   local hex = string.format("%02x%02x%02x", C[1]*255, C[2]*255, C[3]*255)
-  return msg:gsub(URL_PATTERN, "|cff" .. hex .. "%0|r")
+  -- Use addon: link type like Chattynator — intercepted via EventRegistry SetItemRef
+  -- |Haddon:lucidurl:URL|h[URL]|h
+  return msg:gsub(URL_PATTERN, function(url)
+    return "|Haddon:lucidurl:" .. url .. "|h|cff" .. hex .. url .. "|r|h"
+  end)
 end
 
 -- ── Strip WoW color/link codes ──────────────────────────────────────
@@ -118,3 +121,65 @@ NS.ChatStripColors = function(text)
   if not text then return "" end
   return text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h", ""):gsub("|h", ""):gsub("|K.-|k", "")
 end
+
+-- ── Custom URL copy box ─────────────────────────────────────────────
+local urlCopyFrame
+NS.ShowURLCopyBox = function(url)
+  if not url or url == "" then return end
+  if urlCopyFrame then urlCopyFrame:Hide() end
+
+  local ar, ag, ab = 0, 1, 1
+  if NS.ChatGetAccentRGB then ar, ag, ab = NS.ChatGetAccentRGB() end
+
+  local f = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+  f:SetSize(480, 54)
+  f:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+  f:SetFrameStrata("FULLSCREEN_DIALOG")
+  f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  f:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
+  f:SetBackdropBorderColor(ar, ag, ab, 0.5)
+
+  local label = f:CreateFontString(nil, "OVERLAY")
+  label:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  label:SetPoint("TOPLEFT", 8, -6)
+  label:SetTextColor(0.5, 0.5, 0.6)
+  label:SetText("Copy URL (Ctrl+A, Ctrl+C)")
+
+  local eb = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+  eb:SetPoint("TOPLEFT", 6, -20)
+  eb:SetPoint("BOTTOMRIGHT", -28, 6)
+  eb:SetFontObject(GameFontHighlight)
+  eb:SetAutoFocus(true)
+  eb:SetText(url)
+  eb:HighlightText()
+  eb:SetScript("OnEscapePressed", function() f:Hide() end)
+  eb:SetScript("OnEnterPressed", function() f:Hide() end)
+
+  local closeBtn = CreateFrame("Button", nil, f)
+  closeBtn:SetSize(16, 16)
+  closeBtn:SetPoint("TOPRIGHT", -4, -4)
+  local cFs = closeBtn:CreateFontString(nil, "OVERLAY")
+  cFs:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  cFs:SetAllPoints(); cFs:SetText("X"); cFs:SetTextColor(0.5, 0.5, 0.5)
+  closeBtn:SetScript("OnClick", function() f:Hide() end)
+  closeBtn:SetScript("OnEnter", function() cFs:SetTextColor(1, 0.3, 0.3) end)
+  closeBtn:SetScript("OnLeave", function() cFs:SetTextColor(0.5, 0.5, 0.5) end)
+
+  f:SetScript("OnHide", function() f:SetScript("OnHide", nil); urlCopyFrame = nil end)
+  urlCopyFrame = f
+  f:Show()
+  eb:SetFocus()
+end
+
+-- Intercept URL clicks via SetItemRef (fires for all |Haddon:| links globally)
+EventRegistry:RegisterCallback("SetItemRef", function(_, link, text, button)
+  local url = link and link:match("^addon:lucidurl:(.*)")
+  if url and url ~= "" then
+    if IsShiftKeyDown() then
+      local eb = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
+      if eb then eb:Insert(url) end
+    else
+      NS.ShowURLCopyBox(url)
+    end
+  end
+end)

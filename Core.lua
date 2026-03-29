@@ -292,11 +292,12 @@ NS.ApplyTheme = function(themeKey)
     local tb = tid[3] or tid.b or 237/255
     local hex = string.format("%02x%02x%02x",
       math.floor(tr*255), math.floor(tg*255), math.floor(tb*255))
-    local tname = (LucidUIDB and LucidUIDB.titleName ~= nil) and LucidUIDB.titleName or "LootTracker"
-    if (LucidUIDB and LucidUIDB.showBrackets ~= false) then
-      NS.titleText:SetText("|cff"..hex..">|r" .. tname .. "|cff"..hex.."<|r")
+    local tname = (LucidUIDB and LucidUIDB.titleName ~= nil) and LucidUIDB.titleName or "Loot Tracker"
+    local f, r = tname:match("^(%S+)%s*(.*)")
+    if f then
+      NS.titleText:SetText("|cff"..hex..f.."|r"..(r ~= "" and (" |cffffffff"..r.."|r") or ""))
     else
-      NS.titleText:SetText(tname)
+      NS.titleText:SetText("|cff"..hex..tname.."|r")
     end
   end
   -- Icon color: use chatIconColor if set, otherwise theme btnColor
@@ -362,18 +363,25 @@ NS.ApplyTheme = function(themeKey)
       end
     end
   end
-  -- Update title brackets on stats + rolls windows
+  -- Update title text on stats + rolls windows (first word accent, rest white)
   if NS.statsWin and NS.statsWin._titleTxt or NS.rollWin and NS.rollWin._titleTxt then
     local hex2 = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))
     local L = LucidUIL or {}
     if NS.statsWin and NS.statsWin._titleTxt then
-      NS.statsWin._titleTxt:SetText("|cff"..hex2..">|r"..(L["Session Stats"] or "Session Stats").."|cff"..hex2.."<|r")
+      local name = L["Session Stats"] or "Session Stats"
+      local f,r = name:match("^(%S+)%s*(.*)")
+      NS.statsWin._titleTxt:SetText("|cff"..hex2..(f or name).."|r"..(r and r ~= "" and (" |cffffffff"..r.."|r") or ""))
     end
     if NS.rollWin and NS.rollWin._titleTxt then
-      NS.rollWin._titleTxt:SetText("|cff"..hex2..">|r "..(L["LOOT ROLLS"] or "LOOT ROLLS").." |cff"..hex2.."<|r")
+      local name = L["LOOT ROLLS"] or "LOOT ROLLS"
+      local f,r = name:match("^(%S+)%s*(.*)")
+      NS.rollWin._titleTxt:SetText("|cff"..hex2..(f or name).."|r"..(r and r ~= "" and (" |cffffffff"..r.."|r") or ""))
     end
   end
 
+  -- Session History + Detail window live accent update
+  if NS.sessionHistWin and NS.sessionHistWin._ApplyTheme then NS.sessionHistWin._ApplyTheme() end
+  if NS.sessionDetailWin and NS.sessionDetailWin._ApplyTheme then NS.sessionDetailWin._ApplyTheme() end
   -- MythicPlus window live accent update
   if NS.MythicPlus and NS.MythicPlus._ApplyTheme then NS.MythicPlus._ApplyTheme() end
   -- GoldTracker window live accent update

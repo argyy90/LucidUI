@@ -353,7 +353,7 @@ local function BuildWindow()
   MP.win:SetScript("OnMouseDown",function(s) s:Raise() end)
   MP.win:SetBackdrop(BD); MP.win:SetBackdropColor(0.022,0.022,0.035,0.97)
   MP.win:SetBackdropBorderColor(ar,ag,ab,0.38); MP.win:Hide()
-  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(MP.win,WIN_W,WIN_H,HDR_H,0) end end)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then MP.win._pcbTextures=NS.DrawPCBBackground(MP.win,WIN_W,WIN_H,HDR_H,0) end end)
 
   local pos=NS.DB("mpWinPos3")
   if pos and pos.p then MP.win:ClearAllPoints(); MP.win:SetPoint(pos.p,UIParent,pos.p,pos.x,pos.y) end
@@ -377,7 +377,8 @@ local function BuildWindow()
   local hex=string.format("%02x%02x%02x",math.floor(ar*255),math.floor(ag*255),math.floor(ab*255))
   local titleFS=MP.win:CreateFontString(nil,"OVERLAY"); titleFS:SetFont("Fonts/FRIZQT__.TTF",14,"OUTLINE")
   titleFS:SetPoint("TOPLEFT",MP.win,"TOPLEFT",14,-7)
-  titleFS:SetText("|cff"..hex.."MYTHIC+|r |cffffffff TRACKER|r")
+  titleFS:SetText("|cff"..hex.."MYTHIC+|r |cffffffffTRACKER|r")
+  MP.win._titleFS = titleFS
 
   -- "M+ Rating" label above score
   local ratingLbl=MP.win:CreateFontString(nil,"OVERLAY"); ratingLbl:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
@@ -1026,6 +1027,12 @@ function MP._ApplyTheme()
       if e.isFS then e.tex:SetTextColor(ar,ag,ab,1)
       else e.tex:SetColorTexture(ar,ag,ab,e.alpha or 1) end
     end)
+  end
+  if NS.UpdatePCBTextures and MP.win then NS.UpdatePCBTextures(MP.win._pcbTextures) end
+  -- Update title
+  if MP.win and MP.win._titleFS then
+    local hex = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))
+    MP.win._titleFS:SetText("|cff"..hex.."MYTHIC+|r |cffffffffTRACKER|r")
   end
   -- Redraw if window is open (recreates dynamic elements with fresh color)
   if MP.win and MP.win:IsShown() then MP.Refresh() end

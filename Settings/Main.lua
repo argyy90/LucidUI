@@ -1089,7 +1089,7 @@ local function SetupMessageColors(parent)
     local fields=MC_TYPE_LAYOUT[layoutKey] or {}
     local card=MakeCard(sc,sectionLabel)
     local colors=DB("chatColors") or {}
-    local collapsed = false
+    local collapsed = true
     local fullH -- set after Finish
 
     for _,f in ipairs(fields) do
@@ -1142,6 +1142,8 @@ local function SetupMessageColors(parent)
     card:SetClipsChildren(true) -- clip content during collapse animation
     fullH = card:GetHeight()
     local COLLAPSED_H = 26
+    card:SetHeight(COLLAPSED_H)
+    card.inner:Hide()
 
     local titleHit = CreateFrame("Button", nil, card)
     titleHit:SetPoint("TOPLEFT", 0, 0); titleHit:SetPoint("TOPRIGHT", 0, 0)
@@ -1153,7 +1155,7 @@ local function SetupMessageColors(parent)
     arrow:SetPoint("TOPRIGHT", card, "TOPRIGHT", -18, -7)
     local ar2, ag2, ab2 = NS.ChatGetAccentRGB()
     arrow:SetTextColor(ar2, ag2, ab2, 0.6)
-    arrow:SetText("v")
+    arrow:SetText(">")
 
     -- Reposition all cards vertically based on current heights
     local function RepositionCards()
@@ -1173,6 +1175,7 @@ local function SetupMessageColors(parent)
         local diff = toH - cur
         if math.abs(diff) < 1 then
           self:SetHeight(toH); self:SetScript("OnUpdate", nil)
+          if collapsed then card.inner:Hide() end
           RepositionCards()
           return
         end
@@ -1184,6 +1187,7 @@ local function SetupMessageColors(parent)
     titleHit:SetScript("OnClick", function()
       collapsed = not collapsed
       arrow:SetText(collapsed and ">" or "v")
+      if not collapsed then card.inner:Show() end
       AnimateCard(collapsed and COLLAPSED_H or fullH)
     end)
     titleHit:SetScript("OnEnter", function()
@@ -2090,7 +2094,7 @@ local function SetupTabSettings(parent)
     if not cats then return end
     local byKey = {}
     for _, cat in ipairs(cats) do byKey[cat.key] = cat end
-    local order = {"MESSAGES", "CREATURE", "REWARDS", "PVP", "SYSTEM", "ADDONS"}
+    local order = {"MESSAGES", "CREATURE", "REWARDS", "PVP", "SYSTEM"}
     for _, key in ipairs(order) do
       if key == "MESSAGES" and byKey[key] then
         MakeCatDropdown(byKey[key])
@@ -2134,6 +2138,7 @@ NS.DrawPCBBackground = function(frame, W, H, headerH, xOffset)
   local CY = (headerH or 0)
   local CW = W - CX - 4
   local CH = H - CY - 4
+  local pcbTextures = {}
 
   local function AccTex(layer,sub,x,y,w,h,alpha)
     -- Clip: skip textures that start outside the frame or would extend badly
@@ -2145,6 +2150,7 @@ NS.DrawPCBBackground = function(frame, W, H, headerH, xOffset)
     local t=frame:CreateTexture(nil,layer,nil,sub)
     t:SetSize(cw,ch); t:SetPoint("TOPLEFT",frame,"TOPLEFT",x,-y)
     t:SetColorTexture(ar,ag,ab,alpha or 0.10)
+    pcbTextures[#pcbTextures+1] = {tex=t, alpha=alpha or 0.10}
     return t
   end
   local function H_(x,y,len,a) AccTex("BACKGROUND",3,x,y,len,1,a or 0.10) end
@@ -2238,6 +2244,15 @@ NS.DrawPCBBackground = function(frame, W, H, headerH, xOffset)
     H_(vx-60,vy+220,60,0.06); Cap(vx-60,vy+220,false)
     Glow(vx,vy+100); Glow(vx,vy+220)
   end
+  return pcbTextures
+end
+
+NS.UpdatePCBTextures = function(pcbList)
+  if not pcbList then return end
+  local ar,ag,ab = NS.ChatGetAccentRGB()
+  for _,e in ipairs(pcbList) do
+    e.tex:SetColorTexture(ar,ag,ab,e.alpha)
+  end
 end
 
 NS.BuildChatOptionsWindow = function()
@@ -2251,7 +2266,7 @@ NS.BuildChatOptionsWindow = function()
   end
 
   local ar,ag,ab = NS.ChatGetAccentRGB()
-  local WIN_W=860; local WIN_H=560
+  local WIN_W=860; local WIN_H=600
   local HEADER_H=42; local SIDEBAR_W=152; local CONT_Y=HEADER_H+2
 
   -- ── Root window ────────────────────────────────────────────────────
@@ -2429,6 +2444,11 @@ NS.BuildChatOptionsWindow = function()
   titleFS:SetText(thex.."LUCID|r|cffffffff".."UI|r")
   chatOptWin._ltTitleName = titleFS
 
+  local settingsFS = chatOptWin:CreateFontString(nil,"OVERLAY")
+  settingsFS:SetFont("Fonts/FRIZQT__.TTF",14,"OUTLINE")
+  settingsFS:SetPoint("CENTER",chatOptWin,"TOP",0,-HEADER_H/2)
+  settingsFS:SetTextColor(1,1,1,1); settingsFS:SetText("Settings")
+
   local verFS = chatOptWin:CreateFontString(nil,"OVERLAY")
   verFS:SetFont("Fonts/FRIZQT__.TTF",8,"")
   verFS:SetPoint("TOPLEFT",titleFS,"BOTTOMLEFT",0,-1)
@@ -2472,6 +2492,8 @@ NS.BuildChatOptionsWindow = function()
   reloadBtn:SetPoint("RIGHT",closeBtn,"LEFT",-4,0); reloadBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
   local debugBtn=HdrBtn(L["Debug"],function() if NS.BuildDebugWindow then NS.BuildDebugWindow() end end)
   debugBtn:SetPoint("RIGHT",reloadBtn,"LEFT",-4,0); debugBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
+  local perfBtn=HdrBtn("Perf",function() SlashCmdList["LUIPERF"]() end)
+  perfBtn:SetPoint("RIGHT",debugBtn,"LEFT",-4,0); perfBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
 
   -- ── Sidebar background ─────────────────────────────────────────────
   local sbBg=chatOptWin:CreateTexture(nil,"BACKGROUND",nil,1)

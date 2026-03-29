@@ -307,7 +307,7 @@ local function BuildHistoryWindow()
   histWin:SetBackdrop(BD)
   histWin:SetBackdropColor(0.025, 0.025, 0.038, 0.97)
   histWin:SetBackdropBorderColor(ar, ag, ab, 0.38)
-  C_Timer.After(0,function() if NS.DrawPCBBackground then NS.DrawPCBBackground(histWin,WIN_W,WIN_H,HEADER_H,0) end end)
+  C_Timer.After(0,function() if NS.DrawPCBBackground then histWin._pcbTextures=NS.DrawPCBBackground(histWin,WIN_W,WIN_H,HEADER_H,0) end end)
   histWin:Hide()
 
   -- Restore saved position
@@ -347,7 +347,8 @@ local function BuildHistoryWindow()
   local titleFS = histWin:CreateFontString(nil, "OVERLAY")
   titleFS:SetFont("Fonts/FRIZQT__.TTF", 13, "OUTLINE")
   titleFS:SetPoint("TOPLEFT", histWin, "TOPLEFT", 14, -8)
-  titleFS:SetText("|cff"..hex.."GOLD|r|cffffffff TRACKER|r")
+  titleFS:SetText("|cff"..hex.."GOLD|r |cffffffffTRACKER|r")
+  histWin._titleFS = titleFS
 
   -- Close button
   local closeBtn = CreateFrame("Button", nil, histWin, "BackdropTemplate")
@@ -811,7 +812,7 @@ function GT.RefreshWindow()
 
     local lblGot = card:CreateFontString(nil, "OVERLAY")
     lblGot:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
-    lblGot:SetPoint("TOP", card, "TOP", 8, -cy)
+    lblGot:SetPoint("TOP", card, "TOP", 115, -cy)
     lblGot:SetJustifyH("LEFT")
     card:HookScript("OnShow", function(self) lblGot:SetWidth(math.floor(self:GetWidth()/2) - 18) end)
     lblGot:SetWidth(math.floor((card:GetWidth()>0 and card:GetWidth() or 460)/2) - 18)
@@ -886,6 +887,12 @@ function GT._ApplyTheme()
       if e.isFS then e.tex:SetTextColor(ar,ag,ab,1)
       else e.tex:SetColorTexture(ar,ag,ab,e.alpha or 1) end
     end)
+  end
+  if NS.UpdatePCBTextures and histWin then NS.UpdatePCBTextures(histWin._pcbTextures) end
+  -- Update title
+  if histWin and histWin._titleFS then
+    local hex = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))
+    histWin._titleFS:SetText("|cff"..hex.."GOLD|r |cffffffffTRACKER|r")
   end
   -- Redraw trade cards with fresh accent color if window is open
   if histWin and histWin:IsShown() then GT.RefreshWindow() end

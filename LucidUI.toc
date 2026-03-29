@@ -22,6 +22,7 @@ Core.lua
 
 Chat\Messages.lua
 Chat\ChatFormat.lua
+Chat\HyperlinkHandler.xml
 Chat\ChatMessageArea.lua
 Chat\ChatComponents.lua
 Chat\ChatBar.lua

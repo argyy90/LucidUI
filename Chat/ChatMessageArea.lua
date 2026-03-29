@@ -6,6 +6,11 @@ local NS = LucidUINS
 function NS.CreateChatMessageArea(parent, name)
   local frame = CreateFrame("Frame", name, parent)
   frame:SetClipsChildren(true)
+  -- Propagate hyperlinks up to bg (LUIChatDisplayBG) which handles OnHyperlinkClick
+  frame:SetHyperlinksEnabled(true)
+  if frame.SetHyperlinkPropagateToParent then
+    frame:SetHyperlinkPropagateToParent(true)
+  end
 
   local FACE    = "Fonts/FRIZQT__.TTF"
   local SIZE    = 14
@@ -209,8 +214,12 @@ function NS.CreateChatMessageArea(parent, name)
     s.contentFS:SetMaxLines(50)
     s.contentFS:SetFading(false)
     s.contentFS:SetIndentedWordWrap(false)
+    s.contentFS:SetFrameLevel(frame:GetFrameLevel() + 5)
     s.contentFS:EnableMouse(true)
     s.contentFS:SetHyperlinksEnabled(true)
+    if s.contentFS.SetHyperlinkPropagateToParent then
+      s.contentFS:SetHyperlinkPropagateToParent(true)
+    end
     s.contentFS:SetScript("OnHyperlinkClick", function(self, link, text, btn)
       local linkType = link and link:match("^([^:]+)")
       if linkType == "clubTicketInfo" or linkType == "clubFinder"
@@ -235,6 +244,16 @@ function NS.CreateChatMessageArea(parent, name)
               local eb2 = ChatFrame1EditBox or ChatFrameEditBox
               if eb2 then C_Timer.After(0, function() if eb2 and not eb2:HasFocus() then eb2:SetFocus() end end) end
             end
+          end
+        end
+      elseif linkType == "url" then
+        local url = link:match("^url:(.+)")
+        if url and url ~= "" then
+          if IsShiftKeyDown() then
+            local eb2 = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
+            if eb2 then eb2:Insert(url) end
+          else
+            NS.ShowURLCopyBox(url)
           end
         end
       else
@@ -568,4 +587,22 @@ function NS.CreateChatMessageArea(parent, name)
 
   frame:Show()
   return frame
+end
+
+-- ── Global URL hyperlink handler (fires for all chat frames/SMFs) ─────────
+local _origOnHyperlinkShow = ChatFrame_OnHyperlinkShow
+ChatFrame_OnHyperlinkShow = function(chatFrame, link, text, button)
+  if link and link:match("^url:") then
+    local url = link:match("^url:(.+)")
+    if url and url ~= "" then
+      if IsShiftKeyDown() then
+        local eb = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
+        if eb then eb:Insert(url) end
+      else
+        NS.ShowURLCopyBox(url)
+      end
+      return  -- consume, don't pass to default handler
+    end
+  end
+  if _origOnHyperlinkShow then _origOnHyperlinkShow(chatFrame, link, text, button) end
 end

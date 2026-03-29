@@ -173,7 +173,10 @@ local function RefreshDisplay()
 end
 
 local function BuildProfilerWindow()
-  if profilerWin then profilerWin:Show(); RefreshDisplay(); return end
+  if profilerWin then
+    if profilerWin:IsShown() then profilerWin:Hide() else profilerWin:Show(); RefreshDisplay() end
+    return
+  end
 
   local cr, cg, cb = CYAN[1], CYAN[2], CYAN[3]
 
