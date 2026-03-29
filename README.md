@@ -174,4 +174,4 @@ Missing translations fall back to English automatically.
 
 ## License
 
-This project is licensed under the [GNU GENERAL PUBLIC LICENSE Version 3](LICENSE).
+This project is licensed under the [GNU GPL v3.0.](LICENSE)
