@@ -69,34 +69,34 @@ local CHAT_TYPE_REPLACE = {
 }
 
 NS.ChatShortenChannel = function(msg)
+  if not msg then return msg end
   local fmt = NS.DB("chatShortenFormat") or "none"
   if fmt == "none" then return msg end
-
-  msg = msg:gsub(CHANNEL_LINK_PAT, function(displayText)
-    local num = displayText:match("^(%d+)%.")
-    if not num then return end
-    if fmt == "bracket" then return "(" .. num .. ")"
-    elseif fmt == "minimal" then return num end
-  end)
-
-  for _, entry in ipairs(CHAT_TYPE_REPLACE) do
-    local long, short = entry[1], entry[2]
-    if fmt == "bracket" then
-      msg = msg:gsub("%(" .. long .. "%)", "(" .. short .. ")")
-      msg = msg:gsub("%[" .. long .. "%]", "(" .. short .. ")")
-    elseif fmt == "minimal" then
-      msg = msg:gsub("%(" .. long .. "%) ", short .. " ")
-      msg = msg:gsub("%[" .. long .. "%] ", short .. " ")
+  local ok, result = pcall(function()
+    msg = msg:gsub(CHANNEL_LINK_PAT, function(displayText)
+      local num = displayText:match("^(%d+)%.")
+      if not num then return end
+      if fmt == "bracket" then return "(" .. num .. ")"
+      elseif fmt == "minimal" then return num end
+    end)
+    for _, entry in ipairs(CHAT_TYPE_REPLACE) do
+      local long, short = entry[1], entry[2]
+      if fmt == "bracket" then
+        msg = msg:gsub("%(" .. long .. "%)", "(" .. short .. ")")
+        msg = msg:gsub("%[" .. long .. "%]", "(" .. short .. ")")
+      elseif fmt == "minimal" then
+        msg = msg:gsub("%(" .. long .. "%) ", short .. " ")
+        msg = msg:gsub("%[" .. long .. "%] ", short .. " ")
+      end
     end
-  end
-
-  if fmt == "bracket" then
-    msg = msg:gsub(" says:", " (S):"); msg = msg:gsub(" yells:", " (Y):")
-  elseif fmt == "minimal" then
-    msg = msg:gsub(" says:", " S:"); msg = msg:gsub(" yells:", " Y:")
-  end
-
-  return msg
+    if fmt == "bracket" then
+      msg = msg:gsub(" says:", " (S):"); msg = msg:gsub(" yells:", " (Y):")
+    elseif fmt == "minimal" then
+      msg = msg:gsub(" says:", " S:"); msg = msg:gsub(" yells:", " Y:")
+    end
+    return msg
+  end)
+  return ok and result or msg
 end
 
 -- ── URL Detection ───────────────────────────────────────────────────
@@ -105,14 +105,15 @@ local URL_PATTERN = "https?://[%w%.%-_~:/?#%[%]@!$&'%(%)%*%+,;=%%]+"
 
 NS.ChatFormatURLs = function(msg)
   if NS.DB("chatClickableUrls") == false then return msg end
-  if not msg or not msg:find("https?://") then return msg end
+  if not msg then return msg end
+  local ok, found = pcall(string.find, msg, "https?://")
+  if not ok or not found then return msg end
   local C = NS.CYAN
   local hex = string.format("%02x%02x%02x", C[1]*255, C[2]*255, C[3]*255)
-  -- Use addon: link type like Chattynator — intercepted via EventRegistry SetItemRef
-  -- |Haddon:lucidurl:URL|h[URL]|h
-  return msg:gsub(URL_PATTERN, function(url)
+  local ok2, result = pcall(string.gsub, msg, URL_PATTERN, function(url)
     return "|Haddon:lucidurl:" .. url .. "|h|cff" .. hex .. url .. "|r|h"
   end)
+  return ok2 and result or msg
 end
 
 -- ── Strip WoW color/link codes ──────────────────────────────────────

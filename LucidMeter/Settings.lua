@@ -151,7 +151,8 @@ function DM.SetupSettings(parent)
     local row=CreateFrame("Frame",nil,par); row:SetHeight(26)
     local sw=CreateFrame("Frame",nil,row,"BackdropTemplate"); sw:SetSize(14,14); sw:SetPoint("LEFT",0,0)
     sw:SetBackdrop(BD)
-    local c=DB(key) or def
+    local c=DB(key)
+    if type(c) ~= "table" or not c.r then c = def end
     sw:SetBackdropColor(c.r,c.g,c.b,1); sw:SetBackdropBorderColor(0.28,0.28,0.38,1)
     local fl=row:CreateFontString(nil,"OVERLAY"); fl:SetFont("Fonts/FRIZQT__.TTF",11,"")
     fl:SetPoint("LEFT",sw,"RIGHT",6,0); fl:SetTextColor(0.75,0.75,0.85); fl:SetText(lbl)
@@ -160,7 +161,8 @@ function DM.SetupSettings(parent)
     hit:SetScript("OnEnter",function() hl:Show(); local cr,cg,cb=NS.ChatGetAccentRGB(); sw:SetBackdropBorderColor(cr,cg,cb,1) end)
     hit:SetScript("OnLeave",function() hl:Hide(); sw:SetBackdropBorderColor(0.28,0.28,0.38,1) end)
     hit:SetScript("OnClick",function()
-      local cur=DB(key) or def
+      local cur=DB(key)
+      if type(cur) ~= "table" or not cur.r then cur = def end
       ColorPickerFrame:SetupColorPickerAndShow({r=cur.r,g=cur.g,b=cur.b,
         swatchFunc=function() local r,g,b=ColorPickerFrame:GetColorRGB(); DBSet(key,{r=r,g=g,b=b}); sw:SetBackdropColor(r,g,b,1); if applyFn then applyFn(r,g,b) end end,
         cancelFunc=function(prev) DBSet(key,{r=prev.r,g=prev.g,b=prev.b}); sw:SetBackdropColor(prev.r,prev.g,prev.b,1); if applyFn then applyFn(prev.r,prev.g,prev.b) end end,
@@ -406,9 +408,9 @@ function DM.SetupSettings(parent)
     local fsv=DB("dmFontShadow") or 0; if type(fsv)=="boolean" then fsv=fsv and 1.5 or 0 end
     if fontShadow.SetValue then fontShadow:SetValue(fsv) end
     textOutline:SetValue(DB("dmTextOutline")==true)
-    local tc=DB("dmTitleColor") or {r=1,g=1,b=1}; if titleColorRow._swatch then titleColorRow._swatch:SetBackdropColor(tc.r,tc.g,tc.b,1) end
-    local tx=DB("dmTextColor") or {r=1,g=1,b=1};  if textColorRow._swatch  then textColorRow._swatch:SetBackdropColor(tx.r,tx.g,tx.b,1) end
-    local bc=DB("dmBarColor") or {r=0.5,g=0.5,b=0.5}; if barColorRow._swatch then barColorRow._swatch:SetBackdropColor(bc.r,bc.g,bc.b,1) end
+    local tc=DB("dmTitleColor"); if type(tc)~="table" or not tc.r then tc={r=1,g=1,b=1} end; if titleColorRow._swatch then titleColorRow._swatch:SetBackdropColor(tc.r,tc.g,tc.b,1) end
+    local tx=DB("dmTextColor"); if type(tx)~="table" or not tx.r then tx={r=1,g=1,b=1} end; if textColorRow._swatch then textColorRow._swatch:SetBackdropColor(tx.r,tx.g,tx.b,1) end
+    local bc=DB("dmBarColor"); if type(bc)~="table" or not bc.r then bc={r=0.5,g=0.5,b=0.5} end; if barColorRow._swatch then barColorRow._swatch:SetBackdropColor(bc.r,bc.g,bc.b,1) end
     classCB:SetValue(DB("dmClassColors")~=false); totalCB:SetValue(DB("dmShowTotalBar")==true)
     accentCB:SetValue(DB("dmAccentLine")~=false); winBorderCB:SetValue(DB("dmWindowBorder")~=false); titleBorderCB:SetValue(DB("dmTitleBorder")~=false)
     if iconDD.SetValue    then iconDD:SetValue()    end

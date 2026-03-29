@@ -516,7 +516,7 @@ local function CreateWindow(windowID, config)
     end
   else
     if windowID == 1 then
-      frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -20, 200)
+      frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     else
       local offset = (windowID - 2) * 30
       frame:SetPoint("CENTER", UIParent, "CENTER", offset, -offset)
@@ -548,13 +548,14 @@ local function CreateWindow(windowID, config)
   titleBorder:SetPoint("BOTTOMLEFT", 0, 0)
   titleBorder:SetPoint("BOTTOMRIGHT", 0, 0)
   titleBorder:SetColorTexture(0.15, 0.15, 0.15, 1)
-  titleBorder:SetShown(NS.DB("dmTitleBorder") ~= false)
+  titleBorder:Hide()
   frame._titleBorder = titleBorder
 
   local titleText = titleBar:CreateFontString(nil, "OVERLAY")
   titleText:SetFont(NS.GetFontPath(NS.DB("dmFont")), NS.DB("dmTitleFontSize") or 10, NS.DB("dmTextOutline") and "OUTLINE" or "")
   titleText:SetPoint("LEFT", 6, 0)
-  local tCol = NS.DB("dmTitleColor") or {r=1, g=1, b=1}
+  local tCol = NS.DB("dmTitleColor")
+  if type(tCol) ~= "table" or not tCol.r then tCol = {r=1, g=1, b=1} end
   titleText:SetTextColor(tCol.r, tCol.g, tCol.b)
   local shadowVal = NS.DB("dmFontShadow") or 0
   if type(shadowVal) == "boolean" then shadowVal = shadowVal and 1.5 or 0 end
@@ -577,9 +578,10 @@ local function CreateWindow(windowID, config)
     popupMenu:SetFrameStrata("TOOLTIP")
     popupMenu:SetClampedToScreen(true)
 
-    local ITEM_H = 18
+    local ITEM_H = 20
     local MENU_W = 220
-    local totalH = 0
+    local PAD = 4
+    local totalH = PAD
     local btns = {}
 
     for _, item in ipairs(items) do
@@ -618,7 +620,7 @@ local function CreateWindow(windowID, config)
       end
     end
 
-    popupMenu:SetSize(MENU_W, totalH + 6)
+    popupMenu:SetSize(MENU_W, totalH + PAD)
     popupMenu:ClearAllPoints()
     popupMenu:SetPoint("BOTTOMLEFT", anchor, "TOPLEFT", 0, 2)
     popupMenu:Show()
@@ -695,9 +697,9 @@ local function CreateWindow(windowID, config)
   settingsBtn:SetPoint("RIGHT", -3, 0)
   settingsBtn:SetScript("OnClick", function()
     NS.BuildChatOptionsWindow()
-    if NS.chatOptWin and NS.chatOptWin._selectTab then
+    if NS.chatOptWin and NS.chatOptWin._selectTab and NS.chatOptWin.containers then
       for i, c in ipairs(NS.chatOptWin.containers) do
-        if c.button and c.button.label and c.button.label:GetText() == "LucidMeter" then
+        if c.button and c.button._label and c.button._label:GetText() == "LucidMeter" then
           NS.chatOptWin._selectTab(i)
           break
         end
@@ -1122,7 +1124,8 @@ function DM.UpdateWindowDisplay(w)
   local fontSize = DB("dmFontSize") or 11
   local iconMode = DB("dmIconMode") or "spec"
   local valFormat = DB("dmValueFormat") or "both"
-  local txtCol = DB("dmTextColor") or {r=1, g=1, b=1}
+  local txtCol = DB("dmTextColor")
+  if type(txtCol) ~= "table" or not txtCol.r then txtCol = {r=1, g=1, b=1} end
   local tr, tg, tb = txtCol.r, txtCol.g, txtCol.b
   local barTexture = NS.GetBarTexturePath(DB("dmBarTexture"))
   local barBgTexture = NS.GetBarTexturePath(DB("dmBarBgTexture"))
@@ -1138,7 +1141,8 @@ function DM.UpdateWindowDisplay(w)
   local showRealm = DB("dmShowRealm")
   local classColors = DB("dmClassColors") ~= false
   local barAlpha = DB("dmBarBrightness") or 0.70
-  local barColor = DB("dmBarColor") or {r=0.5, g=0.5, b=0.5}
+  local barColor = DB("dmBarColor")
+  if type(barColor) ~= "table" or not barColor.r then barColor = {r=0.5, g=0.5, b=0.5} end
   local showTotalBar = DB("dmShowTotalBar")
   local totalAll = 0
   if showPercent or showTotalBar then
@@ -1698,7 +1702,7 @@ function DM.ShowSpellBreakdown(bar)
   end
 
   GameTooltip:Show()
-  GameTooltip:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
+  if GameTooltip.SetBackdropColor then GameTooltip:SetBackdropColor(0.03, 0.03, 0.03, 0.95) end
 
   if not GameTooltip._dmBars then
     GameTooltip._dmBars = {}
@@ -1754,11 +1758,11 @@ function DM.ApplyTheme()
   if #DM.windows == 0 then return end
   local ar, ag, ab = NS.ChatGetAccentRGB()
   local tCol = NS.DB("dmTitleColor")
+  if type(tCol) ~= "table" or not tCol.r then tCol = nil end
   for _, w in ipairs(DM.windows) do
-    if tCol then
-      if w.titleText then w.titleText:SetTextColor(tCol.r, tCol.g, tCol.b) end
-    else
-      if w.titleText then w.titleText:SetTextColor(ar, ag, ab) end
+    if w.titleText then
+      if tCol then w.titleText:SetTextColor(tCol.r, tCol.g, tCol.b)
+      else w.titleText:SetTextColor(1, 1, 1) end
     end
     if w.frame._accentLine then w.frame._accentLine:SetColorTexture(ar, ag, ab, 0.5) end
     if w.snapLines then

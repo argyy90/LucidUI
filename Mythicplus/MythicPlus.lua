@@ -83,7 +83,14 @@ local function SaveRun(run)
   local db=GetDB(); local k=GetPlayerKey(); local s=GetCurrentSeason()
   if not db[k] then db[k]={} end
   if not db[k][s] then db[k][s]={} end
-  table.insert(db[k][s],run)
+  -- Update existing run if already saved (same mapID+date), otherwise insert
+  for i, existing in ipairs(db[k][s]) do
+    if existing.mapID == run.mapID and existing.date == run.date then
+      db[k][s][i] = run
+      return
+    end
+  end
+  table.insert(db[k][s], run)
 end
 local function FmtTime(s)
   if not s or s<0 then return "--:--" end
@@ -141,7 +148,8 @@ local function CommitRun(att)
             if MP.win and MP.win:IsShown() then MP.Refresh() end; return
           end end end end
       Poll(a+1) end) end; Poll(1)
-  activeState="IDLE"; activeRun=nil
+  -- Keep activeRun alive for loot collection until player leaves the dungeon
+  activeState="COMPLETED"
   if MP.win and MP.win:IsShown() then MP.Refresh() end
 end
 
@@ -219,6 +227,7 @@ evF:SetScript("OnEvent",function(_,ev,...)
     C_Timer.After(1, function()
       local db=GetDB(); local totalMigrated=0
       for _,charData in pairs(db) do
+        if type(charData) ~= "table" then break end
         for rawKey,runs in pairs(charData) do
           local mappedKey=MP.SeasonMap[rawKey]
           if mappedKey and mappedKey~=rawKey and type(runs)=="table" and #runs>0 then
@@ -276,7 +285,12 @@ evF:SetScript("OnEvent",function(_,ev,...)
   elseif ev=="CHALLENGE_MODE_COMPLETED" then
     if activeRun then activeState="COMPLETED"; CommitRun(1) end
   elseif ev=="ZONE_CHANGED_NEW_AREA" then
-    if (activeState=="ACTIVE" or activeState=="WARMING_UP") and not C_ChallengeMode.IsChallengeModeActive() then
+    if activeState=="COMPLETED" and not C_ChallengeMode.IsChallengeModeActive() then
+      -- Left dungeon after completion — finalize and clean up
+      if activeRun then SaveRun(activeRun) end
+      activeState="IDLE"; activeRun=nil
+      if MP.win and MP.win:IsShown() then MP.Refresh() end
+    elseif (activeState=="ACTIVE" or activeState=="WARMING_UP") and not C_ChallengeMode.IsChallengeModeActive() then
       if activeRun then activeRun.status=0; activeRun.timeElapsed=GetTime()-activeRun.startTime
         activeRun.date=time(); SaveRun(activeRun); activeState="IDLE"; activeRun=nil end end
   elseif ev=="ENCOUNTER_LOOT_RECEIVED" then
@@ -305,6 +319,8 @@ evF:SetScript("OnEvent",function(_,ev,...)
       end
       if not dupe then
         table.insert(activeRun.loot,{link=link,originalOwner=resolvedOwner,currentOwner=resolvedOwner,qty=qty or 1})
+        SaveRun(activeRun)
+        if MP.win and MP.win:IsShown() then MP.Refresh() end
       end
     end
   end
@@ -312,8 +328,8 @@ end)
 
 -- ═════════════════════════════ WINDOW ══════════════════════════════════════
 local WIN_W,WIN_H=1150,700
-local HDR_H=38; local TILE_H=88; local PANE_H=240; local GRAPH_H=nil
-local LEFT_W=220; local RIGHT_W=270
+local HDR_H=46; local TILE_H=88; local PANE_H=300; local GRAPH_H=nil
+local LEFT_W=260; local RIGHT_W=270
 local CENTER_W=WIN_W-LEFT_W-RIGHT_W-32
 
 local function ClearFrame(f)
@@ -326,7 +342,7 @@ local function MkBtn(par,txt,w,h,BD)
   b:SetBackdrop(BD); b:SetBackdropColor(0.04,0.04,0.07,1); b:SetBackdropBorderColor(0.12,0.12,0.20,1)
   local cut=b:CreateTexture(nil,"OVERLAY",nil,4); cut:SetSize(7,1); cut:SetPoint("TOPRIGHT",b,"TOPRIGHT",0,-1)
   do local _ar,_ag,_ab=NS.ChatGetAccentRGB(); cut:SetColorTexture(_ar,_ag,_ab,0.22) end
-  local fs=b:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,""); fs:SetPoint("CENTER")
+  local fs=b:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,""); fs:SetPoint("CENTER")
   fs:SetTextColor(0.72,0.72,0.82); fs:SetText(txt); b._lbl=fs
   b:SetScript("OnEnter",function() local ar,ag,ab=NS.ChatGetAccentRGB(); b:SetBackdropBorderColor(ar,ag,ab,0.9) end)
   b:SetScript("OnLeave",function() b:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
@@ -335,8 +351,12 @@ end
 
 local function MkPane(par)
   local sf=CreateFrame("ScrollFrame",nil,par,"UIPanelScrollFrameTemplate")
-  if sf.ScrollBar then sf.ScrollBar:SetAlpha(0.4) end
-  -- Reserve 18px on the right for the scrollbar so text doesn't overlap
+  if sf.ScrollBar then
+    sf.ScrollBar:SetAlpha(0.35)
+    sf.ScrollBar:ClearAllPoints()
+    sf.ScrollBar:SetPoint("TOPRIGHT", sf, "TOPRIGHT", -2, -16)
+    sf.ScrollBar:SetPoint("BOTTOMRIGHT", sf, "BOTTOMRIGHT", -2, 16)
+  end
   local sc=CreateFrame("Frame",nil,sf); sc:SetWidth(sf:GetWidth() or 200)
   sf:SetScrollChild(sc)
   sf:HookScript("OnSizeChanged",function(_,w) sc:SetWidth(math.max(50, w-18)) end)
@@ -383,23 +403,23 @@ local function BuildWindow()
 
   -- Header: Title (left) | Score (center) | Stats (right of score)
   local hex=string.format("%02x%02x%02x",math.floor(ar*255),math.floor(ag*255),math.floor(ab*255))
-  local titleFS=MP.win:CreateFontString(nil,"OVERLAY"); titleFS:SetFont("Fonts/FRIZQT__.TTF",14,"OUTLINE")
-  titleFS:SetPoint("TOPLEFT",MP.win,"TOPLEFT",14,-7)
+  local titleFS=MP.win:CreateFontString(nil,"OVERLAY"); titleFS:SetFont(STANDARD_TEXT_FONT,14,"OUTLINE")
+  titleFS:SetPoint("TOPLEFT",MP.win,"TOPLEFT",14,-12)
   titleFS:SetText("|cff"..hex.."MYTHIC+|r |cffffffffTRACKER|r")
   MP.win._titleFS = titleFS
 
   -- "M+ Rating" label above score
-  local ratingLbl=MP.win:CreateFontString(nil,"OVERLAY"); ratingLbl:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
-  ratingLbl:SetPoint("TOP",MP.win,"TOP",0,-6); ratingLbl:SetTextColor(0.65,0.65,0.75); ratingLbl:SetText("M+ Rating")
+  local ratingLbl=MP.win:CreateFontString(nil,"OVERLAY"); ratingLbl:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
+  ratingLbl:SetPoint("TOP",MP.win,"TOP",0,-8); ratingLbl:SetTextColor(0.65,0.65,0.75); ratingLbl:SetText("M+ Rating")
 
-  MP.win._scoreLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._scoreLbl:SetFont("Fonts/FRIZQT__.TTF",26,"OUTLINE")
-  MP.win._scoreLbl:SetPoint("TOP",MP.win,"TOP",0,-14); MP.win._scoreLbl:SetTextColor(1,0.84,0)
+  MP.win._scoreLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._scoreLbl:SetFont(STANDARD_TEXT_FONT,26,"OUTLINE")
+  MP.win._scoreLbl:SetPoint("TOP",MP.win,"TOP",0,-16); MP.win._scoreLbl:SetTextColor(1,0.84,0)
 
   -- Stats shifted right so they clear the score
-  MP.win._highestLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._highestLbl:SetFont("Fonts/FRIZQT__.TTF",12,"")
+  MP.win._highestLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._highestLbl:SetFont(STANDARD_TEXT_FONT,12,"")
   MP.win._highestLbl:SetPoint("TOPLEFT",MP.win,"TOP",80,-6); MP.win._highestLbl:SetTextColor(0.88,0.88,0.95)
 
-  MP.win._totalLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._totalLbl:SetFont("Fonts/FRIZQT__.TTF",10,"")
+  MP.win._totalLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._totalLbl:SetFont(STANDARD_TEXT_FONT,10,"")
   MP.win._totalLbl:SetPoint("TOPLEFT",MP.win._highestLbl,"BOTTOMLEFT",0,-2); MP.win._totalLbl:SetTextColor(0.65,0.65,0.72)
 
   -- Alt + Season buttons (left side, after title)
@@ -412,7 +432,7 @@ local function BuildWindow()
   local closeBtn=CreateFrame("Button",nil,MP.win,"BackdropTemplate"); closeBtn:SetSize(22,22)
   closeBtn:SetPoint("TOPRIGHT",-4,-8); closeBtn:SetBackdrop(BD)
   closeBtn:SetBackdropColor(0.09,0.02,0.02,1); closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1)
-  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont("Fonts/FRIZQT__.TTF",11,""); cX:SetPoint("CENTER")
+  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont(STANDARD_TEXT_FONT,11,""); cX:SetPoint("CENTER")
   cX:SetTextColor(0.60,0.18,0.18); cX:SetText("X")
   closeBtn:SetScript("OnEnter",function() closeBtn:SetBackdropBorderColor(0.82,0.16,0.16,1); cX:SetTextColor(1,0.3,0.3) end)
   closeBtn:SetScript("OnLeave",function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
@@ -447,14 +467,14 @@ local function BuildWindow()
   RegAccent(paneTopLine,0.30)
   -- Pane labels
   local function PaneLabel(txt,xOff,width)
-    local fs=MP.win:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
-    fs:SetPoint("TOPLEFT",MP.win,"TOPLEFT",xOff,-bodyY); fs:SetWidth(width)
+    local fs=MP.win:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
+    fs:SetPoint("TOPLEFT",MP.win,"TOPLEFT",xOff,-(bodyY+6)); fs:SetWidth(width)
     fs:SetTextColor(1,0.82,0); fs:SetText(txt)
     -- Dashed underline (4 segments matching main settings card style)
     local segW,segH,segGap=18,1,6
     for si=0,3 do
       local seg=MP.win:CreateTexture(nil,"OVERLAY",nil,3); seg:SetSize(segW,segH)
-      seg:SetPoint("TOPLEFT",MP.win,"TOPLEFT",xOff+si*(segW+segGap),-(bodyY+12))
+      seg:SetPoint("TOPLEFT",MP.win,"TOPLEFT",xOff+si*(segW+segGap),-(bodyY+18))
       seg:SetColorTexture(ar,ag,ab,0.18)
       RegAccent(seg,0.18)
     end
@@ -463,6 +483,41 @@ local function BuildWindow()
   end
   PaneLabel("PLAYERS",8,LEFT_W); PaneLabel("RUN HISTORY",LEFT_W+14,CENTER_W)
   PaneLabel("RUN DETAILS",LEFT_W+CENTER_W+20,RIGHT_W)
+
+  -- Card-style backgrounds for each pane
+  local function PaneCard(xOff, yOff, w, h)
+    local card=CreateFrame("Frame",nil,MP.win,"BackdropTemplate")
+    card:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    card:SetBackdropColor(0.024,0.024,0.040,0.6)
+    card:SetBackdropBorderColor(0.08,0.08,0.13,1)
+    card:SetPoint("TOPLEFT",MP.win,"TOPLEFT",xOff,-yOff)
+    card:SetSize(w,h)
+    card:SetFrameLevel(MP.win:GetFrameLevel()+1)
+    -- Left accent bar
+    local bar=card:CreateTexture(nil,"OVERLAY",nil,5); bar:SetWidth(3)
+    bar:SetPoint("TOPLEFT",card,"TOPLEFT",0,-4); bar:SetPoint("BOTTOMLEFT",card,"BOTTOMLEFT",0,4)
+    bar:SetColorTexture(ar,ag,ab,0.8); RegAccent(bar,0.8)
+    -- Shadow bar
+    local bar2=card:CreateTexture(nil,"OVERLAY",nil,4); bar2:SetWidth(1)
+    bar2:SetPoint("TOPLEFT",card,"TOPLEFT",4,-7); bar2:SetPoint("BOTTOMLEFT",card,"BOTTOMLEFT",4,7)
+    bar2:SetColorTexture(ar,ag,ab,0.25); RegAccent(bar2,0.25)
+    -- Top-right L-bracket
+    local trH=card:CreateTexture(nil,"OVERLAY",nil,5); trH:SetSize(14,2)
+    trH:SetPoint("TOPRIGHT",card,"TOPRIGHT",-2,-2); trH:SetColorTexture(ar,ag,ab,0.45); RegAccent(trH,0.45)
+    local trV=card:CreateTexture(nil,"OVERLAY",nil,5); trV:SetSize(2,14)
+    trV:SetPoint("TOPRIGHT",card,"TOPRIGHT",-2,-2); trV:SetColorTexture(ar,ag,ab,0.45); RegAccent(trV,0.45)
+    -- Bottom-right L-bracket
+    local brH=card:CreateTexture(nil,"OVERLAY",nil,5); brH:SetSize(10,2)
+    brH:SetPoint("BOTTOMRIGHT",card,"BOTTOMRIGHT",-2,2); brH:SetColorTexture(ar,ag,ab,0.25); RegAccent(brH,0.25)
+    local brV=card:CreateTexture(nil,"OVERLAY",nil,5); brV:SetSize(2,10)
+    brV:SetPoint("BOTTOMRIGHT",card,"BOTTOMRIGHT",-2,2); brV:SetColorTexture(ar,ag,ab,0.25); RegAccent(brV,0.25)
+    return card
+  end
+  local pCardY = bodyY+22
+  local pCardH = PANE_H-2
+  PaneCard(8, pCardY, LEFT_W-2, pCardH)
+  PaneCard(LEFT_W+12, pCardY, CENTER_W+2, pCardH)
+
   -- Vertical dividers
   local function VDiv(x)
     local vl=MP.win:CreateTexture(nil,"OVERLAY",nil,3); vl:SetWidth(1)
@@ -472,49 +527,34 @@ local function BuildWindow()
   end; VDiv(LEFT_W+10); VDiv(LEFT_W+CENTER_W+16)
 
   local anaSF,anaSC=MkPane(MP.win)
-  anaSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",5,-(bodyY+16))
-  anaSF:SetPoint("BOTTOMRIGHT",MP.win,"TOPLEFT",LEFT_W+5,-(bodyY+PANE_H+16))
-  if anaSF.ScrollBar then
-    anaSF.ScrollBar:ClearAllPoints()
-    anaSF.ScrollBar:SetPoint("TOPRIGHT",    anaSF,"TOPRIGHT",    -1, 0)
-    anaSF.ScrollBar:SetPoint("BOTTOMRIGHT", anaSF,"BOTTOMRIGHT", -1, 0)
-  end
+  anaSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",12,-(bodyY+24))
+  anaSF:SetPoint("BOTTOMRIGHT",MP.win,"TOPLEFT",LEFT_W+2,-(bodyY+PANE_H+18))
   MP.win._anaSC=anaSC
 
   local histSF,histSC=MkPane(MP.win)
-  histSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",LEFT_W+12,-(bodyY+16))
-  histSF:SetPoint("BOTTOMRIGHT",MP.win,"TOPLEFT",LEFT_W+CENTER_W+10,-(bodyY+PANE_H+16))
-  if histSF.ScrollBar then
-    histSF.ScrollBar:ClearAllPoints()
-    histSF.ScrollBar:SetPoint("TOPRIGHT",    histSF,"TOPRIGHT",    -1, 0)
-    histSF.ScrollBar:SetPoint("BOTTOMRIGHT", histSF,"BOTTOMRIGHT", -1, 0)
-  end
+  histSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",LEFT_W+12,-(bodyY+24))
+  histSF:SetPoint("BOTTOMRIGHT",MP.win,"TOPLEFT",LEFT_W+CENTER_W+10,-(bodyY+PANE_H+18))
   MP.win._histSC=histSC
 
   local detSF,detSC=MkPane(MP.win)
   -- Run Details fills the full right column (from body top to above footer buttons)
-  detSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",LEFT_W+CENTER_W+18,-(bodyY+16))
+  detSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",LEFT_W+CENTER_W+18,-(bodyY+24))
   detSF:SetPoint("BOTTOMRIGHT",MP.win,"BOTTOMRIGHT",-4,28)
-  if detSF.ScrollBar then
-    detSF.ScrollBar:ClearAllPoints()
-    detSF.ScrollBar:SetPoint("TOPRIGHT",    detSF,"TOPRIGHT",    -1,  0)
-    detSF.ScrollBar:SetPoint("BOTTOMRIGHT", detSF,"BOTTOMRIGHT", -1,  0)
-  end
   MP.win._detSC=detSC
 
-  -- Graph area
+  -- Graph area with card
   local gY=bodyY+PANE_H+22
-  local gHdr=MP.win:CreateFontString(nil,"OVERLAY"); gHdr:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
-  gHdr:SetPoint("LEFT",MP.win,"LEFT",0,-gY); gHdr:SetPoint("RIGHT",MP.win,"RIGHT",0,-gY)
+  local graphCard=PaneCard(8, gY, LEFT_W+CENTER_W+8, WIN_H-gY-44)
+  graphCard:SetPoint("TOPLEFT",MP.win,"TOPLEFT",8,-gY)
+  graphCard:SetPoint("BOTTOMRIGHT",MP.win,"TOPLEFT",LEFT_W+CENTER_W+14,-WIN_H+44)
+  graphCard:SetSize(0,0) -- size from anchors
+  local gHdr=graphCard:CreateFontString(nil,"OVERLAY"); gHdr:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
+  gHdr:SetPoint("TOP",graphCard,"TOP",0,-6)
   gHdr:SetJustifyH("CENTER"); gHdr:SetTextColor(1,0.82,0); gHdr:SetText("KEY LEVEL CHART  — Best timed runs per dungeon")
   MP._goldLabels = MP._goldLabels or {}
   table.insert(MP._goldLabels, gHdr)
-  local gHolder=CreateFrame("Frame",nil,MP.win)
-  gHolder:SetPoint("TOPLEFT",MP.win,"TOPLEFT",5,-(gY+14)); gHolder:SetPoint("BOTTOMRIGHT",MP.win,"BOTTOMRIGHT",-5,52)
-  local gBg=gHolder:CreateTexture(nil,"BACKGROUND"); gBg:SetAllPoints(); gBg:SetColorTexture(0.010,0.010,0.018,1)
-  local gTopLine=gHolder:CreateTexture(nil,"OVERLAY",nil,3); gTopLine:SetHeight(1)
-  gTopLine:SetPoint("TOPLEFT"); gTopLine:SetPoint("TOPRIGHT"); gTopLine:SetColorTexture(ar,ag,ab,0.20)
-  RegAccent(gTopLine,0.20)
+  local gHolder=CreateFrame("Frame",nil,graphCard)
+  gHolder:SetPoint("TOPLEFT",graphCard,"TOPLEFT",8,-20); gHolder:SetPoint("BOTTOMRIGHT",graphCard,"BOTTOMRIGHT",-8,6)
   MP.win._gHolder=gHolder
 
   -- Footer checkboxes + buttons
@@ -614,16 +654,16 @@ local function DrawTiles(seasonData,runs)
       tile.border:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8",edgeSize=2})
       tile.border:SetBackdropBorderColor(1,0.82,0,1); tile.border:Hide()
 
-      tile.abbrFS=tile:CreateFontString(nil,"OVERLAY"); tile.abbrFS:SetFont("Fonts/FRIZQT__.TTF",18,"OUTLINE")
+      tile.abbrFS=tile:CreateFontString(nil,"OVERLAY"); tile.abbrFS:SetFont(STANDARD_TEXT_FONT,18,"OUTLINE")
       tile.abbrFS:SetPoint("TOP",tile,"TOP",0,-4); tile.abbrFS:SetTextColor(1,0.82,0)
 
-      tile.lvlFS=tile:CreateFontString(nil,"OVERLAY"); tile.lvlFS:SetFont("Fonts/FRIZQT__.TTF",20,"OUTLINE")
+      tile.lvlFS=tile:CreateFontString(nil,"OVERLAY"); tile.lvlFS:SetFont(STANDARD_TEXT_FONT,20,"OUTLINE")
       tile.lvlFS:SetPoint("CENTER",tile,"CENTER",0,2)
 
-      tile.scFS=tile:CreateFontString(nil,"OVERLAY"); tile.scFS:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE")
+      tile.scFS=tile:CreateFontString(nil,"OVERLAY"); tile.scFS:SetFont(STANDARD_TEXT_FONT,13,"OUTLINE")
       tile.scFS:SetPoint("BOTTOM",tile,"BOTTOM",0,20)
 
-      tile.nameFS=tile:CreateFontString(nil,"OVERLAY"); tile.nameFS:SetFont("Fonts/FRIZQT__.TTF",9,"")
+      tile.nameFS=tile:CreateFontString(nil,"OVERLAY"); tile.nameFS:SetFont(STANDARD_TEXT_FONT,9,"")
       tile.nameFS:SetPoint("BOTTOM",tile,"BOTTOM",0,4); tile.nameFS:SetTextColor(1,0.82,0)
       tile.nameFS:SetJustifyH("CENTER")
 
@@ -711,27 +751,27 @@ local function DrawAnalytics(teammates)
   local sc=MP.win._anaSC; ClearFrame(sc)
   local ar,ag,ab=NS.ChatGetAccentRGB(); local BD=MP.win._BD; local yOff=0; local ROW=22
   local hdr=CreateFrame("Frame",nil,sc,"BackdropTemplate"); hdr:SetHeight(ROW)
-  hdr:SetPoint("TOPLEFT",sc,"TOPLEFT",0,-yOff); hdr:SetPoint("TOPRIGHT",sc,"TOPRIGHT",0,-yOff)
+  hdr:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); hdr:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
   hdr:SetBackdrop(BD); hdr:SetBackdropColor(0.015,0.015,0.025,1); hdr:SetBackdropBorderColor(ar,ag,ab,0.22)
-  local h1=hdr:CreateFontString(nil,"OVERLAY"); h1:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
+  local h1=hdr:CreateFontString(nil,"OVERLAY"); h1:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
   h1:SetPoint("LEFT",hdr,"LEFT",4,0); h1:SetTextColor(ar,ag,ab); h1:SetText("Player")
-  local h2=hdr:CreateFontString(nil,"OVERLAY"); h2:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
+  local h2=hdr:CreateFontString(nil,"OVERLAY"); h2:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
   h2:SetPoint("RIGHT",hdr,"RIGHT",-4,0); h2:SetTextColor(ar,ag,ab); h2:SetText("Runs")
   yOff=yOff+ROW+2
   if #teammates==0 then sc:SetHeight(40)
-    local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,""); fs:SetPoint("TOP",sc,"TOP",0,-yOff)
+    local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,""); fs:SetPoint("TOP",sc,"TOP",0,-yOff)
     fs:SetTextColor(0.35,0.35,0.45); fs:SetText("No teammates yet"); return end
   for _,tm in ipairs(teammates) do
     local row=CreateFrame("Button",nil,sc,"BackdropTemplate"); row:SetHeight(ROW)
-    row:SetPoint("TOPLEFT",sc,"TOPLEFT",0,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",0,-yOff)
+    row:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
     row:SetBackdrop(BD); row:SetBackdropBorderColor(0.06,0.06,0.10,1)
     local isAct=(MP._filterPlayer==tm.rawName)
     if isAct then row:SetBackdropColor(ar*0.15,ag*0.15,ab*0.15,1) else row:SetBackdropColor(0.03,0.03,0.05,1) end
     local hex=ClassHex(tm.class); local disp=tm.rawName
     if MP._maskNames then local sh=disp:match("^([^%-]+)"); disp=(sh and sh:sub(1,3).."***" or disp) end
-    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont("Fonts/FRIZQT__.TTF",10,"")
+    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,10,"")
     nFS:SetPoint("LEFT",row,"LEFT",4,0); nFS:SetText("|c"..hex..disp.."|r")
-    local cFS=row:CreateFontString(nil,"OVERLAY"); cFS:SetFont("Fonts/FRIZQT__.TTF",10,"")
+    local cFS=row:CreateFontString(nil,"OVERLAY"); cFS:SetFont(STANDARD_TEXT_FONT,10,"")
     cFS:SetPoint("RIGHT",row,"RIGHT",-4,0); cFS:SetTextColor(0.72,0.72,0.82); cFS:SetText(tostring(tm.count))
     local cap=tm.rawName
     row:SetScript("OnClick",function() MP._filterPlayer=(MP._filterPlayer==cap) and nil or cap; MP._selRun=nil; MP.Refresh() end)
@@ -750,19 +790,19 @@ local function DrawHistory(runs,bestDates)
   local ar,ag,ab=NS.ChatGetAccentRGB(); local BD=MP.win._BD; local yOff=0; local ROW=26
   local CW={95,160,44,58,66,40}
   local hdr=CreateFrame("Frame",nil,sc,"BackdropTemplate"); hdr:SetHeight(20)
-  hdr:SetPoint("TOPLEFT",sc,"TOPLEFT",0,-yOff); hdr:SetPoint("TOPRIGHT",sc,"TOPRIGHT",0,-yOff)
+  hdr:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); hdr:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
   hdr:SetBackdrop(BD); hdr:SetBackdropColor(0.015,0.015,0.025,1); hdr:SetBackdropBorderColor(ar,ag,ab,0.22)
   local xc=3
   for i,col in ipairs({"Date","Dungeon","+Lvl","Time","Status","Deaths"}) do
-    local fs=hdr:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,"OUTLINE")
+    local fs=hdr:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,"OUTLINE")
     fs:SetPoint("LEFT",hdr,"LEFT",xc,0); fs:SetTextColor(ar,ag,ab); fs:SetText(col); xc=xc+CW[i] end
   yOff=yOff+20+2
   if #runs==0 then sc:SetHeight(40)
-    local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,""); fs:SetPoint("TOP",sc,"TOP",0,-yOff)
+    local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,""); fs:SetPoint("TOP",sc,"TOP",0,-yOff)
     fs:SetTextColor(0.35,0.35,0.45); fs:SetText("No runs match the current filters"); return end
   for _,run in ipairs(runs) do
     local row=CreateFrame("Button",nil,sc,"BackdropTemplate"); row:SetHeight(ROW)
-    row:SetPoint("TOPLEFT",sc,"TOPLEFT",0,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",0,-yOff)
+    row:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
     row:SetBackdrop(BD); row:SetBackdropBorderColor(0.06,0.06,0.10,1)
     local isAct=(MP._selRun and MP._selRun.date==run.date)
     if isAct then row:SetBackdropColor(ar*0.12,ag*0.12,ab*0.12,1) else row:SetBackdropColor(0.028,0.028,0.046,1) end
@@ -771,12 +811,12 @@ local function DrawHistory(runs,bestDates)
     local xc2=4
     local isBest=bestDates and bestDates[run.date]
     local dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "")..date("%d.%m.%y %H:%M",run.date)
-    local dFS=row:CreateFontString(nil,"OVERLAY"); dFS:SetFont("Fonts/FRIZQT__.TTF",10,""); dFS:SetPoint("LEFT",row,"LEFT",xc2,0); dFS:SetTextColor(0.50,0.50,0.62); dFS:SetText(dTxt); xc2=xc2+CW[1]
-    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont("Fonts/FRIZQT__.TTF",10,""); nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(run.mapName or "?"); xc2=xc2+CW[2]
-    local lFS=row:CreateFontString(nil,"OVERLAY"); lFS:SetFont("Fonts/FRIZQT__.TTF",11,"OUTLINE"); lFS:SetPoint("LEFT",row,"LEFT",xc2,0); lFS:SetTextColor(sr,sg,sb); lFS:SetText("+"..tostring(run.level or 0)); xc2=xc2+CW[3]
-    local tFS=row:CreateFontString(nil,"OVERLAY"); tFS:SetFont("Fonts/FRIZQT__.TTF",10,""); tFS:SetPoint("LEFT",row,"LEFT",xc2,0); tFS:SetTextColor(0.70,0.70,0.82); tFS:SetText(FmtTime(run.timeElapsed)); xc2=xc2+CW[4]
-    local stFS=row:CreateFontString(nil,"OVERLAY"); stFS:SetFont("Fonts/FRIZQT__.TTF",10,"OUTLINE"); stFS:SetPoint("LEFT",row,"LEFT",xc2,0); stFS:SetTextColor(sr,sg,sb); stFS:SetText(ST(run.status)); xc2=xc2+CW[5]
-    local d2=(run.deaths or 0); local dtFS=row:CreateFontString(nil,"OVERLAY"); dtFS:SetFont("Fonts/FRIZQT__.TTF",10,""); dtFS:SetPoint("LEFT",row,"LEFT",xc2,0)
+    local dFS=row:CreateFontString(nil,"OVERLAY"); dFS:SetFont(STANDARD_TEXT_FONT,10,""); dFS:SetPoint("LEFT",row,"LEFT",xc2,0); dFS:SetTextColor(0.50,0.50,0.62); dFS:SetText(dTxt); xc2=xc2+CW[1]
+    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,10,""); nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(run.mapName or "?"); xc2=xc2+CW[2]
+    local lFS=row:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,11,"OUTLINE"); lFS:SetPoint("LEFT",row,"LEFT",xc2,0); lFS:SetTextColor(sr,sg,sb); lFS:SetText("+"..tostring(run.level or 0)); xc2=xc2+CW[3]
+    local tFS=row:CreateFontString(nil,"OVERLAY"); tFS:SetFont(STANDARD_TEXT_FONT,10,""); tFS:SetPoint("LEFT",row,"LEFT",xc2,0); tFS:SetTextColor(0.70,0.70,0.82); tFS:SetText(FmtTime(run.timeElapsed)); xc2=xc2+CW[4]
+    local stFS=row:CreateFontString(nil,"OVERLAY"); stFS:SetFont(STANDARD_TEXT_FONT,10,"OUTLINE"); stFS:SetPoint("LEFT",row,"LEFT",xc2,0); stFS:SetTextColor(sr,sg,sb); stFS:SetText(ST(run.status)); xc2=xc2+CW[5]
+    local d2=(run.deaths or 0); local dtFS=row:CreateFontString(nil,"OVERLAY"); dtFS:SetFont(STANDARD_TEXT_FONT,10,""); dtFS:SetPoint("LEFT",row,"LEFT",xc2,0)
     dtFS:SetTextColor(d2>0 and 0.85 or 0.40,d2>0 and 0.25 or 0.40,d2>0 and 0.25 or 0.40); dtFS:SetText(d2>0 and tostring(d2) or "—")
     local capRun=run
     row:SetScript("OnClick",function() MP._selRun=(MP._selRun and MP._selRun.date==capRun.date) and nil or capRun; MP.Refresh() end)
@@ -792,14 +832,47 @@ end
 -- ─── Run details ───────────────────────────────────────────────────────────
 local function DrawDetails(run)
   local sc=MP.win._detSC; ClearFrame(sc)
-  local ar,ag,ab=NS.ChatGetAccentRGB(); local yOff=6
-  local function FS(txt,size,r,g,b,xi) local f=sc:CreateFontString(nil,"OVERLAY"); f:SetFont("Fonts/FRIZQT__.TTF",size or 10,"")
-    f:SetPoint("TOPLEFT",sc,"TOPLEFT",(xi or 5),-yOff); f:SetTextColor(r or 0.85,g or 0.85,b or 0.92); f:SetText(txt)
+  local ar,ag,ab=NS.ChatGetAccentRGB(); local yOff=4
+  local PAD=8
+  local function FS(txt,size,r,g,b,xi) local f=sc:CreateFontString(nil,"OVERLAY"); f:SetFont(STANDARD_TEXT_FONT,size or 10,"")
+    f:SetPoint("TOPLEFT",sc,"TOPLEFT",(xi or PAD),-yOff); f:SetTextColor(r or 0.85,g or 0.85,b or 0.92); f:SetText(txt)
     yOff=yOff+(size or 10)+7; return f end
-  local function Div() local d=sc:CreateTexture(nil,"ARTWORK"); d:SetHeight(1); d:SetColorTexture(ar,ag,ab,0.25)
-    d:SetPoint("TOPLEFT",sc,"TOPLEFT",0,-yOff); d:SetPoint("TOPRIGHT",sc,"TOPRIGHT",0,-yOff); yOff=yOff+8 end
+  -- Mini card: dark bg with left accent bar
+  local function CardStart()
+    local startY=yOff
+    return function()
+      local h=yOff-startY+PAD
+      local card=CreateFrame("Frame",nil,sc,"BackdropTemplate")
+      card:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+      card:SetBackdropColor(0.028,0.028,0.046,0.8)
+      card:SetBackdropBorderColor(0.08,0.08,0.13,1)
+      card:SetPoint("TOPLEFT",sc,"TOPLEFT",0,-startY)
+      card:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-2,-startY)
+      card:SetHeight(h); card:SetFrameLevel(sc:GetFrameLevel())
+      -- Left accent bar + shadow
+      local bar=card:CreateTexture(nil,"OVERLAY",nil,5); bar:SetWidth(3)
+      bar:SetPoint("TOPLEFT",0,-3); bar:SetPoint("BOTTOMLEFT",0,3)
+      bar:SetColorTexture(ar,ag,ab,0.8)
+      local bar2=card:CreateTexture(nil,"OVERLAY",nil,4); bar2:SetWidth(1)
+      bar2:SetPoint("TOPLEFT",4,-6); bar2:SetPoint("BOTTOMLEFT",4,6)
+      bar2:SetColorTexture(ar,ag,ab,0.25)
+      -- Top-right L-bracket
+      local trH=card:CreateTexture(nil,"OVERLAY",nil,5); trH:SetSize(12,2)
+      trH:SetPoint("TOPRIGHT",-2,-2); trH:SetColorTexture(ar,ag,ab,0.45)
+      local trV=card:CreateTexture(nil,"OVERLAY",nil,5); trV:SetSize(2,12)
+      trV:SetPoint("TOPRIGHT",-2,-2); trV:SetColorTexture(ar,ag,ab,0.45)
+      -- Bottom-right L-bracket
+      local brH=card:CreateTexture(nil,"OVERLAY",nil,5); brH:SetSize(8,2)
+      brH:SetPoint("BOTTOMRIGHT",-2,2); brH:SetColorTexture(ar,ag,ab,0.25)
+      local brV=card:CreateTexture(nil,"OVERLAY",nil,5); brV:SetSize(2,8)
+      brV:SetPoint("BOTTOMRIGHT",-2,2); brV:SetColorTexture(ar,ag,ab,0.25)
+      yOff=yOff+PAD+8
+    end
+  end
   if not run then sc:SetHeight(60)
     FS("Select a run to view details",10,0.40,0.40,0.50); return end
+  -- Card 1: Run Info
+  local endCard1=CardStart()
   local sr,sg,sb=SC(run.status)
   FS(string.format("%s  +%d", run.mapName or "?", run.level or 0), 13, sr,sg,sb)
   if (run.mapScore or 0)>0 then
@@ -812,34 +885,64 @@ local function DrawDetails(run)
   if (run.deaths or 0)>0 and (run.timeLost or 0)>0 then dStr=dStr.."  (-"..FmtTime(run.timeLost)..")" end
   FS("Deaths: "..dStr, 10, (run.deaths or 0)>0 and 0.90 or 0.48, (run.deaths or 0)>0 and 0.25 or 0.52, 0.25)
   if run.affixes and #run.affixes>0 then
-    yOff=yOff+4; FS("Affixes:", 10, 0.80,0.80,0.90)
+    yOff=yOff+2; FS("Affixes:", 10, 0.80,0.80,0.90)
     for _,affID in ipairs(run.affixes) do local nm,_,fid=C_ChallengeMode.GetAffixInfo(affID)
       local ico=fid and ("|T"..fid..":12:12:0:0:64:64:4:60:4:60|t ") or ""
-      FS(ico..(nm or ("Affix "..affID)), 10, 0.72,0.72,0.85, 12) end end
-  -- Roster
+      FS(ico..(nm or ("Affix "..affID)), 10, 0.72,0.72,0.85, 14) end end
+  endCard1()
+  -- Card 2: Roster
   if run.roster and next(run.roster) then
-    yOff=yOff+8; Div(); FS("ROSTER", 9, ar,ag,ab)
+    local endCard2=CardStart()
+    FS("ROSTER", 9, ar,ag,ab)
     local RORD={TANK=1,HEALER=2,DAMAGER=3}
     local roster={}; for nm,d in pairs(run.roster) do table.insert(roster,{name=nm,class=d.class,role=d.role}) end
     table.sort(roster,function(a,b) return (RORD[a.role] or 4)<(RORD[b.role] or 4) end)
-    local RI={TANK="|TInterface\LFGFrame\UI-LFG-ICON-PORTRAITROLES:13:13:0:0:64:64:0:19:22:41|t",
-              HEALER="|TInterface\LFGFrame\UI-LFG-ICON-PORTRAITROLES:13:13:0:0:64:64:20:39:1:20|t",
-              DAMAGER="|TInterface\LFGFrame\UI-LFG-ICON-PORTRAITROLES:13:13:0:0:64:64:20:39:22:41|t"}
+    local RI={TANK="|TInterface/AddOns/LucidUI/Assets/Tank.png:16:16|t",
+              HEALER="|TInterface/AddOns/LucidUI/Assets/Heal.png:16:16|t",
+              DAMAGER="|TInterface/AddOns/LucidUI/Assets/Dps.png:16:16|t"}
     for _,p in ipairs(roster) do local hex=ClassHex(p.class); local disp=p.name
       if MP._maskNames then local sh=disp:match("^([^%-]+)"); disp=(sh and sh:sub(1,3).."***" or disp) end
-      FS((RI[p.role] or RI.DAMAGER).." |c"..hex..disp.."|r", 10, 0.85,0.85,0.92, 5) end end
-  -- Loot
+      FS((RI[p.role] or RI.DAMAGER).." |c"..hex..disp.."|r", 10, 0.85,0.85,0.92, PAD) end
+    endCard2()
+  end
+  -- Card 3: Loot
   if run.loot and #run.loot>0 then
-    yOff=yOff+8; Div(); FS("LOOT", 9, ar,ag,ab)
-    for _,item in ipairs(run.loot) do FS(item.link or "?", 10, 0.85,0.85,0.92, 5)
+    local endCard3=CardStart()
+    FS("LOOT", 9, ar,ag,ab)
+    for _,item in ipairs(run.loot) do
+      local linkText = item.link or "?"
+      local lootBtn = CreateFrame("Button",nil,sc)
+      lootBtn:SetHeight(16); lootBtn:SetPoint("TOPLEFT",sc,"TOPLEFT",PAD,-yOff)
+      lootBtn:SetPoint("TOPRIGHT",sc,"TOPRIGHT",0,-yOff)
+      local lfs = lootBtn:CreateFontString(nil,"OVERLAY"); lfs:SetFont(STANDARD_TEXT_FONT,10,"")
+      lfs:SetPoint("LEFT",0,0); lfs:SetText(linkText)
+      local capLink = item.link
+      lootBtn:SetScript("OnEnter",function(self2)
+        if capLink then
+          GameTooltip:SetOwner(self2,"ANCHOR_RIGHT")
+          GameTooltip:SetHyperlink(capLink)
+          GameTooltip:Show()
+        end
+      end)
+      lootBtn:SetScript("OnLeave",function() GameTooltip:Hide() end)
+      lootBtn:SetScript("OnClick",function(_,btn)
+        if capLink and IsShiftKeyDown() then
+          local eb = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
+          if eb then eb:Insert(capLink) end
+        end
+      end)
+      yOff=yOff+17
       local own=item.currentOwner or "?"
       if MP._maskNames then local sh=own:match("^([^%-]+)"); own=(sh and sh:sub(1,3).."***" or own) end
-      FS("  → "..own, 9, 0.50,0.50,0.62) end end
+      FS("  |TInterface/AddOns/LucidUI/Assets/Crown.png:10:10|t "..own, 9, 0.50,0.50,0.62)
+    end
+    endCard3()
+  end
   -- Delete button
   local delBtn=CreateFrame("Button",nil,sc,"BackdropTemplate"); delBtn:SetSize(68,18)
   delBtn:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-3,-3); local BD2=MP.win._BD
   delBtn:SetBackdrop(BD2); delBtn:SetBackdropColor(0.08,0.02,0.02,1); delBtn:SetBackdropBorderColor(0.28,0.08,0.08,1)
-  local dLbl=delBtn:CreateFontString(nil,"OVERLAY"); dLbl:SetFont("Fonts/FRIZQT__.TTF",9,""); dLbl:SetPoint("CENTER")
+  local dLbl=delBtn:CreateFontString(nil,"OVERLAY"); dLbl:SetFont(STANDARD_TEXT_FONT,9,""); dLbl:SetPoint("CENTER")
   dLbl:SetTextColor(0.65,0.18,0.18); dLbl:SetText("Delete Run")
   delBtn:SetScript("OnEnter",function() delBtn:SetBackdropBorderColor(1,0.25,0.25,1); dLbl:SetTextColor(1,0.35,0.35) end)
   delBtn:SetScript("OnLeave",function() delBtn:SetBackdropBorderColor(0.28,0.08,0.08,1); dLbl:SetTextColor(0.65,0.18,0.18) end)
@@ -880,7 +983,7 @@ local function DrawGraph(runs,seasonData)
     for _,r in ipairs(runs) do if r.mapID==MP._filterMap and SR(r.status)>=3 then table.insert(graphRuns,r) end end
     table.sort(graphRuns,function(a,b) return (a.date or 0)>(b.date or 0) end)
     local maxN=math.floor(CW2/28); while #graphRuns>maxN do table.remove(graphRuns) end end
-  if #graphRuns==0 then local fs=holder:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,"")
+  if #graphRuns==0 then local fs=holder:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,"")
     fs:SetPoint("CENTER"); fs:SetTextColor(0.35,0.35,0.45); fs:SetText("No timed runs to display"); return end
   local maxLv=0; for _,r in ipairs(graphRuns) do if (r.level or 0)>maxLv then maxLv=r.level end end; if maxLv==0 then maxLv=1 end
   -- Grid
@@ -888,7 +991,7 @@ local function DrawGraph(runs,seasonData)
     local gl=holder:CreateTexture(nil,"ARTWORK"); gl:SetHeight(1)
     gl:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",PL,yPx); gl:SetPoint("BOTTOMRIGHT",holder,"BOTTOMRIGHT",-PR,yPx)
     gl:SetColorTexture(1,1,1,0.05)
-    local vlbl=holder:CreateFontString(nil,"OVERLAY"); vlbl:SetFont("Fonts/FRIZQT__.TTF",8,"")
+    local vlbl=holder:CreateFontString(nil,"OVERLAY"); vlbl:SetFont(STANDARD_TEXT_FONT,8,"")
     vlbl:SetPoint("BOTTOMRIGHT",holder,"BOTTOMLEFT",PL-2,yPx); vlbl:SetTextColor(0.38,0.38,0.50)
     vlbl:SetJustifyH("RIGHT"); vlbl:SetText("+"..tostring(math.floor(maxLv*yFrac))) end
   local base=holder:CreateTexture(nil,"ARTWORK"); base:SetHeight(1)
@@ -948,10 +1051,10 @@ local function DrawGraph(runs,seasonData)
     bar:SetColorTexture(sr2*0.65,sg2*0.65,sb2*0.65,0.88)
     local cap=holder:CreateTexture(nil,"ARTWORK"); cap:SetSize(BAR_W,3)
     cap:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB,PB+bh-3); cap:SetColorTexture(sr2,sg2,sb2,1)
-    local lFS=holder:CreateFontString(nil,"OVERLAY"); lFS:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
+    local lFS=holder:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
     lFS:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB+2,PB+bh+2); lFS:SetTextColor(1,1,1); lFS:SetText("+"..tostring(run.level))
     local abbr=(not MP._filterMap and seasonData and seasonData.dungeons and seasonData.dungeons[run.mapID] and seasonData.dungeons[run.mapID].abbr) or ""
-    local dnFS=holder:CreateFontString(nil,"OVERLAY"); dnFS:SetFont("Fonts/FRIZQT__.TTF",8,"")
+    local dnFS=holder:CreateFontString(nil,"OVERLAY"); dnFS:SetFont(STANDARD_TEXT_FONT,8,"")
     dnFS:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB,4); dnFS:SetTextColor(0.38,0.38,0.50)
     dnFS:SetText(MP._filterMap and date("%d/%m",run.date) or abbr)
     local hit=CreateFrame("Frame",nil,holder); hit:SetSize(BAR_W+BAR_GAP,CH+PB)
@@ -1073,7 +1176,7 @@ function MP.SetupSettings(parent)
   openBtn:SetBackdrop(BD); openBtn:SetBackdropColor(0.04,0.04,0.07,1); openBtn:SetBackdropBorderColor(0.12,0.12,0.20,1)
   local oCut=openBtn:CreateTexture(nil,"OVERLAY",nil,4); oCut:SetSize(10,1); oCut:SetPoint("TOPRIGHT",openBtn,"TOPRIGHT",0,-1)
   do local _ar,_ag,_ab=NS.ChatGetAccentRGB(); oCut:SetColorTexture(_ar,_ag,_ab,0.22) end
-  local oFS=openBtn:CreateFontString(nil,"OVERLAY"); oFS:SetFont("Fonts/FRIZQT__.TTF",11,""); oFS:SetPoint("CENTER"); oFS:SetTextColor(0.75,0.75,0.85); oFS:SetText("Open Mythic+ History")
+  local oFS=openBtn:CreateFontString(nil,"OVERLAY"); oFS:SetFont(STANDARD_TEXT_FONT,11,""); oFS:SetPoint("CENTER"); oFS:SetTextColor(0.75,0.75,0.85); oFS:SetText("Open Mythic+ History")
   openBtn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); openBtn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
   openBtn:SetScript("OnLeave",function() openBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   openBtn:SetScript("OnClick",function() MP.ShowWindow() end)
@@ -1082,8 +1185,8 @@ function MP.SetupSettings(parent)
   for _,lbl in ipairs({"Total runs","Timed","Depleted/Abandoned","Best key level","Total deaths","Overall M+ Score"}) do
     local holder=CreateFrame("Frame",nil,cS.inner); holder:SetHeight(22); cS:Row(holder,22)
     holder:SetPoint("LEFT",cS.inner,"LEFT",0,0); holder:SetPoint("RIGHT",cS.inner,"RIGHT",0,0)
-    local lFS=holder:CreateFontString(nil,"OVERLAY"); lFS:SetFont("Fonts/FRIZQT__.TTF",10,""); lFS:SetPoint("LEFT",holder,"LEFT",20,0); lFS:SetTextColor(0.50,0.50,0.60); lFS:SetText(lbl)
-    local vFS=holder:CreateFontString(nil,"OVERLAY"); vFS:SetFont("Fonts/FRIZQT__.TTF",10,"OUTLINE"); vFS:SetPoint("RIGHT",holder,"RIGHT",-20,0); vFS:SetJustifyH("RIGHT"); vFS:SetTextColor(0.85,0.85,0.92)
+    local lFS=holder:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,10,""); lFS:SetPoint("LEFT",holder,"LEFT",20,0); lFS:SetTextColor(0.50,0.50,0.60); lFS:SetText(lbl)
+    local vFS=holder:CreateFontString(nil,"OVERLAY"); vFS:SetFont(STANDARD_TEXT_FONT,10,"OUTLINE"); vFS:SetPoint("RIGHT",holder,"RIGHT",-20,0); vFS:SetJustifyH("RIGHT"); vFS:SetTextColor(0.85,0.85,0.92)
     statLines[#statLines+1]=vFS end
   cS:Finish(); Add(cS); Add(Sep(sc),9)
 
@@ -1124,7 +1227,7 @@ function MP.SetupSettings(parent)
     end)
 
     if #graphRuns==0 then
-      local fs=graphHolder:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,"")
+      local fs=graphHolder:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,"")
       fs:SetPoint("CENTER",graphHolder,"CENTER"); fs:SetTextColor(0.35,0.35,0.45)
       fs:SetText("Complete Mythic+ keys to see stats here"); return
     end
@@ -1151,7 +1254,7 @@ function MP.SetupSettings(parent)
       gl:SetPoint("BOTTOMLEFT",graphHolder,"BOTTOMLEFT",PL,yPx)
       gl:SetPoint("BOTTOMRIGHT",graphHolder,"BOTTOMRIGHT",-PR,yPx)
       gl:SetColorTexture(1,1,1,0.05)
-      local vlbl=graphHolder:CreateFontString(nil,"OVERLAY"); vlbl:SetFont("Fonts/FRIZQT__.TTF",7,"")
+      local vlbl=graphHolder:CreateFontString(nil,"OVERLAY"); vlbl:SetFont(STANDARD_TEXT_FONT,7,"")
       vlbl:SetPoint("BOTTOMRIGHT",graphHolder,"BOTTOMLEFT",PL-2,yPx)
       vlbl:SetTextColor(0.38,0.38,0.50); vlbl:SetJustifyH("RIGHT")
       vlbl:SetText("+"..tostring(math.floor(maxLv*yFrac)))
@@ -1174,12 +1277,12 @@ function MP.SetupSettings(parent)
       cap:SetPoint("BOTTOMLEFT",graphHolder,"BOTTOMLEFT",currentX,PB+bh-2)
       cap:SetColorTexture(sr2,sg2,sb2,1)
 
-      local lFS=graphHolder:CreateFontString(nil,"OVERLAY"); lFS:SetFont("Fonts/FRIZQT__.TTF",8,"OUTLINE")
+      local lFS=graphHolder:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,8,"OUTLINE")
       lFS:SetPoint("BOTTOMLEFT",graphHolder,"BOTTOMLEFT",currentX+1,PB+bh+2)
       lFS:SetTextColor(1,1,1); lFS:SetText("+"..tostring(run.level))
 
       local abbr=(seasonData and seasonData.dungeons and seasonData.dungeons[run.mapID] and seasonData.dungeons[run.mapID].abbr) or ""
-      local dnFS=graphHolder:CreateFontString(nil,"OVERLAY"); dnFS:SetFont("Fonts/FRIZQT__.TTF",7,"")
+      local dnFS=graphHolder:CreateFontString(nil,"OVERLAY"); dnFS:SetFont(STANDARD_TEXT_FONT,7,"")
       dnFS:SetPoint("BOTTOMLEFT",graphHolder,"BOTTOMLEFT",currentX,4)
       dnFS:SetTextColor(0.38,0.38,0.50); dnFS:SetText(abbr)
 

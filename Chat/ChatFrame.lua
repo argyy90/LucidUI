@@ -87,7 +87,7 @@ local FILTER_CATS = {
       "CHAT_MSG_PET_BATTLE_COMBAT_LOG","CHAT_MSG_PET_BATTLE_INFO",
       "CHAT_MSG_PING",
   }},
-  { key="ADDONS", label = "Addons", events = {
+  { key="ADDONS", label = "Addon Messages", events = {
       "LUI_ADDON",
   }},
 }
@@ -379,6 +379,8 @@ RedrawDisplay = function(quickMode)
       local show
       if not entry.event then
         show = true  -- addon/system messages without event tag always show
+      elseif activeTab == 1 and entry.event == "LUI_ADDON" then
+        show = true  -- addon messages always show in General tab
       elseif flt then
         show = flt[entry.event] or (EVENT_PAIRS[entry.event] and flt[EVENT_PAIRS[entry.event]]) or false
       else
@@ -460,9 +462,11 @@ local f1 = ChatFrame1
 if f1 then
   hooksecurefunc(f1, "AddMessage", function(self, msg, r, g, b, infoID, accessID, typeID, event, ...)
     if not msg then return end
-    local ok, safe = pcall(tostring, msg)
-    if not ok then return end
-    msg = safe
+    local protected = issecretvalue and issecretvalue(msg)
+    if not protected then
+      local ok, safe = pcall(string.format, "%s", msg)
+      if ok then msg = safe end
+    end
     -- Use cached event from message filter (most reliable), then AddMessage param, then fallback
     local evTag = event or _pendingEventType or "LUI_ADDON"
     _pendingEventType = nil
@@ -489,29 +493,29 @@ end
 -- ── AddToDisplay ─────────────────────────────────────────────────────
 
 AddToDisplay = function(index, msg, r, g, b, event, channelName, unixTime)
-  if msg then
-    local ok, safe = pcall(tostring, msg)
-    if not ok then return end
-    msg = safe
-  else
-    msg = ""
+  if not msg then msg = "" end
+  local protected = issecretvalue and issecretvalue(msg)
+  if not protected then
+    local ok, safe = pcall(string.format, "%s", msg)
+    if ok then msg = safe end
   end
-  -- Note: msg from AddMessage is always a regular Lua string — never a secret value.
-  -- The previous pcall(string.len) guard was blocking combat chat. Removed.
   local d = customDisplays[index]
   if not d then return end
   if not isRerendering then
     local t = unixTime or time()
     StoreMessage(index, msg, r, g, b, t, event, channelName)
-    local cleanOk, cleanMsg = pcall(function()
-      return msg
-        :gsub("^|cff%x%x%x%x%x%x%d?%d?:?%d%d:?%d?%d?[APMapm ]*|r ", "")
-        :gsub("^%d?%d?:?%d%d:?%d?%d?[APMapm ]* ", "")
-        :gsub("^|cff%x%x%x%x%x%x|||r ", "")
-    end)
-    if not cleanOk then cleanMsg = msg end
-    if NS.ChatFormatURLs then cleanMsg = NS.ChatFormatURLs(cleanMsg) end
-    if NS.ChatShortenChannel then cleanMsg = NS.ChatShortenChannel(cleanMsg) end
+    local cleanMsg = msg
+    if not protected then
+      local cleanOk, cleaned = pcall(function()
+        return msg
+          :gsub("^|cff%x%x%x%x%x%x%d?%d?:?%d%d:?%d?%d?[APMapm ]*|r ", "")
+          :gsub("^%d?%d?:?%d%d:?%d?%d?[APMapm ]* ", "")
+          :gsub("^|cff%x%x%x%x%x%x|||r ", "")
+      end)
+      if cleanOk then cleanMsg = cleaned end
+      if NS.ChatFormatURLs then cleanMsg = NS.ChatFormatURLs(cleanMsg) end
+      if NS.ChatShortenChannel then cleanMsg = NS.ChatShortenChannel(cleanMsg) end
+    end
     local ts = NS.ChatFormatTimestamp(t)
     local processedMsg = {t = cleanMsg or "", r = r or 1, g = g or 1, b = b or 1, prefix = ts, ts = t}
 
@@ -525,6 +529,8 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName, unixTime)
         local flt = td.eventSet
         local show
         if not event then
+          show = true
+        elseif tabIdx == 1 and event == "LUI_ADDON" then
           show = true
         elseif flt then
           show = flt[event] or (EVENT_PAIRS[event] and flt[EVENT_PAIRS[event]]) or false
@@ -572,11 +578,20 @@ end
 -- ── Tab bar ──────────────────────────────────────────────────────────
 
 local measureFS = nil
+local function GetTabFont()
+  local font = NS.GetFontPath(NS.DB("chatFont") or NS.DB("font"))
+  local size = (NS.DB("chatFontSize") or 14) - 2
+  local outline = NS.DB("chatFontOutline") or ""
+  return font, size, outline
+end
+
 local function MeasureTabWidth(text)
   if not measureFS then
     measureFS = UIParent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     measureFS:Hide()
   end
+  local font, size, outline = GetTabFont()
+  measureFS:SetFont(font, size, outline)
   measureFS:SetText(text or "")
   return math.max(measureFS:GetStringWidth() + 16, 40)
 end
@@ -824,7 +839,9 @@ RebuildTabButtons = function()
       btn._sep = sep
     end
 
-    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local label = btn:CreateFontString(nil, "OVERLAY")
+    local tabFont, tabSize, tabOutline = GetTabFont()
+    label:SetFont(tabFont, tabSize, tabOutline)
     label:SetAllPoints()
     label:SetJustifyH("CENTER")
     label:SetText(td.name)
@@ -896,6 +913,7 @@ RebuildTabButtons = function()
         if wasDragging then
           wasDragging = false
           SaveTabData()
+          RebuildTabButtons()
         end
       end)
     end

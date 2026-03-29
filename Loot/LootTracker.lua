@@ -307,6 +307,34 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
   local L  = LucidUIL
   if ev == "ADDON_LOADED" and msg:lower() == ADDON_NAME:lower() then
     LucidUIDB = LucidUIDB or {}
+    -- Migrate: move stale _profiles["Default"] to _defaultSnapshot
+    if LucidUIDB._profiles and LucidUIDB._profiles["Default"] then
+      if not LucidUIDB._defaultSnapshot then
+        LucidUIDB._defaultSnapshot = LucidUIDB._profiles["Default"]
+      end
+      LucidUIDB._profiles["Default"] = nil
+    end
+    -- Apply active profile on load (only when profile actually changed)
+    local activeProfile = LucidUIDB._activeProfile or "Default"
+    if activeProfile ~= LucidUIDB._lastAppliedProfile then
+      local profileData
+      if activeProfile == "Default" then
+        profileData = LucidUIDB._defaultSnapshot
+      else
+        local profiles = LucidUIDB._profiles
+        profileData = profiles and profiles[activeProfile]
+      end
+      if profileData then
+        local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, _lastAppliedProfile=true, history=true, chatHistory=true, debugHistory=true, chatTabs=true, _sessionData=true, _rollData=true, _rollEncounter=true}
+        for k in pairs(LucidUIDB) do
+          if not skip[k] then LucidUIDB[k] = nil end
+        end
+        for k, v in pairs(profileData) do
+          if not skip[k] then LucidUIDB[k] = v end
+        end
+      end
+      LucidUIDB._lastAppliedProfile = activeProfile
+    end
     -- Locales.lua handles language via GetLocale() at load time
     -- Restore custom accent color from DB before building any windows
     if LucidUIDB.theme == "custom" and LucidUIDB.customTilders then
@@ -321,7 +349,11 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
     if not NS.win then LucidUIDB = LucidUIDB or {}; BuildWindow() end
     local pn, pr = UnitFullName("player")
     NS.characterFullName = (pn and pr) and (pn.."-"..pr) or (pn or UnitName("player"))
-    if DB("clearOnReload") and LucidUIDB then LucidUIDB.history = {} end
+    if (DB("clearOnReload") or DB("clearOnLogin")) and LucidUIDB then
+      LucidUIDB.history = {}
+      LucidUIDB._rollData = nil; LucidUIDB._rollEncounter = nil
+      NS.rollSessions = {}; NS.currentEncounterName = nil
+    end
     NS.LoadHistory()
     -- Register loot events only if loot tracking is enabled
     RegisterLootEvents()
@@ -365,33 +397,10 @@ end)
 -- Slash commands
 -- ============================================================
 SlashCmdList["LUCIDUI"] = function(input)
-  local L = LucidUIL
   input = (input or ""):lower():match("^%s*(.-)%s*$")
   if input == "reset" then
-    LucidUIDB.position = nil; LucidUIDB.size = nil
-    if NS.win then
-      NS.win:ClearAllPoints()
-      NS.win:SetPoint("CENTER",UIParent,"CENTER",0,0)
-      NS.win:SetSize(unpack(NS.DB_DEFAULTS.size))
-      NS.SavePosition(); NS.SaveSize()
-    end
-    for k,v in pairs(NS.DB_DEFAULTS) do
-      if k ~= "position" and k ~= "size" then
-        if type(v) == "table" then NS.DBSet(k, {unpack(v)})
-        else NS.DBSet(k, v) end
-      end
-    end
-    if NS.win then
-      NS.win.locked = false; NS.win:SetMovable(true); NS.win:SetResizable(true)
-      if NS.resizeWidget then NS.resizeWidget:Show() end
-    end
-    NS.DBSet("titleName", "Loot Tracker"); NS.DBSet("showBrackets", true)
-    NS.DBSet("autoScroll", true);         NS.DBSet("maxLines", 50)
-    NS.DBSet("showOnlyOwnLoot", false);   NS.DBSet("showRealmName", false)
-    NS.DBSet("minQuality", 0)
-    NS.ApplyTheme("default"); NS.ApplyAlpha(); NS.ApplyTitleAlpha()
-    NS.ApplyFade(); NS.ApplyFontSize(); NS.ApplySpacing()
-    print("|cffffcc00LucidUI|r: " .. L["reset_done"])
+    LucidUIDB = {}
+    ReloadUI()
   else
     if NS.BuildChatOptionsWindow then NS.BuildChatOptionsWindow() end
   end

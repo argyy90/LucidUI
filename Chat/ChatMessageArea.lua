@@ -15,7 +15,7 @@ function NS.CreateChatMessageArea(parent, name)
   local FACE    = "Fonts/FRIZQT__.TTF"
   local SIZE    = 14
   local OUTLINE = ""
-  local LINE_H  = 18
+  local LINE_H  = 20
   local maxMsg  = 200
   local offset  = 0
   local msgs    = {}
@@ -27,9 +27,9 @@ function NS.CreateChatMessageArea(parent, name)
   local SEP_GAP_L = 0
   local SEP_GAP_R = 6
   local ROW_GAP   = 0
-  local SEP_INSET_TOP = 6
+  local SEP_INSET_TOP = 8
   local SEP_INSET_BOT = 4
-  local TS_Y_OFFSET   = -6
+  local TS_Y_OFFSET   = -8
 
   -- Fading
   local fadingEnabled = false
@@ -322,10 +322,27 @@ function NS.CreateChatMessageArea(parent, name)
       s.contentFS:AddMessage(m.t, m.r, m.g, m.b)
 
       local cw = frame:GetWidth() - cLeftX - (SB_W + 4)
-      s.measureFS:SetWidth(cw > 0 and cw or 200)
-      s.measureFS:SetText(m.t)
-      local strH = s.measureFS:GetStringHeight()
-      local h = (strH and strH > 0) and (math.ceil(strH / LINE_H) * LINE_H) or LINE_H
+      local h = LINE_H
+      -- Try measuring; if text is tainted, estimate from string length
+      local measured = false
+      local lenOk, textLen = pcall(string.len, m.t)
+      if lenOk and textLen then
+        -- Not tainted — measure precisely
+        s.measureFS:SetWidth(cw > 0 and cw or 200)
+        s.measureFS:SetText(m.t)
+        local strH = s.measureFS:GetStringHeight()
+        if strH and strH > 0 then
+          h = math.max(LINE_H, math.ceil(strH / LINE_H) * LINE_H)
+          measured = true
+        end
+      end
+      if not measured then
+        -- Tainted text: estimate lines from average char width
+        local charsPerLine = math.max(1, math.floor((cw > 0 and cw or 200) / (SIZE * 0.6)))
+        local estLen = 80 -- conservative default for tainted strings
+        local estLines = math.max(1, math.ceil(estLen / charsPerLine))
+        h = estLines * LINE_H
+      end
       h = math.max(LINE_H, h)
       s.contentFS:SetHeight(h)
       s.contentFS:Show()
@@ -549,7 +566,7 @@ function NS.CreateChatMessageArea(parent, name)
 
   function frame:SetFont(face, size, outline)
     FACE = face or FACE; SIZE = size or SIZE; OUTLINE = outline or ""
-    LINE_H = math.ceil(SIZE * 1.2) + 2
+    LINE_H = math.ceil(SIZE * 1.4) + 2
     recomputeTsColW()
     for _, s in ipairs(slots) do
       applyFont(s.tsFS, FACE, SIZE, OUTLINE)

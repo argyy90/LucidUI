@@ -124,6 +124,7 @@ local function MakeCard(sc,title)
     fs:SetPoint("TOPLEFT",10,-7)
     fs:SetTextColor(ar,ag,ab,1)
     fs:SetText("> "..title:upper())
+    card._titleFS = fs
     table.insert(NS.chatOptAccentTextures,{tex=fs,isFS=true,alpha=1})
     -- Dashed separator after title (4 segments)
     DashRow(card,"OVERLAY",12,20, 18,6,5, 0.18)
@@ -497,6 +498,7 @@ local function SetupText(parent)
       if NS.chatDisplay.SetShadowOffset then NS.chatDisplay:SetShadowOffset(shadow and 1 or 0,shadow and -1 or 0); NS.chatDisplay:SetShadowColor(0,0,0,shadow and 0.8 or 0) end
     end
     if NS.smf then NS.smf:SetFont(font,size,outline) end
+    if NS.chatRebuildTabs then NS.chatRebuildTabs() end
   end
   local cFont=MakeCard(sc,"Chat Font")
   local fontDD=NS.ChatGetDropdown(cFont.inner,"Message Font"); R(cFont,fontDD,50); table.insert(all,fontDD)
@@ -721,6 +723,22 @@ local function SetupAdvanced(parent)
     if button._ltDeleteBtn then button._ltDeleteBtn:Hide() end
   end
 
+  -- Save current settings into the active profile before switching
+  local function SaveCurrentProfile()
+    local cur = LucidUIDB._activeProfile or "Default"
+    local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, history=true, chatHistory=true, debugHistory=true, chatTabs=true, _sessionData=true, _rollData=true, _rollEncounter=true}
+    local snapshot = {}
+    for k, v in pairs(LucidUIDB) do
+      if not skip[k] then snapshot[k] = v end
+    end
+    if cur == "Default" then
+      LucidUIDB._defaultSnapshot = snapshot
+    else
+      LucidUIDB._profiles = LucidUIDB._profiles or {}
+      LucidUIDB._profiles[cur] = snapshot
+    end
+  end
+
   NS._RebuildProfileMenu = function()
     profileDD:SetupMenu(function(_, rootDescription)
       local profiles = LucidUIDB and LucidUIDB._profiles or {}
@@ -731,6 +749,7 @@ local function SetupAdvanced(parent)
         function() return currentProfile == "Default" end,
         function()
           if currentProfile ~= "Default" then
+            SaveCurrentProfile()
             LucidUIDB._activeProfile = "Default"
             StaticPopup_Show("LUCIDUI_CHAT_RELOAD")
           end
@@ -749,6 +768,7 @@ local function SetupAdvanced(parent)
           function() return currentProfile == capName end,
           function()
             if currentProfile ~= capName then
+              SaveCurrentProfile()
               LucidUIDB._activeProfile = capName
               StaticPopup_Show("LUCIDUI_CHAT_RELOAD")
             end
@@ -980,6 +1000,8 @@ local function SetupAdvanced(parent)
               profileData[k] = Deserialize(v)
             end
           end
+          -- Save current profile before switching
+          SaveCurrentProfile()
           -- Save as named profile
           LucidUIDB._profiles = LucidUIDB._profiles or {}
           LucidUIDB._profiles[profileName] = profileData
@@ -1076,6 +1098,7 @@ local EVENT_LABELS = {
   SYSTEM="System", CHANNEL="Channel", AFK="AFK", DND="DND",
   FILTERED="Filtered", RESTRICTED="Restricted", IGNORED="Ignored",
   BN_INLINE_TOAST_ALERT="BNet Toast",
+  LUI_ADDON="All Addon Messages",
 }
 
 local function SetupMessageColors(parent)
@@ -1888,24 +1911,22 @@ end
 
 local function SetupTabSettings(parent)
   local container = CreateFrame("Frame", nil, parent)
-  local allFrames = {}
+  local sc, Add = MakePage(container)
   local dropdowns = {}
   local builtUI   = false
   local currentTabIdx = 1
 
-  local filtersHeader = NS.ChatGetHeader(container, "Tab Settings")
-  filtersHeader:SetPoint("TOP")
-  table.insert(allFrames, filtersHeader)
+  local headerCard = MakeCard(sc, "Message Types")
 
   local function UpdateHeader()
     local tData = NS.chatTabData and NS.chatTabData()
     local td = tData and tData[currentTabIdx]
     local tabName = td and td.name or "\226\128\148"
-    filtersHeader.text:SetText(
-      "|cff" .. NS.ChatGetAccentHex() .. ">|r" ..
-      " |cffffffff" .. "Message Types" .. "|r" ..
-      " |cff808080(Tab: " .. tabName .. ")|r"
-    )
+    local hex = NS.ChatGetAccentHex()
+    -- Update card title to show tab name
+    if headerCard._titleFS then
+      headerCard._titleFS:SetText("|cff" .. hex .. "> |r|cffffffffMessage Types|r |cff808080(Tab: " .. tabName .. ")|r")
+    end
   end
 
   local function RefreshDropdowns()
@@ -1916,10 +1937,9 @@ local function SetupTabSettings(parent)
 
   local function MakeCatDropdown(cat)
     local capturedCat = cat
-    local dd = NS.ChatGetDropdown(container, cat.label)
-    dd:SetPoint("TOP", allFrames[#allFrames], "BOTTOM", 0, 0)
+    local dd = NS.ChatGetDropdown(headerCard.inner, cat.label)
     dd.DropDown:SetDefaultText("|cff808080All|r")
-    table.insert(allFrames, dd)
+    headerCard:Row(dd, 50)
     table.insert(dropdowns, dd)
 
     dd.DropDown:SetupMenu(function(_, rootDescription)
@@ -2005,10 +2025,9 @@ local function SetupTabSettings(parent)
   end
 
   local function MakeChannelsDropdown()
-    local dd = NS.ChatGetDropdown(container, "Channels")
-    dd:SetPoint("TOP", allFrames[#allFrames], "BOTTOM", 0, 0)
+    local dd = NS.ChatGetDropdown(headerCard.inner, "Channels")
     dd.DropDown:SetDefaultText("|cff808080All|r")
-    table.insert(allFrames, dd)
+    headerCard:Row(dd, 50)
     table.insert(dropdowns, dd)
 
     dd.DropDown:SetupMenu(function(_, rootDescription)
@@ -2094,7 +2113,7 @@ local function SetupTabSettings(parent)
     if not cats then return end
     local byKey = {}
     for _, cat in ipairs(cats) do byKey[cat.key] = cat end
-    local order = {"MESSAGES", "CREATURE", "REWARDS", "PVP", "SYSTEM"}
+    local order = {"MESSAGES", "CREATURE", "REWARDS", "PVP", "SYSTEM", "ADDONS"}
     for _, key in ipairs(order) do
       if key == "MESSAGES" and byKey[key] then
         MakeCatDropdown(byKey[key])
@@ -2103,6 +2122,8 @@ local function SetupTabSettings(parent)
         MakeCatDropdown(byKey[key])
       end
     end
+    headerCard:Finish()
+    Add(headerCard)
   end
 
   function container:ShowSettings(tabIdx)
@@ -2193,8 +2214,8 @@ NS.DrawPCBBackground = function(frame, W, H, headerH, xOffset)
   H_(x3-100,y3+280,100,0.07); Node(x3-100,y3+280)
   Glow(x3,y3+60); Glow(x3,y3+160); Glow(x3-120,y3+60)
 
-  -- T4: mid horizontal bus
-  local x4,y4=CX+15,CY+120
+  -- T4: mid horizontal bus (~20% down)
+  local x4,y4=CX+15,CY+math.floor(CH*0.20)
   if y4<H then
     H_(x4,y4,CW-20,0.09); Node(x4+60,y4); Node(x4+160,y4); Node(x4+280,y4)
     V_(x4+60,y4,60,0.08); H_(x4+60,y4+60,80,0.07); Cap(x4+140,y4+60,false)
@@ -2203,8 +2224,8 @@ NS.DrawPCBBackground = function(frame, W, H, headerH, xOffset)
     Glow(x4+60,y4); Glow(x4+160,y4); Glow(x4+280,y4)
   end
 
-  -- T5: second horizontal bus
-  local x5,y5=CX+20,CY+240
+  -- T5: second horizontal bus (~40% down)
+  local x5,y5=CX+20,CY+math.floor(CH*0.40)
   if y5<H then
     H_(x5,y5,CW-30,0.08); Node(x5+100,y5); Node(x5+250,y5)
     V_(x5+100,y5,80,0.08); H_(x5+100,y5+80,110,0.07)
@@ -2212,8 +2233,8 @@ NS.DrawPCBBackground = function(frame, W, H, headerH, xOffset)
     Glow(x5+100,y5); Glow(x5+250,y5)
   end
 
-  -- T6: third horizontal bus
-  local x6,y6=CX+10,CY+360
+  -- T6: third horizontal bus (~60% down)
+  local x6,y6=CX+10,CY+math.floor(CH*0.60)
   if y6<H then
     H_(x6,y6,CW-15,0.08); Node(x6+70,y6); Node(x6+200,y6)
     V_(x6+70,y6,50,0.08); H_(x6+70,y6+50,100,0.07); Cap(x6+170,y6+50,false)
@@ -2221,8 +2242,8 @@ NS.DrawPCBBackground = function(frame, W, H, headerH, xOffset)
     Glow(x6+70,y6); Glow(x6+200,y6)
   end
 
-  -- T7: bottom traces
-  local x7,y7=CX+25,CY+CH-100
+  -- T7: bottom traces (~80% down)
+  local x7,y7=CX+25,CY+math.floor(CH*0.80)
   if y7>CY and y7<H then
     H_(x7,y7,CW-40,0.08); Node(x7+90,y7); Node(x7+240,y7)
     V_(x7+90,y7,60,0.08); H_(x7+90,y7+60,130,0.07); Cap(x7+220,y7+60,false)
@@ -2555,7 +2576,10 @@ NS.BuildChatOptionsWindow = function()
 
   local visIdx=0
   for i,setup in ipairs(TabSetups) do
-    local tc=setup.callback(chatOptWin)
+    local ok, tc = pcall(setup.callback, chatOptWin)
+    if not ok then
+      tc = CreateFrame("Frame", nil, chatOptWin)
+    end
     tc:ClearAllPoints()
     tc:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    SIDEBAR_W+4,-(CONT_Y))
     tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1,1)
