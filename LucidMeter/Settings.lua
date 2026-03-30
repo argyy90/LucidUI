@@ -198,8 +198,8 @@ function DM.SetupSettings(parent)
       local third = math.floor(tw/3)
       for i,item in ipairs(rows) do
         item.holder:ClearAllPoints()
-        item.holder:SetPoint("TOPLEFT",  self,"TOPLEFT",  (i-1)*third, 0)
-        item.holder:SetPoint("BOTTOMRIGHT",self,"TOPLEFT", i*third,  -26)
+        item.holder:SetPoint("TOPLEFT",  self,"TOPLEFT",  (i-1)*third +20, 0)
+        item.holder:SetPoint("BOTTOMRIGHT",self,"TOPLEFT", i*third +20, -26)
       end
     end)
     titleColorRow = rows[1].row

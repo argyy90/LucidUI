@@ -369,9 +369,9 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
       local gameVer  = string.format("%d.%d.%d", math.floor(gameTOC/10000), math.floor((gameTOC%10000)/100), gameTOC%100)
       local addonVer = string.format("%d.%d.%d", math.floor(ADDON_TOC/10000), math.floor((ADDON_TOC%10000)/100), ADDON_TOC%100)
       C_Timer.After(3, function()
-        print("|cff3bd2ed[LucidUI]|r |cffff9900New WoW version detected!|r"
-          .." Built for |cffffffff"..addonVer.."|r"
-          ..", running on |cff00ff00"..gameVer.."|r"
+        print("[|cff3bd2edLucid|r|cffffffffUI|r] |cffff9900New WoW version detected!|r"
+          .." Built for |cffffffff"..addonVer.." ("..ADDON_TOC..")|r"
+          ..", running on |cff00ff00"..gameVer.." ("..gameTOC..")|r"
           .." - some features may not work correctly.")
       end)
     end

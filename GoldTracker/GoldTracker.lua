@@ -240,13 +240,37 @@ local function OnTradeCancelled()
   tradeComplete = false
 end
 
-evFrame:RegisterEvent("TRADE_SHOW")
-evFrame:RegisterEvent("TRADE_ACCEPT_UPDATE")
-evFrame:RegisterEvent("UI_INFO_MESSAGE")
-evFrame:RegisterEvent("UI_ERROR_MESSAGE")
+local gtEventsRegistered = false
 
+local function RegisterGTEvents()
+  if gtEventsRegistered then return end
+  gtEventsRegistered = true
+  evFrame:RegisterEvent("TRADE_SHOW")
+  evFrame:RegisterEvent("TRADE_ACCEPT_UPDATE")
+  evFrame:RegisterEvent("UI_INFO_MESSAGE")
+  evFrame:RegisterEvent("UI_ERROR_MESSAGE")
+end
+
+local function UnregisterGTEvents()
+  if not gtEventsRegistered then return end
+  gtEventsRegistered = false
+  evFrame:UnregisterEvent("TRADE_SHOW")
+  evFrame:UnregisterEvent("TRADE_ACCEPT_UPDATE")
+  evFrame:UnregisterEvent("UI_INFO_MESSAGE")
+  evFrame:UnregisterEvent("UI_ERROR_MESSAGE")
+  pending = nil; tradeComplete = false
+end
+
+GT.EnableTracking = function() RegisterGTEvents() end
+GT.DisableTracking = function() UnregisterGTEvents() end
+
+evFrame:RegisterEvent("PLAYER_LOGIN")
 evFrame:SetScript("OnEvent", function(_, event, arg1, arg2)
-  if event == "TRADE_SHOW" then
+  if event == "PLAYER_LOGIN" then
+    evFrame:UnregisterEvent("PLAYER_LOGIN")
+    if NS.DB("gtEnabled") == false then return end
+    RegisterGTEvents()
+  elseif event == "TRADE_SHOW" then
     OnTradeShow()
   elseif event == "TRADE_ACCEPT_UPDATE" then
     SnapshotTrade()
@@ -290,6 +314,28 @@ local function MakeWinBtn(par, txt, BD)
   btn:SetScript("OnLeave", function() btn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   return btn
 end
+
+local graphWinDays = 14  -- current range for main window graph
+local graphWinBtns = {}  -- range button refs (created once)
+
+-- Compute NUM_DAYS for a given range code; 0 = All
+local function ComputeNumDays(rangeDays)
+  if rangeDays > 0 then return rangeDays end
+  local history = GetHistory()
+  if #history == 0 then return 30 end
+  local oldest = time()
+  for _, e in ipairs(history) do if e.time and e.time < oldest then oldest = e.time end end
+  return math.max(1, math.ceil((time() - oldest) / 86400) + 1)
+end
+
+local GRAPH_RANGES = {
+  {label="7d",  days=7},
+  {label="14d", days=14},
+  {label="30d", days=30},
+  {label="6m",  days=180},
+  {label="1y",  days=365},
+  {label="All", days=0},
+}
 
 local function BuildHistoryWindow()
   if histWin then return end
@@ -452,6 +498,42 @@ local function BuildHistoryWindow()
   local tabHistory = MakeTab("History", 4)
   local tabGraph   = MakeTab("Graph",   96)
 
+  -- ── Range buttons (in tab bar, right-aligned, visible only on Graph tab) ──
+  graphWinBtns = {}
+  local xR = -4
+  for ri = #GRAPH_RANGES, 1, -1 do
+    local info = GRAPH_RANGES[ri]
+    local btn = CreateFrame("Button", nil, tabBar, "BackdropTemplate")
+    local bw = info.label == "All" and 28 or 26
+    btn:SetSize(bw, 16); btn:SetPoint("RIGHT", tabBar, "RIGHT", xR, 0)
+    xR = xR - bw - 2
+    btn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    btn:SetBackdropColor(0.04,0.04,0.07,1)
+    btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
+    btn:SetFrameLevel(tabBar:GetFrameLevel() + 3)
+    local fs = btn:CreateFontString(nil,"OVERLAY")
+    fs:SetFont("Fonts/FRIZQT__.TTF",8,""); fs:SetPoint("CENTER")
+    fs:SetTextColor(0.55,0.55,0.65); fs:SetText(info.label)
+    btn._lbl = fs; btn._days = info.days
+    btn:SetScript("OnEnter",function()
+      local cr,cg,cb = NS.ChatGetAccentRGB()
+      btn:SetBackdropBorderColor(cr,cg,cb,1); fs:SetTextColor(cr,cg,cb)
+    end)
+    btn:SetScript("OnLeave",function()
+      if graphWinDays == btn._days then
+        local cr,cg,cb = NS.ChatGetAccentRGB()
+        btn:SetBackdropBorderColor(cr,cg,cb,0.7); fs:SetTextColor(cr,cg,cb)
+      else
+        btn:SetBackdropBorderColor(0.12,0.12,0.20,1); fs:SetTextColor(0.55,0.55,0.65)
+      end
+    end)
+    btn:SetScript("OnClick",function()
+      graphWinDays = btn._days; GT.RenderGraph()
+    end)
+    btn:Hide()
+    graphWinBtns[#graphWinBtns+1] = btn
+  end
+
   -- ── Scroll area (History tab) ─────────────────────────────────────────────
   local BODY_TOP = HEADER_H + TAB_H + 2
   local sf = CreateFrame("ScrollFrame", nil, histWin, "UIPanelScrollFrameTemplate")
@@ -482,6 +564,7 @@ local function BuildHistoryWindow()
       tabGraph._sel:Show()
       tabHistory._lbl:SetTextColor(0.55, 0.55, 0.65)
       tabHistory._sel:Hide()
+      for _, b in ipairs(graphWinBtns) do b:Show() end
       GT.RenderGraph()
     else
       sf:Show(); graphPanel:Hide()
@@ -489,6 +572,7 @@ local function BuildHistoryWindow()
       tabHistory._sel:Show()
       tabGraph._lbl:SetTextColor(0.55, 0.55, 0.65)
       tabGraph._sel:Hide()
+      for _, b in ipairs(graphWinBtns) do b:Hide() end
     end
   end
 
@@ -515,7 +599,8 @@ local function RenderSideLines(items, gold)
 end
 
 -- ── Gold graph renderer ──────────────────────────────────────────────────
--- Draws a dual-bar chart: gave (red) vs received (green) per day, last 14 days.
+-- Draws a dual-bar chart: gave (red) vs received (green) per day.
+
 function GT.RenderGraph()
   local panel = histWin and histWin._graphPanel
   if not panel then return end
@@ -526,11 +611,19 @@ function GT.RenderGraph()
 
   local ar, ag, ab = NS.ChatGetAccentRGB()
   local history = GetHistory()
-  local BD = histWin._BD
 
-  -- ── Aggregate by day (last 14 days) ───────────────────────────────────────
-  local NUM_DAYS = 14
-  local days = {}       -- days[1] = most recent, days[14] = oldest
+  -- Highlight active range button in tab bar
+  for _, b in ipairs(graphWinBtns) do
+    if b._days == graphWinDays then
+      b:SetBackdropBorderColor(ar,ag,ab,0.7); b._lbl:SetTextColor(ar,ag,ab)
+    else
+      b:SetBackdropBorderColor(0.12,0.12,0.20,1); b._lbl:SetTextColor(0.55,0.55,0.65)
+    end
+  end
+
+  -- ── Aggregate by day ──────────────────────────────────────────────────────
+  local NUM_DAYS = ComputeNumDays(graphWinDays)
+  local days = {}
   local now = time()
   for i = 1, NUM_DAYS do
     local dayStart = now - (i - 1) * 86400
@@ -554,12 +647,13 @@ function GT.RenderGraph()
   local H = panel:GetHeight() or 440
   local PAD_L = 12
   local PAD_R = 12
-  local PAD_T = 36   -- room for legend
-  local PAD_B = 32   -- room for date labels
+  local PAD_T = 36
+  local PAD_B = 32
   local CHART_W = W - PAD_L - PAD_R
   local CHART_H = H - PAD_T - PAD_B
-  local BAR_W = math.max(6, math.floor(CHART_W / NUM_DAYS) - 4)
-  local GAP   = math.max(2, math.floor(CHART_W / NUM_DAYS) - BAR_W)
+  local slot = math.max(1, math.floor(CHART_W / NUM_DAYS))
+  local BAR_W = math.max(2, slot - math.max(1, math.floor(slot * 0.25)))
+  local GAP   = slot - BAR_W
 
   -- ── Find max value for scaling ────────────────────────────────────────────
   local maxVal = 1
@@ -572,9 +666,7 @@ function GT.RenderGraph()
   local NUM_GRID = 4
   for gi = 0, NUM_GRID do
     local yFrac = gi / NUM_GRID
-    local y = PAD_T + CHART_H - math.floor(yFrac * CHART_H)
     local gridLine = panel:CreateTexture(nil, "ARTWORK"); gridLine:SetHeight(1)
-    -- y is measured from top of panel; grid is at PAD_T + CHART_H * (1 - yFrac) from top
     local yFromTop = PAD_T + math.floor((1 - yFrac) * CHART_H)
     gridLine:SetPoint("TOPLEFT",  panel, "TOPLEFT",  PAD_L,  -yFromTop)
     gridLine:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -PAD_R, -yFromTop)
@@ -583,26 +675,24 @@ function GT.RenderGraph()
     else
       gridLine:SetColorTexture(1, 1, 1, 0.06)
     end
-
-    -- Y-axis gold label
     local val = math.floor(maxVal * yFrac / 10000)
     if val > 0 then
       local yLabel = panel:CreateFontString(nil, "OVERLAY")
       yLabel:SetFont("Fonts/FRIZQT__.TTF", 8, "")
-      local yFromTop2 = PAD_T + math.floor((1 - yFrac) * CHART_H)
-      yLabel:SetPoint("RIGHT", panel, "TOPLEFT", PAD_L - 2, -yFromTop2)
+      yLabel:SetPoint("RIGHT", panel, "TOPLEFT", PAD_L - 2, -yFromTop)
       yLabel:SetTextColor(0.45, 0.45, 0.55); yLabel:SetText(val.."g")
     end
   end
 
+  -- ── Date label frequency ──────────────────────────────────────────────────
+  local labelEvery = NUM_DAYS <= 7 and 1 or NUM_DAYS <= 14 and 2 or NUM_DAYS <= 30 and 4 or NUM_DAYS <= 180 and 14 or 30
+
   -- ── Bars (oldest = left, most recent = right) ─────────────────────────────
   for i = NUM_DAYS, 1, -1 do
     local d = days[i]
-    local col = NUM_DAYS - i  -- 0 = oldest (left), 13 = newest (right)
-    local xBase = PAD_L + col * (BAR_W + GAP)
-    local yBase = PAD_T + CHART_H  -- bottom of chart
+    local col = NUM_DAYS - i
+    local xBase = PAD_L + col * slot
 
-    -- "Gave" bar (red/pink) — left half of slot
     if d.gave > 0 then
       local bh = math.max(2, math.floor((d.gave / maxVal) * CHART_H))
       local bar = panel:CreateTexture(nil, "ARTWORK"); bar:SetSize(math.floor(BAR_W/2) - 1, bh)
@@ -613,7 +703,6 @@ function GT.RenderGraph()
       cap:SetColorTexture(1, 0.50, 0.50, 1)
     end
 
-    -- "Received" bar (green) — right half of slot
     if d.received > 0 then
       local bh = math.max(2, math.floor((d.received / maxVal) * CHART_H))
       local bar = panel:CreateTexture(nil, "ARTWORK"); bar:SetSize(math.ceil(BAR_W/2) - 1, bh)
@@ -624,23 +713,17 @@ function GT.RenderGraph()
       cap:SetColorTexture(0.50, 1, 0.50, 1)
     end
 
-    -- Date label
-    if i % 2 == 0 or NUM_DAYS <= 7 then  -- every 2 days to avoid crowding
+    if col % labelEvery == 0 then
       local dateLabel = panel:CreateFontString(nil, "OVERLAY")
       dateLabel:SetFont("Fonts/FRIZQT__.TTF", 8, "")
-      dateLabel:SetPoint("TOP", panel, "BOTTOMLEFT", xBase + math.floor(BAR_W/2), -(PAD_B - 18) + H/2 - H)
-      -- Anchor from bottom instead
-      dateLabel:ClearAllPoints()
       dateLabel:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", xBase, PAD_B - 14)
       dateLabel:SetTextColor(0.40, 0.40, 0.50); dateLabel:SetText(d.label)
       dateLabel:SetJustifyH("LEFT")
     end
 
-    -- Hover frame for tooltip
     if d.gave > 0 or d.received > 0 then
       local hit = CreateFrame("Frame", nil, panel)
-      local bh = math.max(2, math.floor((math.max(d.gave, d.received) / maxVal) * CHART_H))
-      hit:SetSize(BAR_W, CHART_H)
+      hit:SetSize(slot, CHART_H)
       hit:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", xBase, PAD_B)
       hit:EnableMouse(true)
       local capturedD = d
@@ -686,7 +769,7 @@ function GT.RenderGraph()
     empty:SetFont("Fonts/FRIZQT__.TTF", 11, "")
     empty:SetPoint("CENTER", panel, "CENTER", 0, 0)
     empty:SetTextColor(0.35, 0.35, 0.45)
-    empty:SetText("No gold trades in the last 14 days")
+    empty:SetText("No gold trades in this period")
   end
 end
 
@@ -950,7 +1033,8 @@ function GT.SetupSettings(parent)
   rh:SetPoint("BOTTOMRIGHT",pairRow, "BOTTOMRIGHT",0, 0)
 
   local enableCB = NS.ChatGetCheckbox(lh, "Enable Gold Tracker", 26, function(state)
-    DBSet("gtEnabled", state)
+    DBSet("gtEnabled", state); if state then DBSet("showCoinBtn", true); GT.EnableTracking() else GT.DisableTracking() end
+    if NS.LayoutBarButtons then NS.LayoutBarButtons() end
   end, "Record every completed trade with items and gold")
   enableCB.option = "gtEnabled"
   enableCB:SetParent(lh); enableCB:ClearAllPoints(); enableCB:SetAllPoints(lh)
@@ -1042,11 +1126,24 @@ function GT.SetupSettings(parent)
     return btn
   end
 
-  local btn7  = MakeRangeBtn("7d",  7,  -40)
-  local btn14 = MakeRangeBtn("14d", 14, -68)
-  local btn30 = MakeRangeBtn("30d", 30, -96)
-
-  local allRangeBtns = {btn7, btn14, btn30}
+  local SETTINGS_RANGES = {
+    {label="7d",  days=7,   w=20},
+    {label="14d", days=14,  w=22},
+    {label="30d", days=30,  w=22},
+    {label="6m",  days=180, w=20},
+    {label="1y",  days=365, w=18},
+    {label="All", days=0,   w=22},
+  }
+  local allRangeBtns = {}
+  local xR = -40
+  for ri = 1, #SETTINGS_RANGES do
+    local info = SETTINGS_RANGES[ri]
+    local btn = MakeRangeBtn(info.label, info.days, xR)
+    btn:SetSize(info.w, 13)
+    btn:ClearAllPoints(); btn:SetPoint("TOPRIGHT", cGraph, "TOPRIGHT", xR, -7)
+    allRangeBtns[#allRangeBtns+1] = btn
+    xR = xR - info.w - 2
+  end
 
   local function SetActiveBtn(days)
     local cr,cg,cb = NS.ChatGetAccentRGB()
@@ -1057,7 +1154,8 @@ function GT.SetupSettings(parent)
         b:SetBackdropBorderColor(0.12,0.12,0.20,1); b._lbl:SetTextColor(0.55,0.55,0.65)
       end
     end
-    local labels = {[7]="— LAST 7 DAYS", [14]="— LAST 14 DAYS", [30]="— LAST 30 DAYS"}
+    local labels = {[7]="— LAST 7 DAYS", [14]="— LAST 14 DAYS", [30]="— LAST 30 DAYS",
+      [180]="— LAST 6 MONTHS", [365]="— LAST YEAR", [0]="— ALL TIME"}
     daysLabel:SetText(labels[days] or ("— LAST "..days.." DAYS"))
   end
 
@@ -1076,8 +1174,8 @@ function GT.SetupSettings(parent)
     local ar2, ag2, ab2 = NS.ChatGetAccentRGB()
     local history = GetHistory()
 
-    -- Aggregate last N days (graphDays)
-    local NUM_DAYS = graphDays
+    -- Aggregate last N days (graphDays); 0 = All
+    local NUM_DAYS = ComputeNumDays(graphDays)
     local days = {}
     local now = time()
     for i = 1, NUM_DAYS do
@@ -1107,7 +1205,7 @@ function GT.SetupSettings(parent)
       local fs = graphHolder:CreateFontString(nil, "OVERLAY")
       fs:SetFont("Fonts/FRIZQT__.TTF", 10, "")
       fs:SetPoint("CENTER"); fs:SetTextColor(0.35, 0.35, 0.45)
-      fs:SetText("No trades in the last 14 days")
+      fs:SetText("No gold trades in this period")
       return
     end
 
@@ -1186,8 +1284,9 @@ function GT.SetupSettings(parent)
         cap:SetColorTexture(0.55,1,0.55,1)
       end
 
-      -- Date label every 2nd day
-      if (col % 2 == 0) then
+      -- Date label at adaptive frequency
+      local lblEvery = NUM_DAYS <= 7 and 1 or NUM_DAYS <= 14 and 2 or NUM_DAYS <= 30 and 4 or NUM_DAYS <= 180 and 14 or 30
+      if (col % lblEvery == 0) then
         local fs = graphHolder:CreateFontString(nil, "OVERLAY")
         fs:SetFont("Fonts/FRIZQT__.TTF", 7, "")
         fs:SetPoint("BOTTOMLEFT", graphHolder, "BOTTOMLEFT", xB, PB - 12)
@@ -1218,9 +1317,10 @@ function GT.SetupSettings(parent)
     end
   end
 
-  btn7:SetScript("OnClick",  function() graphDays=7;  SetActiveBtn(7);  RenderInlineGraph() end)
-  btn14:SetScript("OnClick", function() graphDays=14; SetActiveBtn(14); RenderInlineGraph() end)
-  btn30:SetScript("OnClick", function() graphDays=30; SetActiveBtn(30); RenderInlineGraph() end)
+  for _, b in ipairs(allRangeBtns) do
+    local capDays = b._days
+    b:SetScript("OnClick", function() graphDays=capDays; SetActiveBtn(capDays); RenderInlineGraph() end)
+  end
 
   -- ── OnShow ───────────────────────────────────────────────────────────────
   container:SetScript("OnShow", function()

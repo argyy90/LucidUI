@@ -95,6 +95,9 @@ L["roll_close_manual"]      = "Manual"
 L["roll_close_delay"]       = "Auto-close after"
 L["roll_min_quality"]       = "Min. Quality (Rolls)"
 
+-- Chat Bar
+L["Mythic+"]                = "Mythic+"
+
 -- Session Stats
 L["Session Stats"]          = "Session Stats"
 L["stat_zone"]              = "Zone"
@@ -307,6 +310,7 @@ if locale == "deDE" then
   L["roll_close_manual"]      = "Manuell"
   L["roll_close_delay"]       = "Auto-Schließen nach"
   L["roll_min_quality"]       = "Mindestqualität (Würfe)"
+  L["Mythic+"]                = "Mythic+"
   L["Session Stats"]          = "Sitzungsstatistiken"
   L["stat_zone"]              = "Zone"
   L["stat_session"]           = "Sitzung"
@@ -470,6 +474,7 @@ elseif locale == "frFR" then
   L["roll_close_manual"]      = "Manuel"
   L["roll_close_delay"]       = "Fermeture auto après"
   L["roll_min_quality"]       = "Qualité min. (Jets)"
+  L["Mythic+"]                = "Mythic+"
   L["Session Stats"]          = "Statistiques de session"
   L["stat_zone"]              = "Zone"
   L["stat_session"]           = "Session"

@@ -1130,16 +1130,16 @@ local function BuildTabBar(bg)
     C_Timer.After(0, function() RepositionButtons() end)
   end)
 
-  local BAR_W = 32  -- must match ChatBar.lua
   local tabBarBg = tabBarFrame:CreateTexture(nil, "BACKGROUND")
   tabBarBg:SetColorTexture(0, 0, 0, GetTabBarBgAlpha())
   -- Stretch tab bar background to cover the icon bar area
   local pos = NS.DB("chatBarPosition") or "outside_right"
+  local barW = NS.chatBarRef and NS.chatBarRef:GetWidth() or 32
   if pos == "outside_right" then
     tabBarBg:SetPoint("TOPLEFT", tabBarFrame, "TOPLEFT", 0, 0)
-    tabBarBg:SetPoint("BOTTOMRIGHT", tabBarFrame, "BOTTOMRIGHT", BAR_W, 0)
+    tabBarBg:SetPoint("BOTTOMRIGHT", tabBarFrame, "BOTTOMRIGHT", barW, 0)
   elseif pos == "outside_left" then
-    tabBarBg:SetPoint("TOPLEFT", tabBarFrame, "TOPLEFT", -BAR_W, 0)
+    tabBarBg:SetPoint("TOPLEFT", tabBarFrame, "TOPLEFT", -barW, 0)
     tabBarBg:SetPoint("BOTTOMRIGHT", tabBarFrame, "BOTTOMRIGHT", 0, 0)
   else
     tabBarBg:SetAllPoints()
@@ -1679,15 +1679,15 @@ local function CreateMainDisplay()
   end)
 
   -- Message area
-  local BAR_W = 32
   local d = NS.CreateChatMessageArea(bg, "LUIChatDisplay")
 
   -- Apply layout based on bar position (inside bars need inset)
   local function ApplyBarLayout()
+    local barW = NS.chatBarRef and NS.chatBarRef:GetWidth() or 32
     local pos2 = NS.DB("chatBarPosition") or "outside_right"
     local vis = NS.DB("chatBarVisibility") or "always"
-    local lInset = (pos2 == "inside_left") and BAR_W or 0
-    local rInset = (pos2 == "inside_right") and BAR_W or 0
+    local lInset = (pos2 == "inside_left") and barW or 0
+    local rInset = (pos2 == "inside_right") and barW or 0
     d:ClearAllPoints()
     d:SetPoint("TOPLEFT", bg, "TOPLEFT", lInset + 2, -(TAB_H + 2))
     d:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -(rInset + 2), 2)
@@ -1698,9 +1698,9 @@ local function CreateMainDisplay()
       bg._chatAccentLine:ClearAllPoints()
       bg._chatAccentLine:SetPoint("BOTTOMLEFT", tabBarFrame, "BOTTOMLEFT", 0, 0)
       if pos2 == "outside_right" and vis == "always" then
-        bg._chatAccentLine:SetPoint("BOTTOMRIGHT", tabBarFrame, "BOTTOMRIGHT", BAR_W, 0)
+        bg._chatAccentLine:SetPoint("BOTTOMRIGHT", tabBarFrame, "BOTTOMRIGHT", barW, 0)
       elseif pos2 == "outside_left" and vis == "always" then
-        bg._chatAccentLine:SetPoint("BOTTOMLEFT", tabBarFrame, "BOTTOMLEFT", -BAR_W, 0)
+        bg._chatAccentLine:SetPoint("BOTTOMLEFT", tabBarFrame, "BOTTOMLEFT", -barW, 0)
         bg._chatAccentLine:SetPoint("BOTTOMRIGHT", tabBarFrame, "BOTTOMRIGHT", 0, 0)
       else
         bg._chatAccentLine:SetPoint("BOTTOMRIGHT", tabBarFrame, "BOTTOMRIGHT", 0, 0)
@@ -1905,7 +1905,7 @@ local function InitChatSystem()
     if saved and type(saved) == "table" and #saved > 0 then
       restoringHistory = true
       for _, entry in ipairs(saved) do
-        AddToDisplay(1, entry.msg, entry.r, entry.g, entry.b, entry.event, entry.channelName)
+        AddToDisplay(1, entry.msg, entry.r, entry.g, entry.b, entry.event, entry.channelName, entry.t)
       end
       restoringHistory = false
     end
@@ -1921,6 +1921,9 @@ local function InitChatSystem()
 
   -- Build bar
   if NS.BuildChatBar then NS.BuildChatBar() end
+  -- Re-apply layout now that bar width is known
+  if NS.ApplyBarLayout then NS.ApplyBarLayout() end
+  if NS.UpdateTabBarBgStretch then NS.UpdateTabBarBgStretch() end
   UpdateMinimapButton()
 
   -- Hide default WoW chat UI (graceful no-ops if removed in Midnight)

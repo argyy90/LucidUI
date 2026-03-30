@@ -55,7 +55,7 @@ function NS.QoL.OptimizeFPS()
   for _, s in ipairs(FPS_SETTINGS) do
     if pcall(_SetCVar, s.cvar, s.optimal) then count = count + 1 end
   end
-  print("|cff3bd2ed[LucidUI]|r " .. L["FPS optimized"] .. " (" .. count .. "/" .. #FPS_SETTINGS .. ")")
+  print("[|cff3bd2edLucid|r|cffffffffUI|r] " .. L["FPS optimized"] .. " (" .. count .. "/" .. #FPS_SETTINGS .. ")")
 end
 
 function NS.QoL.RestoreFPS()
@@ -68,8 +68,8 @@ function NS.QoL.RestoreFPS()
   end
   NS.DBSet("qolFpsBackup", {})
   if n > 0 then
-    print("|cff3bd2ed[LucidUI]|r " .. string.format(L["FPS restored"], n))
+    print("[|cff3bd2edLucid|r|cffffffffUI|r] " .. string.format(L["FPS restored"], n))
   else
-    print("|cff3bd2ed[LucidUI]|r " .. L["No backup"])
+    print("[|cff3bd2edLucid|r|cffffffffUI|r] " .. L["No backup"])
   end
 end

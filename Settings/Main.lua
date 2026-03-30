@@ -1034,13 +1034,215 @@ local function SetupAdvanced(parent)
   LDD("Show tabs",function(v) return (DB("chatTabVisibility") or "always")==v end,function(v) DBSet("chatTabVisibility",v); local bar=_G["LUIChatTabBar"]; if bar then bar:SetAlpha(v=="always" and 1 or 0) end end,{"Always","Mouseover"},{"always","mouseover"}).option="chatTabVisibility"
   LDD("Show buttons",function(v) return (DB("chatBarVisibility") or "always")==v end,function(v) DBSet("chatBarVisibility",v); if NS.chatBarRef then if v=="never" then NS.chatBarRef:SetAlpha(0); NS.chatBarRef:EnableMouse(false) elseif v=="mouseover" then NS.chatBarRef:SetAlpha(0); NS.chatBarRef:EnableMouse(true) else NS.chatBarRef:SetAlpha(1); NS.chatBarRef:EnableMouse(true) end end end,{"Always","Mouseover"},{"always","mouseover"}).option="chatBarVisibility"
   LDD("Button position",function(v) return (DB("chatBarPosition") or "outside_right")==v end,function(v) DBSet("chatBarPosition",v); if NS.RepositionChatBar then NS.RepositionChatBar() end end,{"Left Outside","Left Inside","Right Outside","Right Inside"},{"outside_left","inside_left","outside_right","inside_right"}).option="chatBarPosition"
+  local iconsPerRow; iconsPerRow=NS.ChatGetSlider(cLayout.inner,"Icons per row",1,10,"%s",function() DBSet("chatBarIconsPerRow",iconsPerRow:GetValue()); if NS.LayoutBarButtons then NS.LayoutBarButtons() end end); iconsPerRow.option="chatBarIconsPerRow"; R(cLayout,iconsPerRow,40); table.insert(allLayout,iconsPerRow)
   LDD("Edit box position",function(v) return (DB("chatEditBoxPos") or "bottom")==v end,function(v) DBSet("chatEditBoxPos",v); if NS.chatEditContainer and NS.chatBg then NS.chatEditContainer:ClearAllPoints(); if v=="top" then NS.chatEditContainer:SetPoint("TOPLEFT",NS.chatBg,"TOPLEFT",0,0); NS.chatEditContainer:SetPoint("TOPRIGHT",NS.chatBg,"TOPRIGHT",0,0) else NS.chatEditContainer:SetPoint("TOPLEFT",NS.chatBg,"BOTTOMLEFT",0,-1); NS.chatEditContainer:SetPoint("TOPRIGHT",NS.chatBg,"BOTTOMRIGHT",0,-1) end end end,{"Bottom","Top"},{"bottom","top"}).option="chatEditBoxPos"
   LCB("Keep edit box visible","chatEditBoxVisible",function(s) DBSet("chatEditBoxVisible",s); if NS.chatEditContainer then if s then NS.chatEditContainer:Show() else NS.chatEditContainer:Hide() end end end,"Always show the chat input box")
-  cLayout:Finish(); Add(cLayout)
+  cLayout:Finish(); Add(cLayout); Add(Sep(sc),9)
+
+  -- ── Card: Button Order (collapsible) ────────────────────────────────
+  local ORDER_LABELS = {
+    social="Social", settings="Settings", copy="Copy", rolls="Rolls",
+    stats="Stats", mplus="Mythic+", coin="Gold", voicechat="Voice Chat",
+  }
+  local ORDER_CONFIGKEYS = {
+    social="showSocialBtn", settings="showSettingsBtn", copy="showCopyBtn",
+    rolls="showRollsBtn", stats="showStatsBtn", mplus="showMPlusBtn",
+    coin="showCoinBtn", voicechat="showVoiceChatBtn",
+  }
+  -- Maps order key → feature-enable DB key (nil = always available)
+  -- For rolls/stats the configKey IS the feature key
+  local ORDER_FEATURE_KEY = {
+    rolls="showRollsBtn", stats="showStatsBtn",
+    mplus="mpEnabled", coin="gtEnabled",
+  }
+  local ORDER_DEFAULT = {"social","settings","copy","rolls","stats","mplus","coin","voicechat"}
+  local cOrder = MakeCard(sc,"Button Order")
+  local orderRows = {}
+  local orderHolder = CreateFrame("Frame",nil,cOrder.inner)
+  orderHolder:SetPoint("LEFT",cOrder.inner,"LEFT",0,0)
+  orderHolder:SetPoint("RIGHT",cOrder.inner,"RIGHT",0,0)
+
+  local function GetOrder()
+    local saved = DB("chatBarOrder")
+    if saved and type(saved) == "table" and #saved > 0 then return saved end
+    local copy = {}
+    for i, v in ipairs(ORDER_DEFAULT) do copy[i] = v end
+    return copy
+  end
+
+  local function RebuildOrderRows()
+    local order = GetOrder()
+    local ROW_H = 22
+    for i, key in ipairs(order) do
+      local row = orderRows[i]
+      if not row then
+        row = CreateFrame("Frame",nil,orderHolder)
+        row:SetHeight(ROW_H)
+        -- Number label
+        row._num = row:CreateFontString(nil,"OVERLAY")
+        row._num:SetFont("Fonts/FRIZQT__.TTF",11,""); row._num:SetPoint("LEFT",4,0)
+        row._num:SetTextColor(0.5,0.5,0.5)
+        -- Name label
+        row._label = row:CreateFontString(nil,"OVERLAY")
+        row._label:SetFont("Fonts/FRIZQT__.TTF",11,""); row._label:SetPoint("LEFT",24,0)
+        row._label:SetTextColor(0.9,0.9,0.9)
+        -- Up button (green arrow rotated upward)
+        row._up = CreateFrame("Button",nil,row)
+        row._up:SetSize(18,18); row._up:SetPoint("RIGHT",row,"RIGHT",-112,0)
+        row._up._tex = row._up:CreateTexture(nil,"ARTWORK")
+        row._up._tex:SetTexture("Interface/AddOns/LucidUI/Assets/Arrow_right_green.png")
+        row._up._tex:SetSize(14,14); row._up._tex:SetPoint("CENTER")
+        row._up._tex:SetRotation(math.rad(90))
+        row._up:SetScript("OnEnter",function() row._up._tex:SetAlpha(1) end)
+        row._up:SetScript("OnLeave",function() row._up._tex:SetAlpha(0.7) end)
+        row._up._tex:SetAlpha(0.7)
+        -- Down button (orange arrow rotated downward)
+        row._down = CreateFrame("Button",nil,row)
+        row._down:SetSize(18,18); row._down:SetPoint("RIGHT",row,"RIGHT",-94,0)
+        row._down._tex = row._down:CreateTexture(nil,"ARTWORK")
+        row._down._tex:SetTexture("Interface/AddOns/LucidUI/Assets/Arrow_right_orange.png")
+        row._down._tex:SetSize(14,14); row._down._tex:SetPoint("CENTER")
+        row._down._tex:SetRotation(math.rad(-90))
+        row._down:SetScript("OnEnter",function() row._down._tex:SetAlpha(1) end)
+        row._down:SetScript("OnLeave",function() row._down._tex:SetAlpha(0.7) end)
+        row._down._tex:SetAlpha(0.7)
+        -- Show button
+        local function MakeVisBtn(parent, text)
+          local b = CreateFrame("Button",nil,parent,"BackdropTemplate")
+          b:SetSize(38,16)
+          b:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+          b:SetBackdropColor(0.06,0.06,0.06,1)
+          b._lbl = b:CreateFontString(nil,"OVERLAY")
+          b._lbl:SetFont("Fonts/FRIZQT__.TTF",9,""); b._lbl:SetPoint("CENTER"); b._lbl:SetText(text)
+          return b
+        end
+        row._showBtn = MakeVisBtn(row,"Show")
+        row._showBtn:SetPoint("RIGHT",row,"RIGHT",-42,0)
+        row._hideBtn = MakeVisBtn(row,"Hide")
+        row._hideBtn:SetPoint("RIGHT",row,"RIGHT",-2,0)
+        orderRows[i] = row
+      end
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT",orderHolder,"TOPLEFT",0,-(i-1)*ROW_H)
+      row:SetPoint("TOPRIGHT",orderHolder,"TOPRIGHT",0,-(i-1)*ROW_H)
+      row:SetHeight(ROW_H)
+      row._num:SetText(i..".")
+      row._label:SetText(ORDER_LABELS[key] or key)
+      row._up:SetShown(i > 1)
+      row._down:SetShown(i < #order)
+      -- Show/Hide state
+      local cfgKey = ORDER_CONFIGKEYS[key]
+      local featureKey = ORDER_FEATURE_KEY[key]
+      local featureEnabled = not featureKey or DB(featureKey) ~= false
+      local isVisible = cfgKey and DB(cfgKey) ~= false
+      local ar,ag,ab = NS.ChatGetAccentRGB()
+      if featureKey and not featureEnabled then
+        -- Feature disabled: both buttons locked, button hidden
+        row._showBtn:SetBackdropBorderColor(0.10,0.10,0.10,1)
+        row._showBtn:SetBackdropColor(0.04,0.04,0.04,1)
+        row._showBtn._lbl:SetTextColor(0.25,0.25,0.25)
+        row._hideBtn:SetBackdropBorderColor(0.10,0.10,0.10,1)
+        row._hideBtn:SetBackdropColor(0.04,0.04,0.04,1)
+        row._hideBtn._lbl:SetTextColor(0.25,0.25,0.25)
+        row._label:SetTextColor(0.4,0.4,0.4)
+        row._num:SetTextColor(0.3,0.3,0.3)
+        row._showBtn:SetScript("OnClick",nil)
+        row._hideBtn:SetScript("OnClick",nil)
+      else
+        -- Feature enabled (or no feature gate): Show/Hide are interactive
+        row._showBtn:SetBackdropBorderColor(isVisible and ar or 0.15, isVisible and ag or 0.15, isVisible and ab or 0.15, 1)
+        row._showBtn._lbl:SetTextColor(isVisible and 1 or 0.4, isVisible and 1 or 0.4, isVisible and 1 or 0.4)
+        row._hideBtn:SetBackdropBorderColor(isVisible and 0.15 or ar, isVisible and 0.15 or ag, isVisible and 0.15 or ab, 1)
+        row._hideBtn._lbl:SetTextColor(isVisible and 0.4 or 1, isVisible and 0.4 or 1, isVisible and 0.4 or 1)
+        row._label:SetTextColor(isVisible and 0.9 or 0.4, isVisible and 0.9 or 0.4, isVisible and 0.9 or 0.4)
+        row._num:SetTextColor(isVisible and 0.5 or 0.3, isVisible and 0.5 or 0.3, isVisible and 0.5 or 0.3)
+        local capCfg = cfgKey
+        row._showBtn:SetScript("OnClick",function()
+          if capCfg then DBSet(capCfg,true); RebuildOrderRows(); if NS.LayoutBarButtons then NS.LayoutBarButtons() end end
+        end)
+        row._hideBtn:SetScript("OnClick",function()
+          if capCfg then DBSet(capCfg,false); RebuildOrderRows(); if NS.LayoutBarButtons then NS.LayoutBarButtons() end end
+        end)
+      end
+      local ci = i
+      row._up:SetScript("OnClick",function()
+        local o = GetOrder()
+        if ci > 1 then o[ci], o[ci-1] = o[ci-1], o[ci] end
+        DBSet("chatBarOrder",o); RebuildOrderRows()
+        if NS.LayoutBarButtons then NS.LayoutBarButtons() end
+      end)
+      row._down:SetScript("OnClick",function()
+        local o = GetOrder()
+        if ci < #o then o[ci], o[ci+1] = o[ci+1], o[ci] end
+        DBSet("chatBarOrder",o); RebuildOrderRows()
+        if NS.LayoutBarButtons then NS.LayoutBarButtons() end
+      end)
+      row:Show()
+    end
+    for i = #order+1, #orderRows do orderRows[i]:Hide() end
+    orderHolder:SetHeight(#order * ROW_H)
+  end
+
+  cOrder:Row(orderHolder, #ORDER_DEFAULT * 22)
+  cOrder:Finish()
+  cOrder:SetClipsChildren(true)
+  local orderFullH = cOrder:GetHeight()
+  local ORDER_COLLAPSED_H = 26
+  local orderCollapsed = true
+  cOrder:SetHeight(ORDER_COLLAPSED_H)
+  cOrder.inner:Hide()
+
+  -- Collapse arrow indicator
+  local orderArrow = cOrder:CreateFontString(nil,"OVERLAY")
+  orderArrow:SetFont("Fonts/FRIZQT__.TTF",10,"OUTLINE")
+  orderArrow:SetPoint("TOPRIGHT",cOrder,"TOPRIGHT",-18,-7)
+  local oar,oag,oab = NS.ChatGetAccentRGB()
+  orderArrow:SetTextColor(oar,oag,oab,0.6)
+  orderArrow:SetText(">")
+
+  -- Click area for collapse toggle
+  local orderTitleHit = CreateFrame("Button",nil,cOrder)
+  orderTitleHit:SetPoint("TOPLEFT",0,0); orderTitleHit:SetPoint("TOPRIGHT",0,0)
+  orderTitleHit:SetHeight(ORDER_COLLAPSED_H)
+  orderTitleHit:SetFrameLevel(cOrder:GetFrameLevel()+5)
+
+  local ORDER_ANIM_SPD = 400
+  local orderBaseScH = sc:GetHeight()  -- scroll height with collapsed card
+  local function AnimateOrderCard(toH)
+    cOrder:SetScript("OnUpdate",function(self,dt)
+      local cur = self:GetHeight()
+      local diff = toH - cur
+      if math.abs(diff) < 1 then
+        self:SetHeight(toH); self:SetScript("OnUpdate",nil)
+        if orderCollapsed then cOrder.inner:Hide() end
+        sc:SetHeight(orderBaseScH + (toH - ORDER_COLLAPSED_H) + 30)
+        return
+      end
+      local newH = cur + (diff > 0 and math.min(ORDER_ANIM_SPD*dt,diff) or math.max(-ORDER_ANIM_SPD*dt,diff))
+      self:SetHeight(newH)
+      sc:SetHeight(orderBaseScH + (newH - ORDER_COLLAPSED_H) + 30)
+    end)
+  end
+
+  orderTitleHit:SetScript("OnClick",function()
+    orderCollapsed = not orderCollapsed
+    orderArrow:SetText(orderCollapsed and ">" or "v")
+    if not orderCollapsed then cOrder.inner:Show(); RebuildOrderRows() end
+    AnimateOrderCard(orderCollapsed and ORDER_COLLAPSED_H or orderFullH)
+  end)
+  orderTitleHit:SetScript("OnEnter",function()
+    local cr,cg,cb = NS.ChatGetAccentRGB(); orderArrow:SetTextColor(cr,cg,cb,1)
+  end)
+  orderTitleHit:SetScript("OnLeave",function()
+    local cr,cg,cb = NS.ChatGetAccentRGB(); orderArrow:SetTextColor(cr,cg,cb,0.6)
+  end)
+
+  Add(cOrder)
 
   container:SetScript("OnShow",function()
     if NS._RebuildProfileMenu then NS._RebuildProfileMenu() end
     for _,f in ipairs(allLayout) do if f.SetValue and f.option then f:SetValue(DB(f.option)) end end
+    RebuildOrderRows()
   end)
   return container
 end
@@ -1969,10 +2171,10 @@ local function SetupTabSettings(parent)
                   for _, e in ipairs(c.events) do td.eventSet[e] = true end
                 end
               end
-              td.eventSet[capturedEv] = nil
+              td.eventSet[capturedEv] = false
             else
               if td.eventSet[capturedEv] then
-                td.eventSet[capturedEv] = nil
+                td.eventSet[capturedEv] = false
               else
                 td.eventSet[capturedEv] = true
                 -- Check if all events are now on → collapse to nil
@@ -2513,8 +2715,20 @@ NS.BuildChatOptionsWindow = function()
   reloadBtn:SetPoint("RIGHT",closeBtn,"LEFT",-4,0); reloadBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
   local debugBtn=HdrBtn(L["Debug"],function() if NS.BuildDebugWindow then NS.BuildDebugWindow() end end)
   debugBtn:SetPoint("RIGHT",reloadBtn,"LEFT",-4,0); debugBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
-  local perfBtn=HdrBtn("Perf",function() SlashCmdList["LUIPERF"]() end)
-  perfBtn:SetPoint("RIGHT",debugBtn,"LEFT",-4,0); perfBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
+  -- Dev-only buttons: only visible for the addon author
+  local isDev = false
+  if BNGetInfo then
+    local _, btag = BNGetInfo()
+    isDev = btag and btag:lower():match("^(.-)#") == "argyy"
+  end
+  local lastDevBtn = debugBtn
+  if isDev then
+    local perfBtn=HdrBtn("Perf",function() SlashCmdList["LUIPERF"]() end)
+    perfBtn:SetPoint("RIGHT",lastDevBtn,"LEFT",-4,0); perfBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
+    lastDevBtn = perfBtn
+    local seasonBtn=HdrBtn("Season Info",function() if NS.MythicPlus and NS.MythicPlus.PrintSeasonInfo then NS.MythicPlus.PrintSeasonInfo() end end)
+    seasonBtn:SetPoint("RIGHT",lastDevBtn,"LEFT",-4,0); seasonBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
+  end
 
   -- ── Sidebar background ─────────────────────────────────────────────
   local sbBg=chatOptWin:CreateTexture(nil,"BACKGROUND",nil,1)

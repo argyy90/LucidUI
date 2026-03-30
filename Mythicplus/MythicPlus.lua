@@ -30,20 +30,105 @@ end
 MP.SeasonMap = {
   [1] = 1,   -- Blizzard ID 1 → our key 1 (Midnight S1)
   [2] = 1,   -- Blizzard ID 2 → our key 1 (Midnight S1, API returned 2 in some builds)
+  [17] = 1,  -- Blizzard ID 17 → our key 1 (Midnight S1, current live API)
+
+  -- Season 2 (Midnight): Blizzard-IDs hier eintragen sobald bekannt
+  -- [3] = 2,   -- Blizzard ID 3 → our key 2 (Midnight S2)
+  -- [4] = 2,   -- Blizzard ID 4 → our key 2 (Midnight S2, falls API unterschiedlich zurückgibt)
+
+  -- Season 3 (Midnight): Blizzard-IDs hier eintragen sobald bekannt
+  -- [5] = 3,   -- Blizzard ID 5 → our key 3 (Midnight S3)
+  -- [6] = 3,   -- Blizzard ID 6 → our key 3 (Midnight S3, falls API unterschiedlich zurückgibt)
+
+  -- Season 1 (neue Expansion): Blizzard-IDs hier eintragen sobald bekannt
+  -- [7] = 4,   -- Blizzard ID 7 → our key 4 (The Last Titan S1)
+  -- [8] = 4,   -- Blizzard ID 8 → our key 4 (The Last Titan S1, falls API unterschiedlich zurückgibt)
 }
 
 MP.Seasons = {
   [1]={name="Midnight Season 1",dungeons={
     -- texture = FileDataID from GLogger (fallback when GetMapUIInfo returns nil)
-    [402]={abbr="AA",  name="Ara-Kara, City of Echoes",      texture=4742929},
-    [560]={abbr="MC",  name="Mechagon Workshop",              texture=7478529},
-    [558]={abbr="MT",  name="Mists of Tirna Scithe",          texture=7467174},
-    [559]={abbr="NPX", name="Necrotic Wake",                  texture=7570501},
-    [556]={abbr="POS", name="Pit of Saron",                   texture=608210},
-    [239]={abbr="SEAT",name="Siege of Atal'Dazar",           texture=1718213},
-    [161]={abbr="SR",  name="Stonevault",                     texture=1041999},
-    [557]={abbr="WS",  name="City of Threads",                texture=7464937},
+    -- teleport = spell ID for M+ dungeon teleport
+    [402]={abbr="AA",  name="Algeth'ar Academy",              texture=4742929, teleport=393273},
+    [560]={abbr="MC",  name="Maisara Caverns",                texture=7478529, teleport=1254559},
+    [558]={abbr="MT",  name="Magisters' Terrace",             texture=7467174, teleport=1254572},
+    [559]={abbr="NPX", name="Nexus-Point Xenas",              texture=7570501, teleport=1254563},
+    [556]={abbr="POS", name="Pit of Saron",                   texture=608210,  teleport=1254555},
+    [239]={abbr="SEAT",name="Seat of the Triumvirate",        texture=1718213, teleport=1254551},
+    [161]={abbr="SR",  name="Skyreach",                       texture=1041999, teleport=159898},
+    [557]={abbr="WS",  name="Windrunner Spire",               texture=7464937, teleport=1254400},
   }},
+
+  -- ─── SEASON 2 (Midnight) ─────────────────────────────────────────────────
+  -- Zum Aktivieren: die "--" am Anfang jeder Zeile entfernen.
+  -- mapID    = C_ChallengeMode.GetMapUIInfo() oder Wowhead
+  -- texture  = FileDataID (Wowhead Asset-Browser)
+  -- teleport = Spell ID (Wowhead: "Mythic Teleport: [Dungeon]")
+  -- [2]={name="Midnight Season 2",dungeons={
+  --   [1001]={abbr="D1", name="Dungeon Name 1",  texture=0000000, teleport=0000000},
+  --   [1002]={abbr="D2", name="Dungeon Name 2",  texture=0000000, teleport=0000000},
+  --   [1003]={abbr="D3", name="Dungeon Name 3",  texture=0000000, teleport=0000000},
+  --   [1004]={abbr="D4", name="Dungeon Name 4",  texture=0000000, teleport=0000000},
+  --   [1005]={abbr="D5", name="Dungeon Name 5",  texture=0000000, teleport=0000000},
+  --   [1006]={abbr="D6", name="Dungeon Name 6",  texture=0000000, teleport=0000000},
+  --   [1007]={abbr="D7", name="Dungeon Name 7",  texture=0000000, teleport=0000000},
+  --   [1008]={abbr="D8", name="Dungeon Name 8",  texture=0000000, teleport=0000000},
+  -- }},
+
+  -- ─── SEASON 3 (Midnight) ─────────────────────────────────────────────────
+  -- Zum Aktivieren: die "--" am Anfang jeder Zeile entfernen.
+  -- mapID    = C_ChallengeMode.GetMapUIInfo() oder Wowhead
+  -- texture  = FileDataID (Wowhead Asset-Browser)
+  -- teleport = Spell ID (Wowhead: "Mythic Teleport: [Dungeon]")
+  -- [3]={name="Midnight Season 3",dungeons={
+  --   [1101]={abbr="D1", name="Dungeon Name 1",  texture=0000000, teleport=0000000},
+  --   [1102]={abbr="D2", name="Dungeon Name 2",  texture=0000000, teleport=0000000},
+  --   [1103]={abbr="D3", name="Dungeon Name 3",  texture=0000000, teleport=0000000},
+  --   [1104]={abbr="D4", name="Dungeon Name 4",  texture=0000000, teleport=0000000},
+  --   [1105]={abbr="D5", name="Dungeon Name 5",  texture=0000000, teleport=0000000},
+  --   [1106]={abbr="D6", name="Dungeon Name 6",  texture=0000000, teleport=0000000},
+  --   [1107]={abbr="D7", name="Dungeon Name 7",  texture=0000000, teleport=0000000},
+  --   [1108]={abbr="D8", name="Dungeon Name 8",  texture=0000000, teleport=0000000},
+  -- }},
+
+  -- ─── SEASON 1 (The Last Titan — neue Expansion) ───────────────────────────
+  -- Zum Aktivieren: die "--" am Anfang jeder Zeile entfernen.
+  -- Expansion-Key 4 weiterzählen falls Midnight bereits 3 Seasons hatte.
+  -- mapID    = C_ChallengeMode.GetMapUIInfo() oder Wowhead
+  -- texture  = FileDataID (Wowhead Asset-Browser)
+  -- teleport = Spell ID (Wowhead: "Mythic Teleport: [Dungeon]")
+  -- [4]={name="The Last Titan Season 1",dungeons={
+  --   [1201]={abbr="D1", name="Dungeon Name 1",  texture=0000000, teleport=0000000},
+  --   [1202]={abbr="D2", name="Dungeon Name 2",  texture=0000000, teleport=0000000},
+  --   [1203]={abbr="D3", name="Dungeon Name 3",  texture=0000000, teleport=0000000},
+  --   [1204]={abbr="D4", name="Dungeon Name 4",  texture=0000000, teleport=0000000},
+  --   [1205]={abbr="D5", name="Dungeon Name 5",  texture=0000000, teleport=0000000},
+  --   [1206]={abbr="D6", name="Dungeon Name 6",  texture=0000000, teleport=0000000},
+  --   [1207]={abbr="D7", name="Dungeon Name 7",  texture=0000000, teleport=0000000},
+  --   [1208]={abbr="D8", name="Dungeon Name 8",  texture=0000000, teleport=0000000},
+  -- }},
+}
+
+-- ─────────────────────────────── TELEPORT SPELLS ───────────────────────────
+-- Master lookup: challengeMapID → teleport spellID
+-- Used by auto-discovery AND manual season definitions.
+-- Add new entries here as they become known (check BigWigs/Details/Wowhead).
+MP.TeleportSpells = {
+  -- Midnight
+  [402]=393273,  [560]=1254559, [558]=1254572, [559]=1254563,
+  [556]=1254555, [239]=1254551, [161]=159898,  [557]=1254400,
+  -- The War Within
+  [503]=445417,  [502]=445416,  [501]=445269,  [504]=445443,
+  [505]=445444,  [506]=445441,  [507]=445440,  [508]=445414,
+  -- Dragonflight
+  [399]=393222,  [400]=393279,  [401]=393262,
+  [403]=393276,  [404]=393267,  [405]=393256,  [406]=393283,
+  -- Shadowlands
+  [375]=354469,  [376]=354466,  [377]=354462,  [378]=354465,
+  [379]=354463,  [380]=354464,  [381]=354468,  [382]=354467,
+  -- Legion / BfA / older (from BigWigs)
+  [197]=424153,  [198]=393766,  [199]=373262,  [200]=424163,
+  [210]=410078,  [234]=424187,  [227]=410071,  [353]=373274,
 }
 
 -- Status helpers
@@ -67,11 +152,40 @@ local function GetPlayerKey()
   if r and r~="" then return n.."-"..(r:gsub("%s+","")) end
   return n or UnitName("player") or "Unknown"
 end
+local function AutoDiscoverSeason(rawID)
+  local mapIDs = C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable()
+  if not mapIDs or #mapIDs == 0 then return false end
+  local dungeons = {}
+  for _, mid in ipairs(mapIDs) do
+    local name, _, _, tex = C_ChallengeMode.GetMapUIInfo(mid)
+    if name then
+      local abbr = ""
+      for word in name:gmatch("%S+") do
+        if not word:match("^[Tt]he$") and not word:match("^[Oo]f$") and not word:match("^[Aa]nd$") then
+          abbr = abbr .. word:sub(1,1):upper()
+        end
+      end
+      if #abbr < 2 then abbr = name:sub(1,3):upper() end
+      local tp = MP.TeleportSpells and MP.TeleportSpells[mid]
+      dungeons[mid] = {abbr=abbr, name=name, texture=tex or 0, teleport=tp}
+    end
+  end
+  MP.Seasons[rawID] = {name="Season "..rawID, dungeons=dungeons}
+  MP.SeasonMap[rawID] = rawID
+  C_Timer.After(3, function()
+    print("[|cff3bd2edLucid|r|cffffffffUI|r |cff3bd2edM+|r] |cff4DCC50Auto-discovered new season:|r "
+      .."|cffffd100Season "..rawID.."|r (API ID "..rawID..") with "..#mapIDs.." dungeons")
+  end)
+  return true
+end
+
 local function GetCurrentSeason()
   local raw=C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
   -- Normalise via SeasonMap (handles Blizzard's varying IDs)
   local s = raw and (MP.SeasonMap[raw] or raw)
   if s and MP.Seasons[s] then return s end
+  -- Unknown season: try auto-discovery from API
+  if raw and AutoDiscoverSeason(raw) then return raw end
   -- Fallback: highest known season
   local mx=1; for k in pairs(MP.Seasons) do if k>mx then mx=k end end; return mx
 end
@@ -216,13 +330,100 @@ end
 
 -- ─────────────────────────────── EVENTS ─────────────────────────────────────
 local evF=CreateFrame("Frame")
-evF:RegisterEvent("PLAYER_LOGIN"); evF:RegisterEvent("PLAYER_ENTERING_WORLD")
-evF:RegisterEvent("CHALLENGE_MODE_START"); evF:RegisterEvent("WORLD_STATE_TIMER_START")
-evF:RegisterEvent("CHALLENGE_MODE_RESET"); evF:RegisterEvent("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
-evF:RegisterEvent("CHALLENGE_MODE_COMPLETED"); evF:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-evF:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
+local mpEventsRegistered = false
+
+local function RegisterMPEvents()
+  if mpEventsRegistered then return end
+  mpEventsRegistered = true
+  evF:RegisterEvent("PLAYER_ENTERING_WORLD")
+  evF:RegisterEvent("CHALLENGE_MODE_START"); evF:RegisterEvent("WORLD_STATE_TIMER_START")
+  evF:RegisterEvent("CHALLENGE_MODE_RESET"); evF:RegisterEvent("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
+  evF:RegisterEvent("CHALLENGE_MODE_COMPLETED"); evF:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+  evF:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
+end
+
+local function UnregisterMPEvents()
+  if not mpEventsRegistered then return end
+  mpEventsRegistered = false
+  evF:UnregisterEvent("PLAYER_ENTERING_WORLD")
+  evF:UnregisterEvent("CHALLENGE_MODE_START"); evF:UnregisterEvent("WORLD_STATE_TIMER_START")
+  evF:UnregisterEvent("CHALLENGE_MODE_RESET"); evF:UnregisterEvent("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
+  evF:UnregisterEvent("CHALLENGE_MODE_COMPLETED"); evF:UnregisterEvent("ZONE_CHANGED_NEW_AREA")
+  evF:UnregisterEvent("ENCOUNTER_LOOT_RECEIVED")
+  activeState="IDLE"; activeRun=nil
+end
+
+MP.EnableTracking = function()
+  RegisterMPEvents()
+  if C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
+  if C_MythicPlus.RequestMapInfo then C_MythicPlus.RequestMapInfo() end
+  C_Timer.After(2,function() MP.SyncBlizzard() end)
+end
+
+MP.DisableTracking = function()
+  UnregisterMPEvents()
+end
+
+-- Print current season info to chat (for debugging / new season data collection)
+MP.PrintSeasonInfo = function()
+  local rawID = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
+  local mappedID = rawID and (MP.SeasonMap[rawID] or rawID) or "nil"
+  local sd = MP.Seasons[mappedID]
+  local sName = sd and sd.name or "UNKNOWN"
+  print("[|cff3bd2edLucid|r|cffffffffUI|r |cff3bd2edM+|r] ── Season Info ──")
+  print("  Season: |cffffd100"..sName.."|r  (raw=|cffffffff"..tostring(rawID).."|r, mapped=|cffffffff"..tostring(mappedID).."|r)")
+  -- API dungeons
+  local mapIDs = C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapTable() or {}
+  print("  API Dungeons (|cffffd100"..#mapIDs.."|r):")
+  local sorted = {}
+  for _, mid in ipairs(mapIDs) do
+    local name, _, timeLimit, tex = C_ChallengeMode.GetMapUIInfo(mid)
+    sorted[#sorted+1] = {mid=mid, name=name or "?", tex=tex or 0, timeLimit=timeLimit or 0}
+  end
+  table.sort(sorted, function(a,b) return a.name < b.name end)
+  for _, d in ipairs(sorted) do
+    -- Check our season data
+    local ours = sd and sd.dungeons and sd.dungeons[d.mid]
+    local abbr = ours and ours.abbr or "?"
+    local tp = MP.TeleportSpells and MP.TeleportSpells[d.mid]
+    local tpStr
+    if tp then
+      local known = C_SpellBook.IsSpellKnownOrInSpellBook(tp)
+      tpStr = (known and "|cff4DCC50" or "|cffff4444") .. tp .. "|r"
+    else
+      tpStr = "|cffff9900missing|r"
+    end
+    local inSeason = ours and "|cff4DCC50yes|r" or "|cffff4444no|r"
+    print("    |cffffd100"..abbr.."|r ["..d.mid.."] "..d.name
+      .."  tex=|cffffffff"..d.tex.."|r  tp="..tpStr
+      .."  limit=|cffffffff"..d.timeLimit.."|r  inSeason="..inSeason)
+  end
+  -- Copyable Lua block
+  print("  ── Copy-paste template ──")
+  print("  [X]={name=\"Season X\",dungeons={")
+  for _, d in ipairs(sorted) do
+    local ours = sd and sd.dungeons and sd.dungeons[d.mid]
+    local abbr = ours and ours.abbr
+    if not abbr then
+      abbr = ""
+      for word in d.name:gmatch("%S+") do
+        if not word:match("^[Tt]he$") and not word:match("^[Oo]f$") and not word:match("^[Aa]nd$") then
+          abbr = abbr .. word:sub(1,1):upper()
+        end
+      end
+      if #abbr < 2 then abbr = d.name:sub(1,3):upper() end
+    end
+    local tp = MP.TeleportSpells and MP.TeleportSpells[d.mid] or 0
+    print('    ['..d.mid..']={abbr="'..abbr..'", name="'..d.name..'", texture='..d.tex..', teleport='..tp..'},')
+  end
+  print("  }},")
+end
+
+evF:RegisterEvent("PLAYER_LOGIN")
 evF:SetScript("OnEvent",function(_,ev,...)
   if ev=="PLAYER_LOGIN" then
+    if NS.DB("mpEnabled") == false then return end
+    RegisterMPEvents()
     -- Migrate runs from any season key that maps to key 1 (e.g. Blizzard returned 2 before SeasonMap fix)
     C_Timer.After(1, function()
       local db=GetDB(); local totalMigrated=0
@@ -248,7 +449,9 @@ evF:SetScript("OnEvent",function(_,ev,...)
         end
       end
       if totalMigrated>0 then
-        print("|cff3bd2ed[LucidUI Mythic+]|r Migrated "..totalMigrated.." run(s) to Midnight Season 1.")
+        local curSeason = MP.Seasons[GetCurrentSeason()]
+        local sName = curSeason and curSeason.name or "current season"
+        print("[|cff3bd2edLucid|r|cffffffffUI|r |cff3bd2edMythic+|r] Migrated "..totalMigrated.." run(s) to "..sName..".")
       end
     end)
     C_Timer.After(3,function()
@@ -513,15 +716,15 @@ local function BuildWindow()
     brV:SetPoint("BOTTOMRIGHT",card,"BOTTOMRIGHT",-2,2); brV:SetColorTexture(ar,ag,ab,0.25); RegAccent(brV,0.25)
     return card
   end
-  local pCardY = bodyY+22
-  local pCardH = PANE_H-2
+  local pCardY = bodyY+40
+  local pCardH = PANE_H-20
   PaneCard(8, pCardY, LEFT_W-2, pCardH)
   PaneCard(LEFT_W+12, pCardY, CENTER_W+2, pCardH)
 
   -- Vertical dividers
   local function VDiv(x)
     local vl=MP.win:CreateTexture(nil,"OVERLAY",nil,3); vl:SetWidth(1)
-    vl:SetPoint("TOPLEFT",MP.win,"TOPLEFT",x,-bodyY); vl:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",x,28)
+    vl:SetPoint("TOPLEFT",MP.win,"TOPLEFT",x,-(bodyY+22)); vl:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",x,28)
     vl:SetColorTexture(ar,ag,ab,0.18)
     RegAccent(vl,0.18)
   end; VDiv(LEFT_W+10); VDiv(LEFT_W+CENTER_W+16)
@@ -529,18 +732,18 @@ local function BuildWindow()
   local anaSF,anaSC=MkPane(MP.win)
   anaSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",12,-(bodyY+24))
   anaSF:SetPoint("BOTTOMRIGHT",MP.win,"TOPLEFT",LEFT_W+2,-(bodyY+PANE_H+18))
-  MP.win._anaSC=anaSC
+  MP.win._anaSC=anaSC; MP.win._anaSF=anaSF
 
   local histSF,histSC=MkPane(MP.win)
   histSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",LEFT_W+12,-(bodyY+24))
   histSF:SetPoint("BOTTOMRIGHT",MP.win,"TOPLEFT",LEFT_W+CENTER_W+10,-(bodyY+PANE_H+18))
-  MP.win._histSC=histSC
+  MP.win._histSC=histSC; MP.win._histSF=histSF
 
   local detSF,detSC=MkPane(MP.win)
   -- Run Details fills the full right column (from body top to above footer buttons)
   detSF:SetPoint("TOPLEFT",MP.win,"TOPLEFT",LEFT_W+CENTER_W+18,-(bodyY+24))
   detSF:SetPoint("BOTTOMRIGHT",MP.win,"BOTTOMRIGHT",-4,28)
-  MP.win._detSC=detSC
+  MP.win._detSC=detSC; MP.win._detSF=detSF
 
   -- Graph area with card
   local gY=bodyY+PANE_H+22
@@ -559,9 +762,247 @@ local function BuildWindow()
 
   -- Footer checkboxes + buttons
   local maskCB=NS.ChatGetCheckbox(MP.win,"Mask Names",18,function(s) MP._maskNames=s; MP.Refresh() end,"Anonymise player names to first 3 letters")
-  maskCB:ClearAllPoints(); maskCB:SetHeight(18); maskCB:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",120,6)
+  maskCB:ClearAllPoints(); maskCB:SetSize(130,18); maskCB:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",110,6)
   local failCB=NS.ChatGetCheckbox(MP.win,"Hide Fails",18,function(s) MP._hideFails=s; MP.Refresh() end,"Hide depleted/abandoned runs from history")
-  failCB:ClearAllPoints(); failCB:SetHeight(18); failCB:SetPoint("LEFT",maskCB,"RIGHT",20,0)
+  failCB:ClearAllPoints(); failCB:SetSize(120,18); failCB:SetPoint("LEFT",maskCB,"RIGHT",10,0)
+
+  -- ── Tutorial button ───────────────────────────────────────────────────────
+  local tutBtn=MkBtn(MP.win,"Tutorial",90,20,BD)
+  tutBtn:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",8,5)
+  local tutBorder=CreateFrame("Frame",nil,tutBtn,"BackdropTemplate")
+  tutBorder:SetAllPoints(); tutBorder:SetFrameLevel(tutBtn:GetFrameLevel()-1)
+  tutBorder:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8",edgeSize=2})
+  tutBorder:SetBackdropBorderColor(ar,ag,ab,1); tutBorder:Hide()
+
+  -- Coach marks
+  local coachMarks={}
+  local tutorialActive=false
+
+  local COACH_STEPS={
+    {title="1. Filters",       text="Select a character and season to view their Mythic+ history. Use Reset Filters to clear selections.",
+     anchor="altBtn",     point="BOTTOM", relPoint="TOP", x=0, y=8},
+    {title="2. Dungeon Tiles", text="Overview of your best timed key for each dungeon this season. Left-click to filter runs by dungeon.\n|cff4DCC50Right-click to teleport directly to the dungeon (requires a timed key).|r",
+     anchor="tileRow",    point="TOP", relPoint="BOTTOM", x=0, y=-8},
+    {title="3. Players",       text="Lists all players you've run keys with. Click a name to filter the run history by that player.",
+     anchor="anaSF",      point="TOPRIGHT", relPoint="TOPLEFT", x=-8, y=0},
+    {title="4. Run History",   text="Every recorded run for the selected filters. Click a run to see full details in the right panel.",
+     anchor="histSF",     point="BOTTOM", relPoint="TOP", x=0, y=8},
+    {title="5. Run Details",   text="Shows the selected run's dungeon, key level, time, roster, deaths, and loot drops.",
+     anchor="detSF",      point="TOPLEFT", relPoint="TOPRIGHT", x=8, y=0},
+    {title="6. Key Level Chart",text="Visual chart showing your best timed key levels across all dungeons.",
+     anchor="gHolder",    point="TOP", relPoint="BOTTOM", x=0, y=-8},
+    {title="7. Footer Options", text="Mask Names hides player names for screenshots/streaming. Hide Fails removes depleted runs from history.",
+     anchor="maskCB",     point="BOTTOM", relPoint="TOP", x=60, y=8},
+  }
+
+  local tutProgress=0
+
+  local function ClearCoachMarks()
+    for _,f in ipairs(coachMarks) do f:Hide() end
+    wipe(coachMarks)
+  end
+
+  local function GetAnchorFrame(key)
+    if key=="altBtn"  then return MP.win._altBtn end
+    if key=="tileRow" then return MP.win._tileRow end
+    if key=="anaSF"   then return MP.win._anaSF end
+    if key=="histSF"  then return MP.win._histSF end
+    if key=="detSF"   then return MP.win._detSF end
+    if key=="gHolder" then return MP.win._gHolder end
+    if key=="maskCB"  then return maskCB end
+    return MP.win
+  end
+
+  local function DrawCoachMarks()
+    ClearCoachMarks()
+    if not tutorialActive then return end
+    local step=COACH_STEPS[tutProgress+1]
+    if not step then
+      tutorialActive=false; tutProgress=0
+      tutBtn._lbl:SetText("Tutorial"); tutBorder:Hide()
+      return
+    end
+    local anchor=GetAnchorFrame(step.anchor)
+    if not anchor then return end
+
+    -- Parent to UIParent so nothing in MP.win can cover it
+    local f=CreateFrame("Frame","LucidUICoachMark",UIParent,"BackdropTemplate")
+    f:SetSize(260,100)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetFrameLevel(200)
+    f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=2})
+    f:SetBackdropColor(0.08,0.08,0.12,0.97)
+    f:SetBackdropBorderColor(ar,ag,ab,1)
+    f:SetClampedToScreen(true)
+    f:EnableMouse(true)
+
+    -- Anchor relative to the target element
+    f:SetPoint(step.point,anchor,step.relPoint,step.x,step.y)
+
+    -- Title
+    local tFS=f:CreateFontString(nil,"OVERLAY")
+    tFS:SetFont(STANDARD_TEXT_FONT,12,"OUTLINE")
+    tFS:SetPoint("TOPLEFT",12,-10)
+    tFS:SetTextColor(ar,ag,ab)
+    tFS:SetText(step.title)
+
+    -- Step counter
+    local cFS=f:CreateFontString(nil,"OVERLAY")
+    cFS:SetFont(STANDARD_TEXT_FONT,9,"")
+    cFS:SetPoint("TOPRIGHT",-10,-12)
+    cFS:SetTextColor(0.45,0.45,0.55)
+    cFS:SetText((tutProgress+1).."/"..#COACH_STEPS)
+
+    -- Body
+    local bFS=f:CreateFontString(nil,"OVERLAY")
+    bFS:SetFont(STANDARD_TEXT_FONT,10,"")
+    bFS:SetPoint("TOPLEFT",12,-30)
+    bFS:SetPoint("TOPRIGHT",-12,-30)
+    bFS:SetTextColor(0.85,0.85,0.92)
+    bFS:SetText(step.text)
+    bFS:SetWordWrap(true)
+    bFS:SetJustifyH("LEFT")
+
+    -- Auto-height + "Got it" button (after text height is known)
+    C_Timer.After(0.01,function()
+      if not f or not f:IsShown() then return end
+      local th=bFS:GetStringHeight() or 40
+      f:SetHeight(math.max(90, th+65))
+      local gotIt=CreateFrame("Button",nil,f,"BackdropTemplate")
+      gotIt:SetSize(80,20)
+      gotIt:SetPoint("BOTTOM",f,"BOTTOM",0,10)
+      gotIt:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+      gotIt:SetBackdropColor(0.04,0.04,0.07,1)
+      gotIt:SetBackdropBorderColor(ar,ag,ab,0.6)
+      local gFS=gotIt:CreateFontString(nil,"OVERLAY")
+      gFS:SetFont(STANDARD_TEXT_FONT,10,""); gFS:SetPoint("CENTER"); gFS:SetTextColor(0.85,0.85,0.92); gFS:SetText("Got it")
+      gotIt:SetScript("OnEnter",function() gotIt:SetBackdropBorderColor(ar,ag,ab,1); gFS:SetTextColor(1,1,1) end)
+      gotIt:SetScript("OnLeave",function() gotIt:SetBackdropBorderColor(ar,ag,ab,0.6); gFS:SetTextColor(0.85,0.85,0.92) end)
+      gotIt:SetScript("OnClick",function()
+        tutProgress=tutProgress+1
+        DrawCoachMarks()
+      end)
+    end)
+
+    f:Show()
+    table.insert(coachMarks,f)
+  end
+
+  local TUT_KEY = "TutorialPlayer-TutRealm"
+  local savedAlt, savedSeason, savedFilter, savedPlayerFilter
+
+  local function LoadTutorialData()
+    local db = GetDB()
+    local s = GetCurrentSeason()
+    local sd = MP.Seasons[s]
+    if not sd then return end
+    local now = time()
+    local fakeRuns = {}
+    local classes = {"WARRIOR","MAGE","PRIEST","ROGUE","DRUID","HUNTER","PALADIN","DEATHKNIGHT"}
+    local teammates = {
+      {"Thunderfury-TutRealm","WARRIOR","TANK"},
+      {"Frostbolt-TutRealm","MAGE","DAMAGER"},
+      {"Healbot-TutRealm","PRIEST","HEALER"},
+      {"Stabsworth-TutRealm","ROGUE","DAMAGER"},
+    }
+    local mapIDs = {}
+    for mid in pairs(sd.dungeons) do mapIDs[#mapIDs+1] = mid end
+    table.sort(mapIDs)
+    -- Fake loot pool
+    local fakeLoot = {
+      {link="|cffa335ee|Hitem:0|h[Seal of the Keystone]|h|r", q=4},
+      {link="|cffa335ee|Hitem:0|h[Everforge Chestplate]|h|r", q=4},
+      {link="|cff0070dd|Hitem:0|h[Sigil of Dark Depths]|h|r", q=3},
+      {link="|cffa335ee|Hitem:0|h[Band of the Forgotten Path]|h|r", q=4},
+      {link="|cff0070dd|Hitem:0|h[Darkflame Trinket]|h|r", q=3},
+      {link="|cffa335ee|Hitem:0|h[Mythic Keystone Ring]|h|r", q=4},
+    }
+    -- Generate 3-5 runs per dungeon at varying key levels
+    for di, mid in ipairs(mapIDs) do
+      local dg = sd.dungeons[mid]
+      local apiName = C_ChallengeMode.GetMapUIInfo(mid) or dg.name
+      local numRuns = 3 + (di % 3)
+      for ri = 1, numRuns do
+        local level = 6 + di + ri
+        local limit = 1800 + (mid % 5) * 120
+        -- Vary timing: many +3, some +2, some +1, few depleted
+        local timeMult
+        local idx = (di + ri) % 10
+        if idx == 0 then timeMult = 1.15     -- depleted
+        elseif idx <= 4 then timeMult = 0.45 + ri * 0.03  -- fast (+3)
+        elseif idx <= 6 then timeMult = 0.70 + ri * 0.03  -- medium (+2)
+        else timeMult = 0.85 + ri * 0.02 end              -- close (+1)
+        local elapsed = limit * timeMult
+        local status
+        if elapsed > limit then status = 1  -- depleted
+        elseif elapsed <= limit * 0.6 then status = 4  -- +3
+        elseif elapsed <= limit * 0.8 then status = 3  -- +2
+        else status = 2 end  -- +1
+        local roster = { [TUT_KEY] = {class=classes[(di+ri)%#classes+1], role="DAMAGER"} }
+        for ti = 1, 4 do
+          local tm = teammates[((di+ri+ti-1) % #teammates) + 1]
+          roster[tm[1]] = {class=tm[2], role=tm[3]}
+        end
+        -- Every run gets 1-2 loot items
+        local loot = {}
+        local li = ((di + ri) % #fakeLoot) + 1
+        local owner = ri % 2 == 0 and TUT_KEY or teammates[(di % #teammates) + 1][1]
+        loot[1] = {link=fakeLoot[li].link, originalOwner=owner, currentOwner=owner, qty=1}
+        if (di + ri) % 3 == 0 then
+          local li2 = (li % #fakeLoot) + 1
+          local owner2 = teammates[((di + ri) % #teammates) + 1][1]
+          loot[2] = {link=fakeLoot[li2].link, originalOwner=owner2, currentOwner=owner2, qty=1}
+        end
+        fakeRuns[#fakeRuns+1] = {
+          mapID=mid, mapName=apiName, level=level, status=status,
+          timeLimit=limit, timeElapsed=elapsed, date=now - (di*numRuns+ri) * 3600,
+          roster=roster, loot=loot, deaths=status<=1 and (2+ri%4) or ri%3, timeLost=(ri%3)*5,
+          overallScore=1800+di*50, mapScore=status>=2 and (180+level*12) or 0,
+        }
+      end
+    end
+    if not db[TUT_KEY] then db[TUT_KEY] = {} end
+    db[TUT_KEY][s] = fakeRuns
+  end
+
+  local function ClearTutorialData()
+    local db = GetDB()
+    db[TUT_KEY] = nil
+  end
+
+  local function EnterTutorial()
+    tutorialActive = true; tutProgress = 0
+    tutBtn._lbl:SetText("Exit Tutorial"); tutBorder:Show()
+    -- Save current state
+    savedAlt = MP._selAlt; savedSeason = MP._selSeason
+    savedFilter = MP._filterMap; savedPlayerFilter = MP._filterPlayer
+    -- Load fake data and switch to tutorial player
+    LoadTutorialData()
+    MP._selAlt = TUT_KEY; MP._filterMap = nil; MP._filterPlayer = nil; MP._selRun = nil
+    MP.Refresh()
+    DrawCoachMarks()
+  end
+
+  local function ExitTutorial()
+    tutorialActive = false
+    tutBtn._lbl:SetText("Tutorial"); tutBorder:Hide()
+    ClearCoachMarks()
+    ClearTutorialData()
+    -- Restore previous state
+    MP._selAlt = savedAlt or GetPlayerKey()
+    MP._selSeason = savedSeason; MP._filterMap = savedFilter; MP._filterPlayer = savedPlayerFilter
+    MP._selRun = nil
+    MP.Refresh()
+  end
+
+  tutBtn:SetScript("OnClick",function()
+    if tutorialActive then ExitTutorial() else EnterTutorial() end
+  end)
+
+  -- Hide coach marks when window closes
+  MP.win:HookScript("OnHide",function()
+    if tutorialActive then ExitTutorial() end
+  end)
 
   MP.win._BD=BD
   MP.win._altBtn:SetScript("OnClick",function(s) MP._OpenAltMenu(s) end)
@@ -667,6 +1108,18 @@ local function DrawTiles(seasonData,runs)
       tile.nameFS:SetPoint("BOTTOM",tile,"BOTTOM",0,4); tile.nameFS:SetTextColor(1,0.82,0)
       tile.nameFS:SetJustifyH("CENTER")
 
+      -- Teleport icon (top-right corner)
+      tile.tpIcon=tile:CreateTexture(nil,"OVERLAY",nil,6)
+      tile.tpIcon:SetSize(28,28)
+      tile.tpIcon:SetPoint("TOPRIGHT",tile,"TOPRIGHT",-2,2)
+      tile.tpIcon:SetTexture("Interface/AddOns/LucidUI/Assets/Tp.png")
+      tile.tpIcon:Hide()
+      -- Cooldown timer below icon
+      tile.tpCdFS=tile:CreateFontString(nil,"OVERLAY")
+      tile.tpCdFS:SetFont(STANDARD_TEXT_FONT,16,"OUTLINE")
+      tile.tpCdFS:SetPoint("TOP",tile.tpIcon,"BOTTOM",0,-1)
+      tile.tpCdFS:Hide()
+
       MP.win._tiles[i]=tile
     end
 
@@ -724,18 +1177,88 @@ local function DrawTiles(seasonData,runs)
       tile.lvlFS:SetText(""); tile.scFS:Hide()
     end
 
+    -- Teleport icon + cooldown
+    local teleportSpell = seasonData.dungeons[d.id] and seasonData.dungeons[d.id].teleport
+    local isTutorial = MP._selAlt == "TutorialPlayer-TutRealm"
+    local tpActive = teleportSpell and NS.DB("mpTeleport") ~= false and (isTutorial or C_SpellBook.IsSpellKnownOrInSpellBook(teleportSpell))
+    if tpActive then
+      tile.tpIcon:Show()
+      if isTutorial then
+        -- Fake: some ready, some on cooldown
+        local fakeCD = (i % 3 == 0)
+        if fakeCD then
+          local fakeMin = 4 + i * 2
+          tile.tpCdFS:SetText(fakeMin.."m"); tile.tpCdFS:SetTextColor(1,0.3,0.3); tile.tpCdFS:Show()
+          tile.tpIcon:SetVertexColor(1,0.3,0.3); tile.tpIcon:SetAlpha(0.8)
+        else
+          tile.tpCdFS:Hide()
+          tile.tpIcon:SetVertexColor(0.3,1,0.3); tile.tpIcon:SetAlpha(0.8)
+        end
+      else
+        local cdInfo = C_Spell.GetSpellCooldown(teleportSpell)
+        if cdInfo and cdInfo.startTime and cdInfo.startTime > 0 and cdInfo.duration > 2 then
+          local remaining = cdInfo.startTime + cdInfo.duration - GetTime()
+          if remaining > 0 then
+            local cdText = remaining >= 60 and string.format("%dm", math.ceil(remaining/60)) or string.format("%ds", math.ceil(remaining))
+            tile.tpCdFS:SetText(cdText); tile.tpCdFS:SetTextColor(1,0.3,0.3); tile.tpCdFS:Show()
+            tile.tpIcon:SetVertexColor(1,0.3,0.3); tile.tpIcon:SetAlpha(0.8)
+          else
+            tile.tpCdFS:Hide()
+            tile.tpIcon:SetVertexColor(0.3,1,0.3); tile.tpIcon:SetAlpha(0.8)
+          end
+        else
+          tile.tpCdFS:Hide()
+          tile.tpIcon:SetVertexColor(0.3,1,0.3); tile.tpIcon:SetAlpha(0.8)
+        end
+      end
+    elseif teleportSpell and NS.DB("mpTeleport") ~= false then
+      -- Spell not yet learned: show greyed out
+      tile.tpIcon:Show(); tile.tpCdFS:Hide()
+      tile.tpIcon:SetVertexColor(0.65,0.65,0.65); tile.tpIcon:SetAlpha(1)
+    else
+      tile.tpIcon:Hide(); tile.tpCdFS:Hide()
+    end
+
     local capID=d.id; local capName=d.name
-    tile:SetScript("OnClick",function()
-      MP._filterMap=(MP._filterMap==capID) and nil or capID; MP._selRun=nil; MP.Refresh()
+    -- Teleport overlay: InsecureActionButton for right-click teleport
+    -- IMPORTANT: never SetScript("OnClick") — it destroys the template handler
+    if not tile._tpBtn then
+      local tp = CreateFrame("Button", nil, tile, "InsecureActionButtonTemplate")
+      tp:SetAllPoints()
+      tp:SetFrameLevel(tile:GetFrameLevel()+2)
+      tp:RegisterForClicks("AnyDown","AnyUp")
+      tile._tpBtn = tp
+    end
+    -- Right-click = teleport via template handler (only if setting enabled)
+    local tpEnabled = teleportSpell and NS.DB("mpTeleport") ~= false
+    if tpEnabled then
+      tile._tpBtn:SetAttribute("type2","spell")
+      tile._tpBtn:SetAttribute("spell2",teleportSpell)
+    else
+      tile._tpBtn:SetAttribute("type2",nil)
+      tile._tpBtn:SetAttribute("spell2",nil)
+    end
+    -- Left-click = filter (via PostClick, runs AFTER template handler)
+    tile._tpBtn:SetScript("PostClick",function(_,btn)
+      if btn=="LeftButton" then
+        MP._filterMap=(MP._filterMap==capID) and nil or capID; MP._selRun=nil; MP.Refresh()
+      end
     end)
-    tile:SetScript("OnEnter",function(self2)
+    tile._tpBtn:SetScript("OnEnter",function(self2)
       if MP._filterMap~=capID then tile.highlight:Show(); tile.border:Show() end
       GameTooltip:SetOwner(self2,"ANCHOR_TOP")
       GameTooltip:SetText(capName,1,1,1)
-      GameTooltip:AddLine("Click to filter by this dungeon",0.7,0.7,0.7)
+      GameTooltip:AddLine("Left-click to filter",0.7,0.7,0.7)
+      if tpEnabled then
+        if C_SpellBook.IsSpellKnownOrInSpellBook(teleportSpell) then
+          GameTooltip:AddLine("Right-click to teleport",0.3,0.9,0.3)
+        else
+          GameTooltip:AddLine("Teleport not unlocked",0.5,0.5,0.5)
+        end
+      end
       GameTooltip:Show()
     end)
-    tile:SetScript("OnLeave",function()
+    tile._tpBtn:SetScript("OnLeave",function()
       if MP._filterMap~=capID then tile.highlight:Hide(); tile.border:Hide() end
       GameTooltip:Hide()
     end)
@@ -790,9 +1313,9 @@ local function DrawHistory(runs,bestDates)
   local ar,ag,ab=NS.ChatGetAccentRGB(); local BD=MP.win._BD; local yOff=0; local ROW=26
   local CW={95,160,44,58,66,40}
   local hdr=CreateFrame("Frame",nil,sc,"BackdropTemplate"); hdr:SetHeight(20)
-  hdr:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); hdr:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
+  hdr:SetPoint("TOPLEFT",sc,"TOPLEFT",8,-yOff); hdr:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
   hdr:SetBackdrop(BD); hdr:SetBackdropColor(0.015,0.015,0.025,1); hdr:SetBackdropBorderColor(ar,ag,ab,0.22)
-  local xc=3
+  local xc=5
   for i,col in ipairs({"Date","Dungeon","+Lvl","Time","Status","Deaths"}) do
     local fs=hdr:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,"OUTLINE")
     fs:SetPoint("LEFT",hdr,"LEFT",xc,0); fs:SetTextColor(ar,ag,ab); fs:SetText(col); xc=xc+CW[i] end
@@ -802,21 +1325,21 @@ local function DrawHistory(runs,bestDates)
     fs:SetTextColor(0.35,0.35,0.45); fs:SetText("No runs match the current filters"); return end
   for _,run in ipairs(runs) do
     local row=CreateFrame("Button",nil,sc,"BackdropTemplate"); row:SetHeight(ROW)
-    row:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
+    row:SetPoint("TOPLEFT",sc,"TOPLEFT",8,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
     row:SetBackdrop(BD); row:SetBackdropBorderColor(0.06,0.06,0.10,1)
     local isAct=(MP._selRun and MP._selRun.date==run.date)
     if isAct then row:SetBackdropColor(ar*0.12,ag*0.12,ab*0.12,1) else row:SetBackdropColor(0.028,0.028,0.046,1) end
     local sr,sg,sb=SC(run.status)
     local sBar=row:CreateTexture(nil,"OVERLAY",nil,5); sBar:SetWidth(2); sBar:SetPoint("TOPLEFT"); sBar:SetPoint("BOTTOMLEFT"); sBar:SetColorTexture(sr,sg,sb,1)
-    local xc2=4
+    local xc2=6
     local isBest=bestDates and bestDates[run.date]
     local dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "")..date("%d.%m.%y %H:%M",run.date)
-    local dFS=row:CreateFontString(nil,"OVERLAY"); dFS:SetFont(STANDARD_TEXT_FONT,10,""); dFS:SetPoint("LEFT",row,"LEFT",xc2,0); dFS:SetTextColor(0.50,0.50,0.62); dFS:SetText(dTxt); xc2=xc2+CW[1]
-    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,10,""); nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(run.mapName or "?"); xc2=xc2+CW[2]
-    local lFS=row:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,11,"OUTLINE"); lFS:SetPoint("LEFT",row,"LEFT",xc2,0); lFS:SetTextColor(sr,sg,sb); lFS:SetText("+"..tostring(run.level or 0)); xc2=xc2+CW[3]
-    local tFS=row:CreateFontString(nil,"OVERLAY"); tFS:SetFont(STANDARD_TEXT_FONT,10,""); tFS:SetPoint("LEFT",row,"LEFT",xc2,0); tFS:SetTextColor(0.70,0.70,0.82); tFS:SetText(FmtTime(run.timeElapsed)); xc2=xc2+CW[4]
-    local stFS=row:CreateFontString(nil,"OVERLAY"); stFS:SetFont(STANDARD_TEXT_FONT,10,"OUTLINE"); stFS:SetPoint("LEFT",row,"LEFT",xc2,0); stFS:SetTextColor(sr,sg,sb); stFS:SetText(ST(run.status)); xc2=xc2+CW[5]
-    local d2=(run.deaths or 0); local dtFS=row:CreateFontString(nil,"OVERLAY"); dtFS:SetFont(STANDARD_TEXT_FONT,10,""); dtFS:SetPoint("LEFT",row,"LEFT",xc2,0)
+    local dFS=row:CreateFontString(nil,"OVERLAY"); dFS:SetFont(STANDARD_TEXT_FONT,11,""); dFS:SetPoint("LEFT",row,"LEFT",xc2,0); dFS:SetTextColor(0.50,0.50,0.62); dFS:SetText(dTxt); xc2=xc2+CW[1]
+    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,11,""); nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(run.mapName or "?"); xc2=xc2+CW[2]
+    local lFS=row:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,12,"OUTLINE"); lFS:SetPoint("LEFT",row,"LEFT",xc2,0); lFS:SetTextColor(sr,sg,sb); lFS:SetText("+"..tostring(run.level or 0)); xc2=xc2+CW[3]
+    local tFS=row:CreateFontString(nil,"OVERLAY"); tFS:SetFont(STANDARD_TEXT_FONT,11,""); tFS:SetPoint("LEFT",row,"LEFT",xc2,0); tFS:SetTextColor(0.70,0.70,0.82); tFS:SetText(FmtTime(run.timeElapsed)); xc2=xc2+CW[4]
+    local stFS=row:CreateFontString(nil,"OVERLAY"); stFS:SetFont(STANDARD_TEXT_FONT,11,"OUTLINE"); stFS:SetPoint("LEFT",row,"LEFT",xc2,0); stFS:SetTextColor(sr,sg,sb); stFS:SetText(ST(run.status)); xc2=xc2+CW[5]
+    local d2=(run.deaths or 0); local dtFS=row:CreateFontString(nil,"OVERLAY"); dtFS:SetFont(STANDARD_TEXT_FONT,11,""); dtFS:SetPoint("LEFT",row,"LEFT",xc2,0)
     dtFS:SetTextColor(d2>0 and 0.85 or 0.40,d2>0 and 0.25 or 0.40,d2>0 and 0.25 or 0.40); dtFS:SetText(d2>0 and tostring(d2) or "—")
     local capRun=run
     row:SetScript("OnClick",function() MP._selRun=(MP._selRun and MP._selRun.date==capRun.date) and nil or capRun; MP.Refresh() end)
@@ -934,7 +1457,9 @@ local function DrawDetails(run)
       yOff=yOff+17
       local own=item.currentOwner or "?"
       if MP._maskNames then local sh=own:match("^([^%-]+)"); own=(sh and sh:sub(1,3).."***" or own) end
-      FS("  |TInterface/AddOns/LucidUI/Assets/Crown.png:10:10|t "..own, 9, 0.50,0.50,0.62)
+      local ownClass = run.roster and run.roster[item.currentOwner] and run.roster[item.currentOwner].class
+      local ownHex = ownClass and ClassHex(ownClass) or "ff808090"
+      FS("  |TInterface/AddOns/LucidUI/Assets/Crown.png:10:10|t |c"..ownHex..own.."|r", 9, 0.85,0.85,0.92)
     end
     endCard3()
   end
@@ -1031,6 +1556,18 @@ local function DrawGraph(runs,seasonData)
   local startX = PL - (MP._graphScrollX or 0)
   local currentX = startX
   local lastMap = nil
+  local groupStartX = startX  -- track where current dungeon group started
+
+  local function FlushGroupLabel(mapID)
+    if MP._filterMap then return end
+    local abbr = seasonData and seasonData.dungeons and seasonData.dungeons[mapID] and seasonData.dungeons[mapID].abbr
+    if not abbr then return end
+    local groupEndX = currentX - BAR_GAP
+    local cx = math.floor((groupStartX + groupEndX) / 2)
+    local dnFS=holder:CreateFontString(nil,"OVERLAY"); dnFS:SetFont(STANDARD_TEXT_FONT,8,"")
+    dnFS:SetPoint("BOTTOM",holder,"BOTTOMLEFT",cx,4); dnFS:SetTextColor(0.38,0.38,0.50)
+    dnFS:SetText(abbr); dnFS:SetJustifyH("CENTER")
+  end
 
   for i,run in ipairs(graphRuns) do
     local frac=run.level/maxLv; local bh=math.max(4,math.floor(frac*CH))
@@ -1038,11 +1575,14 @@ local function DrawGraph(runs,seasonData)
 
     -- Group gap + divider between dungeons
     if not MP._filterMap and run.mapID~=lastMap and lastMap~=nil then
+      FlushGroupLabel(lastMap)
       local div=holder:CreateTexture(nil,"ARTWORK"); div:SetWidth(1)
       div:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",currentX-GROUP_GAP/2,PB)
       div:SetHeight(CH); div:SetColorTexture(ar,ag,ab,0.20)
       currentX = currentX + GROUP_GAP
+      groupStartX = currentX
     end
+    if run.mapID~=lastMap then groupStartX = currentX end
     lastMap=run.mapID
 
     local xB = currentX
@@ -1053,10 +1593,12 @@ local function DrawGraph(runs,seasonData)
     cap:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB,PB+bh-3); cap:SetColorTexture(sr2,sg2,sb2,1)
     local lFS=holder:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
     lFS:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB+2,PB+bh+2); lFS:SetTextColor(1,1,1); lFS:SetText("+"..tostring(run.level))
-    local abbr=(not MP._filterMap and seasonData and seasonData.dungeons and seasonData.dungeons[run.mapID] and seasonData.dungeons[run.mapID].abbr) or ""
-    local dnFS=holder:CreateFontString(nil,"OVERLAY"); dnFS:SetFont(STANDARD_TEXT_FONT,8,"")
-    dnFS:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB,4); dnFS:SetTextColor(0.38,0.38,0.50)
-    dnFS:SetText(MP._filterMap and date("%d/%m",run.date) or abbr)
+    -- Per-bar date label only when filtering by map
+    if MP._filterMap then
+      local dnFS=holder:CreateFontString(nil,"OVERLAY"); dnFS:SetFont(STANDARD_TEXT_FONT,8,"")
+      dnFS:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB,4); dnFS:SetTextColor(0.38,0.38,0.50)
+      dnFS:SetText(date("%d/%m",run.date))
+    end
     local hit=CreateFrame("Frame",nil,holder); hit:SetSize(BAR_W+BAR_GAP,CH+PB)
     hit:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB,PB); hit:EnableMouse(true)
     local capRun=run; hit:SetScript("OnEnter",function(self)
@@ -1068,6 +1610,8 @@ local function DrawGraph(runs,seasonData)
     hit:SetScript("OnLeave",function() GameTooltip:Hide() end)
     currentX = currentX + BAR_W + BAR_GAP
   end
+  -- Flush label for last dungeon group
+  if lastMap then FlushGroupLabel(lastMap) end
 end
 
 -- ═══════════════════════════════ REFRESH ═══════════════════════════════════
@@ -1119,9 +1663,13 @@ function MP.Refresh()
   table.sort(graphRuns,function(a,b) return (a.date or 0)>(b.date or 0) end)
   for nm,d in pairs(tmCounts) do table.insert(teammates,{rawName=nm,count=d.count,class=d.class,lastSeen=d.lastSeen}) end
   table.sort(teammates,function(a,b) return a.lastSeen>b.lastSeen end)
-  local timed=0; for _,r in ipairs(filteredRuns) do if SR(r.status)>=3 then timed=timed+1 end end
-  MP.win._highestLbl:SetText(string.format("Best: |cffffd100+%d|r",highestTimed))
-  MP.win._totalLbl:SetText(string.format("Runs: |cffffd100%d|r   Timed: |cff4DCC50%d|r",totalCount,timed))
+  local timed=0; local depleted=0
+  for _,r in ipairs(filteredRuns) do
+    if SR(r.status)>=3 then timed=timed+1
+    elseif SR(r.status)<=2 then depleted=depleted+1 end
+  end
+  MP.win._highestLbl:SetText(string.format("Highest Timed: |cffffd100+%d|r",highestTimed))
+  MP.win._totalLbl:SetText(string.format("Total Runs: |cffffd100%d|r   Timed: |cff4DCC50%d|r   Depleted: |cffff4444%d|r",totalCount,timed,depleted))
   if not MP._selRun and #filteredRuns>0 then MP._selRun=filteredRuns[1] end
   if MP._selRun then local found=false
     for _,r in ipairs(filteredRuns) do if r.date==MP._selRun.date then found=true; break end end
@@ -1168,8 +1716,18 @@ function MP.SetupSettings(parent)
   local sc,Add=MakePage(container)
   local function DB(k) return NS.DB(k) end; local function DBSet(k,v) NS.DBSet(k,v) end
   local cT=MakeCard(sc,"Mythic+ Tracking")
-  local enCB=NS.ChatGetCheckbox(cT.inner,"Enable Mythic+ Tracking",26,function(s) DBSet("mpEnabled",s) end,"Auto-record every Mythic+ run")
-  enCB.option="mpEnabled"; R(cT,enCB,26)
+  -- Pair row: Enable + Teleport side by side
+  local pairRow=CreateFrame("Frame",nil,cT.inner); pairRow:SetHeight(26)
+  cT:Row(pairRow,26)
+  pairRow:SetPoint("LEFT",cT.inner,"LEFT",0,0); pairRow:SetPoint("RIGHT",cT.inner,"RIGHT",0,0)
+  local lh=CreateFrame("Frame",nil,pairRow)
+  lh:SetPoint("TOPLEFT",pairRow,"TOPLEFT",0,0); lh:SetPoint("BOTTOMRIGHT",pairRow,"BOTTOM",-2,0)
+  local rh=CreateFrame("Frame",nil,pairRow)
+  rh:SetPoint("TOPLEFT",pairRow,"TOP",2,0); rh:SetPoint("BOTTOMRIGHT",pairRow,"BOTTOMRIGHT",0,0)
+  local enCB=NS.ChatGetCheckbox(lh,"Enable Mythic+ Tracking",26,function(s) DBSet("mpEnabled",s); if s then DBSet("showMPlusBtn",true); MP.EnableTracking() else MP.DisableTracking() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Auto-record every Mythic+ run")
+  enCB.option="mpEnabled"; enCB:SetParent(lh); enCB:ClearAllPoints(); enCB:SetAllPoints(lh)
+  local tpCB=NS.ChatGetCheckbox(rh,"Dungeon Teleport",26,function(s) DBSet("mpTeleport",s); if MP.win and MP.win:IsShown() then MP.Refresh() end end,"Right-click a dungeon tile in the M+ window to teleport directly to that dungeon (requires a timed key)")
+  tpCB.option="mpTeleport"; tpCB:SetParent(rh); tpCB:ClearAllPoints(); tpCB:SetAllPoints(rh)
   local openRow=CreateFrame("Frame",nil,cT.inner); openRow:SetHeight(32)
   local openBtn=CreateFrame("Button",nil,openRow,"BackdropTemplate"); openBtn:SetSize(0,26)
   openBtn:SetPoint("TOPLEFT",openRow,"TOPLEFT",0,-3); openBtn:SetPoint("TOPRIGHT",openRow,"TOPRIGHT",0,-3)

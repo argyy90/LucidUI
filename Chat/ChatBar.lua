@@ -126,6 +126,8 @@ NS.BuildChatBar = function()
     end
   end)
   Tooltip(socialsBtn, L["Social"])
+  socialsBtn._configKey = "showSocialBtn"
+  socialsBtn._orderKey = "social"
   table.insert(entries, socialsBtn)
 
   local friendsBadge = socialsBtn:CreateFontString(nil, "OVERLAY")
@@ -155,6 +157,8 @@ NS.BuildChatBar = function()
     if NS.BuildChatOptionsWindow then NS.BuildChatOptionsWindow() end
   end)
   Tooltip(settingsBtn, L["Settings"])
+  settingsBtn._configKey = "showSettingsBtn"
+  settingsBtn._orderKey = "settings"
   table.insert(entries, settingsBtn)
 
   -- Copy
@@ -164,6 +168,8 @@ NS.BuildChatBar = function()
     if NS.ChatShowCopyWindow then NS.ChatShowCopyWindow() end
   end)
   Tooltip(copyBtn, L["Copy Chat"])
+  copyBtn._configKey = "showCopyBtn"
+  copyBtn._orderKey = "copy"
   table.insert(entries, copyBtn)
 
   -- Rolls
@@ -176,6 +182,7 @@ NS.BuildChatBar = function()
   end)
   Tooltip(rollsBtn, L["LOOT ROLLS"])
   rollsBtn._configKey = "showRollsBtn"
+  rollsBtn._orderKey = "rolls"
   table.insert(entries, rollsBtn)
 
   -- Stats
@@ -186,7 +193,32 @@ NS.BuildChatBar = function()
   end)
   Tooltip(statsBtn, L["Session Stats"])
   statsBtn._configKey = "showStatsBtn"
+  statsBtn._orderKey = "stats"
   table.insert(entries, statsBtn)
+
+  -- Mythic+
+  local mplusBtn = MakeBtn(chatBar)
+  MakeIcon(mplusBtn, "Interface/AddOns/LucidUI/Assets/MPlus.png")
+  mplusBtn:SetScript("OnClick", function()
+    if NS.MythicPlus and NS.MythicPlus.ShowWindow then NS.MythicPlus.ShowWindow() end
+  end)
+  Tooltip(mplusBtn, L["Mythic+"])
+  mplusBtn._configKey = "showMPlusBtn"
+  mplusBtn._featureKey = "mpEnabled"
+  mplusBtn._orderKey = "mplus"
+  table.insert(entries, mplusBtn)
+
+  -- Gold Tracker
+  local coinBtn = MakeBtn(chatBar)
+  MakeIcon(coinBtn, "Interface/AddOns/LucidUI/Assets/Coin.png")
+  coinBtn:SetScript("OnClick", function()
+    if NS.GoldTracker and NS.GoldTracker.ShowWindow then NS.GoldTracker.ShowWindow() end
+  end)
+  Tooltip(coinBtn, L["Gold Tracker"])
+  coinBtn._configKey = "showCoinBtn"
+  coinBtn._featureKey = "gtEnabled"
+  coinBtn._orderKey = "coin"
+  table.insert(entries, coinBtn)
 
   -- Voice Chat / Leave Voice Chat
   -- FIX: Midnight 12.x API uses IsSelfMuted / IsSelfDeafened / ToggleSelfMute / ToggleSelfDeafen
@@ -209,6 +241,8 @@ NS.BuildChatBar = function()
     end
   end)
   Tooltip(vcBtn, L["Voice Chat"])
+  vcBtn._configKey = "showVoiceChatBtn"
+  vcBtn._orderKey = "voicechat"
   table.insert(entries, vcBtn)
 
   -- Ticker for voice state; stored so it can be cancelled
@@ -229,19 +263,58 @@ NS.BuildChatBar = function()
     end
   end)
 
-  -- Layout: only show buttons whose config allows it
+  -- Build a lookup from orderKey to button
+  local btnByKey = {}
+  for _, btn in ipairs(entries) do
+    if btn._orderKey then btnByKey[btn._orderKey] = btn end
+  end
+  NS.chatBarBtnByKey = btnByKey
+
+  -- Layout: only show buttons whose config allows it, wrapping into columns
   local function LayoutBarButtons()
-    local yOff2 = -8
+    -- Build ordered list from saved order, appending any missing keys at the end
+    local savedOrder = NS.DB("chatBarOrder")
+    local ordered = {}
+    local used = {}
+    if savedOrder and type(savedOrder) == "table" then
+      for _, key in ipairs(savedOrder) do
+        if btnByKey[key] and not used[key] then
+          ordered[#ordered+1] = btnByKey[key]
+          used[key] = true
+        end
+      end
+    end
     for _, btn in ipairs(entries) do
+      if btn._orderKey and not used[btn._orderKey] then
+        ordered[#ordered+1] = btn
+      end
+    end
+
+    local maxPerCol = NS.DB("chatBarIconsPerRow") or 8
+    if maxPerCol < 1 then maxPerCol = 1 end
+    local col, row = 0, 0
+    for _, btn in ipairs(ordered) do
       local visible = true
-      if btn._configKey then visible = NS.DB(btn._configKey) ~= false end
+      if btn._featureKey then visible = NS.DB(btn._featureKey) ~= false end
+      if visible and btn._configKey then visible = NS.DB(btn._configKey) ~= false end
       btn:SetShown(visible)
       if visible then
         btn:ClearAllPoints()
-        btn:SetPoint("TOP", chatBar, "TOP", 0, yOff2)
-        yOff2 = yOff2 - BTN_SIZE + BTN_GAP
+        local xOff = col * BAR_W + (BAR_W / 2)
+        local yOff = -8 - row * (BTN_SIZE - BTN_GAP)
+        btn:SetPoint("TOP", chatBar, "TOPLEFT", xOff, yOff)
+        row = row + 1
+        if row >= maxPerCol then
+          row = 0
+          col = col + 1
+        end
       end
     end
+    local numCols = col + (row > 0 and 1 or 0)
+    if numCols < 1 then numCols = 1 end
+    chatBar:SetWidth(BAR_W * numCols)
+    if NS.UpdateTabBarBgStretch then NS.UpdateTabBarBgStretch() end
+    if NS.ApplyBarLayout then NS.ApplyBarLayout() end
   end
   LayoutBarButtons()
   NS.LayoutBarButtons = LayoutBarButtons
@@ -265,11 +338,12 @@ NS.BuildChatBar = function()
         local ltTabBar = _G["LUIChatTabBar"]
         if ltTabBar then
           NS.chatTabBarBg:ClearAllPoints()
+          local barW = chatBar:GetWidth()
           if pos2 == "outside_right" then
             NS.chatTabBarBg:SetPoint("TOPLEFT", ltTabBar, "TOPLEFT", 0, 0)
-            NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", BAR_W, 0)
+            NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", barW, 0)
           else
-            NS.chatTabBarBg:SetPoint("TOPLEFT", ltTabBar, "TOPLEFT", -BAR_W, 0)
+            NS.chatTabBarBg:SetPoint("TOPLEFT", ltTabBar, "TOPLEFT", -barW, 0)
             NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", 0, 0)
           end
         end
@@ -328,14 +402,15 @@ NS.UpdateTabBarBgStretch = function()
   local vis = NS.DB("chatBarVisibility") or "always"
   local isOutside = (pos == "outside_right" or pos == "outside_left")
   local barVisible = (vis == "always")
+  local barW = chatBar and chatBar:GetWidth() or BAR_W
 
   NS.chatTabBarBg:ClearAllPoints()
   if isOutside and barVisible then
     if pos == "outside_right" then
       NS.chatTabBarBg:SetPoint("TOPLEFT", ltTabBar, "TOPLEFT", 0, 0)
-      NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", BAR_W, 0)
+      NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", barW, 0)
     else
-      NS.chatTabBarBg:SetPoint("TOPLEFT", ltTabBar, "TOPLEFT", -BAR_W, 0)
+      NS.chatTabBarBg:SetPoint("TOPLEFT", ltTabBar, "TOPLEFT", -barW, 0)
       NS.chatTabBarBg:SetPoint("BOTTOMRIGHT", ltTabBar, "BOTTOMRIGHT", 0, 0)
     end
   else
