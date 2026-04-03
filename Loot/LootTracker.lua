@@ -108,17 +108,20 @@ local function BuildWindow()
     NS.win.locked = true; NS.win:SetMovable(false); NS.win:SetResizable(false)
   end
   lockBtn:SetScript("OnClick", function()
-    NS.win.locked = not NS.win.locked
-    if NS.win.locked then
-      NS.win:SetMovable(false); NS.win:SetResizable(false); NS.resizeWidget:Hide()
-      local t = NS.GetTheme(DB("theme")); local bc = t.btnColor or {0.8,0.8,0.8}
-      lockTex:SetVertexColor(bc[1], bc[2], bc[3], 0.9)
-      DBSet("locked", true)
-    else
-      NS.win:SetMovable(true); NS.win:SetResizable(true); NS.resizeWidget:Show()
-      lockTex:SetVertexColor(CYAN[1], CYAN[2], CYAN[3], 1.0)
-      DBSet("locked", false)
-    end
+    local ok, err = pcall(function()
+      NS.win.locked = not NS.win.locked
+      if NS.win.locked then
+        NS.win:SetMovable(false); NS.win:SetResizable(false); NS.resizeWidget:Hide()
+        local t = NS.GetTheme(DB("theme")); local bc = t.btnColor or {0.8,0.8,0.8}
+        lockTex:SetVertexColor(bc[1], bc[2], bc[3], 0.9)
+        DBSet("locked", true)
+      else
+        NS.win:SetMovable(true); NS.win:SetResizable(true); NS.resizeWidget:Show()
+        lockTex:SetVertexColor(CYAN[1], CYAN[2], CYAN[3], 1.0)
+        DBSet("locked", false)
+      end
+    end)
+    if not ok then geterrorhandler()(err) end
   end)
   lockBtn:SetScript("OnEnter", function()
     GameTooltip:SetOwner(lockBtn,"ANCHOR_LEFT")

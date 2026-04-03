@@ -43,6 +43,8 @@ GoldTracker\GoldTracker.lua
 
 MythicPlus\MythicPlus.lua
 
+CooldownTracker\CooldownTracker.lua
+
 Settings\Main.lua
 
 Debug\Main.lua

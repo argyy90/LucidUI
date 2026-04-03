@@ -989,6 +989,7 @@ local function BuildBagFrame()
   bagFrame:RegisterEvent("QUEST_REMOVED")
   bagFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
   bagFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+  bagFrame:RegisterEvent("PLAYER_LOGOUT")
 
   local btf = _G.BackpackTokenFrame
   if btf then
@@ -1003,6 +1004,11 @@ local function BuildBagFrame()
   end
 
   bagFrame:SetScript("OnEvent", function(self, event, ...)
+    if event == "PLAYER_LOGOUT" then
+      local point, _, relPoint, x, y = self:GetPoint()
+      if point then DBSet("bagWinPos", {point, relPoint, x, y}) end
+      return
+    end
     if event == "PLAYER_MONEY" or event == "CURRENCY_DISPLAY_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
       if self:IsShown() then self._moneyText:SetText(FormatMoney(GetMoney())); LayoutBags() end
       return

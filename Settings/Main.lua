@@ -2755,6 +2755,7 @@ NS.BuildChatOptionsWindow = function()
     {name="Bags",        callback=NS.Bags.SetupSettings},
     {name="Gold",        callback=NS.GoldTracker.SetupSettings},
     {name="Mythic+",     callback=NS.MythicPlus.SetupSettings},
+    {name="CD Tracker",  callback=NS.CooldownTracker.SetupSettings},
     {name="Tab Settings",callback=SetupTabSettings,hidden=true},
   }
 
@@ -2772,9 +2773,11 @@ NS.BuildChatOptionsWindow = function()
       local btn=tabs[i]
       if btn then
         btn._selected=false
-        if btn._label  then btn._label:SetTextColor(0.36,0.36,0.46) end
-        if btn._selLine then btn._selLine:Hide() end
-        if btn._selBg   then btn._selBg:Hide() end
+        if btn._label   then btn._label:SetTextColor(0.56,0.56,0.66) end
+        if btn._selLine  then btn._selLine:Hide() end
+        if btn._selLineR then btn._selLineR:Hide() end
+        if btn._selBg    then btn._selBg:Hide() end
+        if btn._tabIcon  then btn._tabIcon:SetAlpha(0.55) end
       end
     end
     containers[idx]:Show()
@@ -2783,8 +2786,10 @@ NS.BuildChatOptionsWindow = function()
       btn._selected=true
       local cr,cg,cb=NS.ChatGetAccentRGB()
       if btn._label   then btn._label:SetTextColor(cr,cg,cb) end
-      if btn._selLine then btn._selLine:Show() end
-      if btn._selBg   then btn._selBg:Show() end
+      if btn._selLine  then btn._selLine:Show() end
+      if btn._selLineR then btn._selLineR:Show() end
+      if btn._selBg    then btn._selBg:Show() end
+      if btn._tabIcon  then btn._tabIcon:SetAlpha(0.8) end
     end
   end
 
@@ -2802,6 +2807,7 @@ NS.BuildChatOptionsWindow = function()
     local tabBtn=CreateFrame("Button",nil,sidebar)
     tabBtn:SetFrameLevel(sidebar:GetFrameLevel()+1)
 
+    if setup.devOnly and not isDev then setup.hidden = true end
     if not setup.hidden then
       visIdx=visIdx+1
       tabBtn:SetSize(SIDEBAR_W,TAB_H)
@@ -2810,10 +2816,14 @@ NS.BuildChatOptionsWindow = function()
       local selBg=tabBtn:CreateTexture(nil,"BACKGROUND",nil,2); selBg:SetAllPoints()
       selBg:SetColorTexture(ar,ag,ab,0.06); selBg:Hide(); tabBtn._selBg=selBg
 
-      local selLine=tabBtn:CreateTexture(nil,"OVERLAY",nil,5); selLine:SetWidth(3)
-      selLine:SetPoint("TOPLEFT",   tabBtn,"TOPLEFT",   0,-5)
-      selLine:SetPoint("BOTTOMLEFT",tabBtn,"BOTTOMLEFT",0, 5)
-      selLine:SetColorTexture(ar,ag,ab,1); selLine:Hide(); tabBtn._selLine=selLine
+      tabBtn._selLine=nil  -- no left accent line
+
+      -- Right accent line
+      local selLineR=tabBtn:CreateTexture(nil,"OVERLAY",nil,5); selLineR:SetWidth(3)
+      selLineR:SetPoint("TOPRIGHT",   tabBtn,"TOPRIGHT",   0,-5)
+      selLineR:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",0, 5)
+      selLineR:SetColorTexture(ar,ag,ab,1); selLineR:Hide(); tabBtn._selLineR=selLineR
+      table.insert(NS.chatOptAccentTextures,{tex=selLineR,alpha=1})
 
       -- Small corner tick on active tab (top-right)
       local tabTick=tabBtn:CreateTexture(nil,"OVERLAY",nil,4); tabTick:SetSize(6,1)
@@ -2824,14 +2834,29 @@ NS.BuildChatOptionsWindow = function()
       label:SetPoint("LEFT",14,0); label:SetTextColor(0.36,0.36,0.46); label:SetText(setup.name)
       tabBtn._label=label
 
+      -- Tab icon (right side)
+      local TAB_ICONS={Display="Tab_Display",Appearance="Tab_Appearance",Text="Tab_Text",Advanced="Tab_Advanced",
+        ["Chat Colors"]="Tab_ChatColors",Loot="Tab_Loot",QoL="Tab_QoL",LucidMeter="Tab_LucidMeter",
+        Bags="Tab_Bags",Gold="Tab_Gold",["Mythic+"]="Tab_MythicPlus",["CD Tracker"]="Tab_CDTracker"}
+      local iconFile=TAB_ICONS[setup.name]
+      if iconFile then
+        local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(16,16)
+        ico:SetPoint("RIGHT",-8,0); ico:SetTexture("Interface/AddOns/LucidUI/Assets/"..iconFile..".png")
+        ico:SetAlpha(0.35); tabBtn._tabIcon=ico
+      end
+
       tabBtn:SetScript("OnEnter",function()
         if not tabBtn._selected then
           local cr,cg,cb=NS.ChatGetAccentRGB()
           label:SetTextColor(cr*0.70,cg*0.70,cb*0.70); selBg:Show()
+          if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.55) end
         end
       end)
       tabBtn:SetScript("OnLeave",function()
-        if not tabBtn._selected then label:SetTextColor(0.36,0.36,0.46); selBg:Hide() end
+        if not tabBtn._selected then
+          label:SetTextColor(0.36,0.36,0.46); selBg:Hide()
+          if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.35) end
+        end
       end)
     else
       tabBtn:SetSize(1,1); tabBtn:SetPoint("TOPLEFT",sidebar,"TOPLEFT",-9999,0); tabBtn:Hide()

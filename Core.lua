@@ -23,6 +23,12 @@ NS.lines      = {}   -- formatted entries (copy dialog)
 NS.rawEntries = {}   -- raw {msg, r, g, b, ts}
 NS.debugLines = {}   -- debug log entries
 
+-- ── Helpers ───────────────────────────────────────────────────────────────────
+-- Convert 0-1 RGB to hex string (e.g. "3bd2ed"). Use for |cff prefixes.
+function NS.RGBToHex(r, g, b)
+  return string.format("%02x%02x%02x", math.floor((r or 0) * 255), math.floor((g or 0) * 255), math.floor((b or 0) * 255))
+end
+
 -- ── Constants ──────────────────────────────────────────────────────────────────
 NS.MAX_LINES = 50
 NS.MAX_DEBUG = 200
@@ -292,6 +298,13 @@ NS.DB_DEFAULTS = {
   mpEnabled            = true,
   mpTeleport           = false,
   mpWinPos3            = nil,
+  -- Cooldown Tracker
+  cdTrackerEnabled     = true,
+  cdTrackerGrow        = "RIGHT",
+  cdTrackerMode        = "iconbar",
+  cdTrackerIconSize    = 36,
+  cdTrackerBarWidth    = 120,
+  cdTrackerPos         = nil,
 }
 
 NS.DB = function(key)

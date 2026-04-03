@@ -120,9 +120,9 @@ NS.BuildChatBar = function()
   MakeIcon(socialsBtn, "Interface/AddOns/LucidUI/Assets/ChatSocial.png")
   socialsBtn:SetScript("OnClick", function()
     if ToggleFriendsFrame then
-      ToggleFriendsFrame()
+      pcall(ToggleFriendsFrame)
     elseif FriendsFrame then
-      FriendsFrame:SetShown(not FriendsFrame:IsShown())
+      pcall(FriendsFrame.SetShown, FriendsFrame, not FriendsFrame:IsShown())
     end
   end)
   Tooltip(socialsBtn, L["Social"])
@@ -154,7 +154,7 @@ NS.BuildChatBar = function()
   local settingsBtn = MakeBtn(chatBar)
   MakeIcon(settingsBtn, "Interface/AddOns/LucidUI/Assets/SettingsCog.png")
   settingsBtn:SetScript("OnClick", function()
-    if NS.BuildChatOptionsWindow then NS.BuildChatOptionsWindow() end
+    if NS.BuildChatOptionsWindow then pcall(NS.BuildChatOptionsWindow) end
   end)
   Tooltip(settingsBtn, L["Settings"])
   settingsBtn._configKey = "showSettingsBtn"
@@ -165,7 +165,7 @@ NS.BuildChatBar = function()
   local copyBtn = MakeBtn(chatBar)
   MakeIcon(copyBtn, "Interface/AddOns/LucidUI/Assets/Copy.png")
   copyBtn:SetScript("OnClick", function()
-    if NS.ChatShowCopyWindow then NS.ChatShowCopyWindow() end
+    if NS.ChatShowCopyWindow then pcall(NS.ChatShowCopyWindow) end
   end)
   Tooltip(copyBtn, L["Copy Chat"])
   copyBtn._configKey = "showCopyBtn"
@@ -189,7 +189,7 @@ NS.BuildChatBar = function()
   local statsBtn = MakeBtn(chatBar)
   MakeIcon(statsBtn, "Interface/AddOns/LucidUI/Assets/Star.png")
   statsBtn:SetScript("OnClick", function()
-    if NS.BuildStatsWindow then NS.BuildStatsWindow() end
+    if NS.BuildStatsWindow then pcall(NS.BuildStatsWindow) end
   end)
   Tooltip(statsBtn, L["Session Stats"])
   statsBtn._configKey = "showStatsBtn"
@@ -200,7 +200,7 @@ NS.BuildChatBar = function()
   local mplusBtn = MakeBtn(chatBar)
   MakeIcon(mplusBtn, "Interface/AddOns/LucidUI/Assets/MPlus.png")
   mplusBtn:SetScript("OnClick", function()
-    if NS.MythicPlus and NS.MythicPlus.ShowWindow then NS.MythicPlus.ShowWindow() end
+    if NS.MythicPlus and NS.MythicPlus.ShowWindow then pcall(NS.MythicPlus.ShowWindow) end
   end)
   Tooltip(mplusBtn, L["Mythic+"])
   mplusBtn._configKey = "showMPlusBtn"
@@ -212,7 +212,7 @@ NS.BuildChatBar = function()
   local coinBtn = MakeBtn(chatBar)
   MakeIcon(coinBtn, "Interface/AddOns/LucidUI/Assets/Coin.png")
   coinBtn:SetScript("OnClick", function()
-    if NS.GoldTracker and NS.GoldTracker.ShowWindow then NS.GoldTracker.ShowWindow() end
+    if NS.GoldTracker and NS.GoldTracker.ShowWindow then pcall(NS.GoldTracker.ShowWindow) end
   end)
   Tooltip(coinBtn, L["Gold Tracker"])
   coinBtn._configKey = "showCoinBtn"

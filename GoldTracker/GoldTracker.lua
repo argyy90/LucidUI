@@ -265,7 +265,16 @@ GT.EnableTracking = function() RegisterGTEvents() end
 GT.DisableTracking = function() UnregisterGTEvents() end
 
 evFrame:RegisterEvent("PLAYER_LOGIN")
+evFrame:RegisterEvent("PLAYER_LOGOUT")
 evFrame:SetScript("OnEvent", function(_, event, arg1, arg2)
+  if event == "PLAYER_LOGOUT" then
+    -- Save window position on logout
+    if GT._histWin then
+      local p,_,_,x,y = GT._histWin:GetPoint()
+      if p then NS.DBSet("gtWinPos",{p=p,x=x,y=y}) end
+    end
+    return
+  end
   if event == "PLAYER_LOGIN" then
     evFrame:UnregisterEvent("PLAYER_LOGIN")
     if NS.DB("gtEnabled") == false then return end
@@ -347,6 +356,7 @@ local function BuildHistoryWindow()
   local WIN_W, WIN_H = 520, 560
 
   histWin = CreateFrame("Frame", "LucidUIGoldTrackerWin", UIParent, "BackdropTemplate")
+  GT._histWin = histWin
   histWin:SetSize(WIN_W, WIN_H)
   histWin:SetPoint("CENTER", UIParent, "CENTER", 80, 0)
   histWin:SetFrameStrata("MEDIUM"); histWin:SetToplevel(true)

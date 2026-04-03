@@ -257,7 +257,7 @@ function NS.CreateChatMessageArea(parent, name)
           end
         end
       else
-        SetItemRef(link, text, btn, ChatFrame1 or self)
+        pcall(SetItemRef, link, text, btn, ChatFrame1 or self)
       end
     end)
     s.contentFS:SetScript("OnHyperlinkEnter", function(self, link)
@@ -410,27 +410,28 @@ function NS.CreateChatMessageArea(parent, name)
 
     for j = i + 1, #slots do hideSlot(slots[j]) end
 
-    -- Fade timer: always runs when fading is enabled
+    -- Fade timer: periodic check via C_Timer (no per-frame overhead)
     if fadingEnabled then
-      if not frame._fadeTimer then frame._fadeTimer = CreateFrame("Frame") end
-      frame._fadeTimer:SetScript("OnUpdate", function(self)
-        if not fadingEnabled then self:SetScript("OnUpdate", nil); return end
-        if offset ~= 0 then return end  -- don't fade while scrolled up
-        local needsUpdate = false
-        local now = GetTime()
-        for idx = math.max(1, #msgs - numSlots()), #msgs do
-          local m2 = msgs[idx]
-          if m2 and m2.addedAt then
-            local age = now - m2.addedAt
-            if age > fadeAfter and age < fadeAfter + fadeDuration + 1 then
-              needsUpdate = true; break
+      if not frame._fadeTicker then
+        frame._fadeTicker = C_Timer.NewTicker(0.25, function()
+          if not fadingEnabled then frame._fadeTicker:Cancel(); frame._fadeTicker = nil; return end
+          if offset ~= 0 then return end  -- don't fade while scrolled up
+          local needsUpdate = false
+          local now = GetTime()
+          for idx = math.max(1, #msgs - numSlots()), #msgs do
+            local m2 = msgs[idx]
+            if m2 and m2.addedAt then
+              local age = now - m2.addedAt
+              if age > fadeAfter and age < fadeAfter + fadeDuration + 1 then
+                needsUpdate = true; break
+              end
             end
           end
-        end
-        if needsUpdate then renderContent() end
-      end)
-    elseif frame._fadeTimer then
-      frame._fadeTimer:SetScript("OnUpdate", nil)
+          if needsUpdate then renderContent() end
+        end)
+      end
+    elseif frame._fadeTicker then
+      frame._fadeTicker:Cancel(); frame._fadeTicker = nil
     end
   end
 
