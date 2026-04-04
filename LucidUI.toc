@@ -1,7 +1,7 @@
 ## Interface: 120001, 120000
 ## Title: LucidUI
 ## Notes: Complete chat replacement, loot tracking, session stats & QoL features
-## Version: 1.17
+## Version: 1.18
 ## SavedVariables: LucidUIDB
 ## IconTexture: Interface\\AddOns\\LucidUI\\Assets\\Logo.png
 
@@ -32,6 +32,14 @@ Core\Classes\Rogue.lua
 Core\Classes\Shaman.lua
 Core\Classes\Warlock.lua
 Core\Classes\Warrior.lua
+Core\Profiles\Ayije_CDM.lua
+Core\Profiles\Bigwigs.lua
+Core\Profiles\BlizziInterrupts.lua
+Core\Profiles\Details.lua
+Core\Profiles\Elvui.lua
+Core\Profiles\Naowhqol.lua
+Core\Profiles\Plater.lua
+Core\Profiles\WarpDeplete.lua
 Core\InstallWizard.lua
 
 Chat\Messages.lua

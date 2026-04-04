@@ -209,11 +209,8 @@ local function CreateManaBar()
   local f = CreateBarFrame("LucidUIResourcesMana")
   f:SetSize(Opt("width"), Opt("height"))
 
-  -- ManaBar anchors at Cooldowns position, Resources shifts up above it
-  local ess = NS.Cooldowns and NS.Cooldowns._containers and NS.Cooldowns._containers["EssentialCooldownViewer"]
-  if ess then
-    f:SetPoint("BOTTOM", ess, "TOP", 0, 4)
-  else
+  -- ManaBar anchors above Essential cooldowns via the anchor chain
+  if not NS.AnchorToChain(f, "ManaBar") then
     f:SetPoint("TOP", mainBar, "BOTTOM", 0, -1)
   end
 

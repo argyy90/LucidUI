@@ -72,7 +72,7 @@ local function GetContainer(viewerName)
   local f = CreateFrame("Frame", "LucidUI_CD_" .. viewerName, UIParent)
   f:SetFrameStrata("MEDIUM"); f:SetFrameLevel(10)
   f:SetClampedToScreen(true); f:SetMovable(true); f:EnableMouse(false)
-  if f.SetPreventSecretValues then f:SetPreventSecretValues(true) end
+  -- Do NOT use SetPreventSecretValues — it taints item frame fields (allowAvailableAlert etc.)
 
   local posKey = viewerName == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
   local pos = Opt(posKey)

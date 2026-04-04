@@ -99,6 +99,14 @@ local function CreateBar(name)
 end
 
 -- ── Anchor a bar to player frame ────────────────────────────────────────
+-- Anchor maps: bar point → player frame point (TOP = above frame, BOTTOM = below)
+local ANCHOR_MAP = {
+  TOPLEFT     = {bar = "BOTTOMLEFT",  pf = "TOPLEFT"},
+  TOPRIGHT    = {bar = "BOTTOMRIGHT", pf = "TOPRIGHT"},
+  BOTTOMLEFT  = {bar = "TOPLEFT",     pf = "BOTTOMLEFT"},
+  BOTTOMRIGHT = {bar = "TOPRIGHT",    pf = "BOTTOMRIGHT"},
+}
+
 local function AnchorBar(bar, posKey, anchorKey, offXKey, offYKey)
   if not bar then return end
   local pos = Opt(posKey)
@@ -110,7 +118,13 @@ local function AnchorBar(bar, posKey, anchorKey, offXKey, offYKey)
   local pf = GetPlayerFrame()
   if not pf then bar:SetPoint("CENTER"); return end
   bar:ClearAllPoints()
-  bar:SetPoint(Opt(anchorKey), pf, Opt(anchorKey), Opt(offXKey), Opt(offYKey))
+  local anchor = Opt(anchorKey) or "BOTTOMLEFT"
+  local map = ANCHOR_MAP[anchor]
+  if map then
+    bar:SetPoint(map.bar, pf, map.pf, Opt(offXKey), Opt(offYKey))
+  else
+    bar:SetPoint(anchor, pf, anchor, Opt(offXKey), Opt(offYKey))
+  end
 end
 
 -- ── Update trinket icon ─────────────────────────────────────────────────
@@ -465,10 +479,15 @@ function TR.SetupSettings(parent)
   local growLabels = {"Right", "Left"}
   local growValues = {"RIGHT", "LEFT"}
 
-  local function Dropdown(card, label, labs, vals, key, default)
+  local function Dropdown(card, label, labs, vals, key, default, posKey)
     local dd = NS.ChatGetDropdown(card.inner, label,
       function(v) return (Opt(key) or default) == v end,
-      function(v) OptSet(key, v); TR.Refresh() end)
+      function(v)
+        OptSet(key, v)
+        -- Clear saved manual position so anchor dropdown takes effect
+        if posKey then OptSet(posKey, nil) end
+        TR.Refresh()
+      end)
     dd:Init(labs, vals); R(card, dd, 46)
   end
   local function Toggle(card, label, key, tip)
@@ -480,7 +499,7 @@ function TR.SetupSettings(parent)
   local cTrk = MakeCard(sc, "Trinkets")
   MakeUnlockReset(cTrk, "trkPos", "trkAnchor", "trkOffX", "trkOffY", trkContainer, function() return trkContainer end)
   Toggle(cTrk, "Show Passive Trinkets", "trkShowPassive", "Show trinkets without on-use effect")
-  Dropdown(cTrk, "Anchor Point", anchorLabels, anchorValues, "trkAnchor", "TOPLEFT")
+  Dropdown(cTrk, "Anchor Point", anchorLabels, anchorValues, "trkAnchor", "TOPLEFT", "trkPos")
   Dropdown(cTrk, "Grow Direction", growLabels, growValues, "trkGrow", "RIGHT")
   Slider(cTrk, "Icon Width", "trkWidth", 16, 60, "%spx", 36)
   Slider(cTrk, "Icon Height", "trkHeight", 16, 60, "%spx", 36)
@@ -494,7 +513,7 @@ function TR.SetupSettings(parent)
   local cRac = MakeCard(sc, "Racials / Items")
   MakeUnlockReset(cRac, "racPos", "racAnchor", "racOffX", "racOffY", racContainer, function() return racContainer end)
   Toggle(cRac, "Show Items at Zero Stacks", "racShowZeroStacks", "Show items even when you have none")
-  Dropdown(cRac, "Anchor Point", anchorLabels, anchorValues, "racAnchor", "BOTTOMLEFT")
+  Dropdown(cRac, "Anchor Point", anchorLabels, anchorValues, "racAnchor", "BOTTOMLEFT", "racPos")
   Dropdown(cRac, "Grow Direction", growLabels, growValues, "racGrow", "RIGHT")
   Slider(cRac, "Icon Width", "racWidth", 16, 60, "%spx", 36)
   Slider(cRac, "Icon Height", "racHeight", 16, 60, "%spx", 36)

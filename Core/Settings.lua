@@ -723,7 +723,7 @@ local function SetupAdvanced(parent)
   -- Save current settings into the active profile before switching
   local function SaveCurrentProfile()
     local cur = LucidUIDB._activeProfile or "Default"
-    local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, history=true, chatHistory=true, debugHistory=true, chatTabs=true, _sessionData=true, _rollData=true, _rollEncounter=true}
+    local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, history=true, chatHistory=true, debugHistory=true, _sessionData=true, _rollData=true, _rollEncounter=true}
     local snapshot = {}
     for k, v in pairs(LucidUIDB) do
       if not skip[k] then snapshot[k] = v end
@@ -823,7 +823,7 @@ local function SetupAdvanced(parent)
       end
     end
 
-    local skip = {history=true, chatHistory=true, debugHistory=true, chatTabs=true, qolFpsBackup=true, _profiles=true, _activeProfile=true, _sessionData=true, _rollData=true, _rollEncounter=true}
+    local skip = {history=true, chatHistory=true, debugHistory=true, qolFpsBackup=true, _profiles=true, _activeProfile=true, _sessionData=true, _rollData=true, _rollEncounter=true}
     local lines = {"LUI_EXPORT:" .. (NS.DB("theme") or "default") .. ":" .. date("%Y%m%d")}
     for k, v in pairs(LucidUIDB or {}) do
       if not skip[k] then
@@ -989,6 +989,8 @@ local function SetupAdvanced(parent)
             return s
           end
           -- Build profile data from import (skip internal keys)
+          -- CDM positions: nil = default (anchor chain handles) → not in export
+          --                set = user custom → exported and imported as-is
           local skipKeys = {_profiles=true, _activeProfile=true}
           local profileData = {}
           for line in raw:gmatch("[^\n]+") do

@@ -328,7 +328,7 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
         profileData = profiles and profiles[activeProfile]
       end
       if profileData then
-        local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, _lastAppliedProfile=true, history=true, chatHistory=true, debugHistory=true, chatTabs=true, _sessionData=true, _rollData=true, _rollEncounter=true}
+        local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, _lastAppliedProfile=true, history=true, chatHistory=true, debugHistory=true, _sessionData=true, _rollData=true, _rollEncounter=true}
         for k in pairs(LucidUIDB) do
           if not skip[k] then LucidUIDB[k] = nil end
         end

@@ -319,7 +319,7 @@ local function ApplySlotAnchors(slot)
     slot.Count:SetFont("Fonts/FRIZQT__.TTF", countSize, "OUTLINE")
   end
 
-  slot._bgAlpha = transparent and (bgAlpha * 0.4) or 1
+  slot._bgAlpha = transparent and (bgAlpha * 0.3) or bgAlpha
 end
 
 -- ── Update Single Slot ──────────────────────────────────────────────
@@ -329,6 +329,13 @@ local function UpdateSlot(slot)
 
   local icon = slot._iconRef
   if not icon then return end
+
+  -- Reset new-item cleared flag when slot content changes
+  local curItem = info.itemID or 0
+  if slot._lastItemID ~= curItem then
+    slot._lastItemID = curItem
+    slot._newCleared = false
+  end
 
   if info.iconFileID then
     icon:SetTexture(info.iconFileID)
@@ -661,16 +668,9 @@ local function LayoutBags()
   if bagFrame._currencyContainer then
     local entries = {}
     local maxTokens = MAX_WATCHED_TOKENS or 20
-    local getter = GetBackpackCurrencyInfo or (C_CurrencyInfo and C_CurrencyInfo.GetBackpackCurrencyInfo)
-    if getter then
+    if C_CurrencyInfo and C_CurrencyInfo.GetBackpackCurrencyInfo then
       for i = 1, maxTokens do
-        local info
-        if GetBackpackCurrencyInfo then
-          local name, quantity, iconID = getter(i)
-          if name then info = {name = name, quantity = quantity, iconFileID = iconID} end
-        else
-          info = getter(i)
-        end
+        local info = C_CurrencyInfo.GetBackpackCurrencyInfo(i)
         if not info or not info.name then break end
         local icon = info.iconFileID and CreateTextureMarkup(info.iconFileID, 64, 64, 14, 14, 0, 1, 0, 1) or ""
         entries[#entries + 1] = string.format("%s %s", icon, BreakUpLargeNumbers(info.quantity))
@@ -991,12 +991,6 @@ local function BuildBagFrame()
   bagFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
   bagFrame:RegisterEvent("PLAYER_LOGOUT")
 
-  local btf = _G.BackpackTokenFrame
-  if btf then
-    local maxTokens = MAX_WATCHED_TOKENS or 20
-    btf:SetWidth(maxTokens * (btf.tokenWidth or 50))
-  end
-
   if _G.TokenFrame and _G.TokenFrame.SetTokenWatched then
     hooksecurefunc(_G.TokenFrame, "SetTokenWatched", function()
       if bagFrame and bagFrame:IsShown() then LayoutBags() end
@@ -1093,6 +1087,10 @@ hookFrame:SetScript("OnEvent", function(self)
   self:UnregisterEvent("PLAYER_LOGIN")
 
   if not DB("bagEnabled") then return end
+
+  -- Skip if ElvUI bags are active (avoid double-hook conflicts)
+  local E = _G.ElvUI and _G.ElvUI[1]
+  if E and E.private and E.private.bags and E.private.bags.enable then return end
 
   -- Suppress UseContainerItem taint popup
   local taintFrame = CreateFrame("Frame")
@@ -1202,8 +1200,8 @@ hookFrame:SetScript("OnEvent", function(self)
       if (src == "BANKFRAME"      and DB("bagAutoBank"))
       or (src == "MAIL"           and DB("bagAutoMail"))
       or (src == "AUCTION_HOUSE"  and DB("bagAutoAH"))
-      or (src == "MERCHANT"       and DB("bagAutoBank"))
-      or (src == "TRADE"          and DB("bagAutoBank"))
+      or (src == "MERCHANT")
+      or (src == "TRADE")
       or (src == "GUILDBANKFRAME" and DB("bagAutoBank")) then
         B.OpenBags()
       end

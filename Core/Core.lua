@@ -86,7 +86,12 @@ function NS.AnchorToChain(frame, moduleName, gap)
   gap = gap or 4
   frame:ClearAllPoints()
 
-  if moduleName == "Resources" then
+  if moduleName == "ManaBar" then
+    -- ManaBar sits directly above Essential cooldowns
+    local ess = NS.Cooldowns and NS.Cooldowns._containers and NS.Cooldowns._containers["EssentialCooldownViewer"]
+    if ess then frame:SetPoint("BOTTOM", ess, "TOP", 0, 1); return true end
+
+  elseif moduleName == "Resources" then
     -- If ManaBar is active, anchor above ManaBar; otherwise above Cooldowns
     local manaBar = NS.Resources and NS.Resources._manaBar
     if manaBar and manaBar:IsShown() then
@@ -120,6 +125,9 @@ end
 function NS.RefreshAnchorChain()
   -- Re-anchor chain modules only if they don't have a saved manual position
   local db = LucidUIDB or {}
+  -- Re-anchor ManaBar above Essential (it has no saved position)
+  local mana = NS.Resources and NS.Resources._manaBar
+  if mana and mana:IsShown() then NS.AnchorToChain(mana, "ManaBar") end
   local res = NS.Resources and NS.Resources._mainBar
   if res and not db["res_pos"] then NS.AnchorToChain(res, "Resources") end
   local cb = NS.CastBar and NS.CastBar._bar

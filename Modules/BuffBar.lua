@@ -138,8 +138,15 @@ local function StyleIconFrame(frame, size)
   if frame.Cooldown then
     frame.Cooldown:ClearAllPoints(); frame.Cooldown:SetAllPoints(frame)
     frame.Cooldown:SetDrawEdge(false)
-    -- Show/hide duration text on cooldown
     frame.Cooldown:SetHideCountdownNumbers(not Opt("showDurationText"))
+    -- Apply font size to cooldown countdown text (uses shared buffBarFontSize)
+    local iconFontSize = Opt("buffBarFontSize")
+    local fontPath = NS.GetFontPath(Opt("buffBarFont"))
+    for _, region in pairs({frame.Cooldown:GetRegions()}) do
+      if region:IsObjectType("FontString") then
+        region:SetFont(fontPath, iconFontSize, "OUTLINE")
+      end
+    end
   end
 
   -- Show/hide stack count
