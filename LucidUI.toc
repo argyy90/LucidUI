@@ -60,6 +60,7 @@ Modules\Resources.lua
 Modules\Cooldowns.lua
 Modules\EditMode.lua
 Modules\BuffBar.lua
+Modules\Trinkets.lua
 
 Core\Settings.lua
 

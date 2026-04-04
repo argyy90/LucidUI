@@ -2509,6 +2509,7 @@ local function SetupLucidCDMTab(parent)
     {name = "Cast Bar",  fn = NS.CastBar.SetupSettings},
     {name = "Resources", fn = NS.Resources.SetupSettings},
     {name = "Buffs",     fn = NS.BuffBar.SetupSettings},
+    {name = "Trinkets",  fn = NS.Trinkets.SetupSettings},
   }
   local N = #modules
 

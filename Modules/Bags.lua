@@ -1101,6 +1101,15 @@ hookFrame:SetScript("OnEvent", function(self)
     if addon == "LucidUI" then StaticPopup_Hide("ADDON_ACTION_FORBIDDEN") end
   end)
 
+  -- ── Append Item ID to all item tooltips ──────────────────────────────
+  if TooltipDataProcessor then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
+      if tooltip ~= GameTooltip or not data or not data.id then return end
+      tooltip:AddLine("Item ID: " .. data.id, 0.4, 0.4, 0.5)
+      tooltip:Show()
+    end)
+  end
+
   -- ── Suppress Blizzard container frames ──────────────────────────────
   -- hooksecurefunc is a POST-hook: the original function runs first (opening the Blizzard bag),
   -- then our callback fires. Fix: replace each Blizzard container frame's OnShow with an
