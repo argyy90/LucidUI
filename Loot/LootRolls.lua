@@ -365,7 +365,7 @@ local function BuildItemRow(parent, session, yOffset)
         timerBar:Hide()
         self:SetScript("OnUpdate", nil)
       else
-        local pct = remaining / totalDuration
+        local pct = totalDuration > 0 and (remaining / totalDuration) or 0
         timerBar:SetWidth(math.max(1, timerBg:GetWidth() * pct))
       end
     end)

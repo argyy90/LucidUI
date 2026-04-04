@@ -645,18 +645,27 @@ function RES.SetupSettings(parent)
       mainBar:SetScript("OnDragStart", function(s) s:StartMoving() end)
       mainBar:SetScript("OnDragStop", function(s)
         s:StopMovingOrSizing()
-        local p,_,_,x,y = s:GetPoint(); OptSet("pos", {p=p, x=x, y=y})
+        local left, top = s:GetLeft(), s:GetTop()
+        if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+        NS.UpdateMoverPopup()
       end)
-      -- Show secondary preview
       if secBar then
         secBar:Show(); secBar:SetAlpha(1)
         secBar.bar:Show(); secBar.bar:SetValue(0.7)
         secBar.text:SetText("Secondary Resource")
       end
+      NS.ShowMoverPopup(mainBar, "Resources", function(f)
+        local left, top = f:GetLeft(), f:GetTop()
+        if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+      end, function()
+        OptSet("pos", nil)
+        if mainBar then NS.AnchorToChain(mainBar, "Resources") end
+      end)
     else
       RES._unlocked = false
       mainBar:EnableMouse(false); mainBar:RegisterForDrag()
       mainBar:SetScript("OnDragStart", nil); mainBar:SetScript("OnDragStop", nil)
+      NS.HideMoverPopup()
       DetectResources()
       if primaryType then mainBar:Show() else mainBar:Hide() end
       if secondaryType and secBar then secBar:Show() else secBar:Hide() end

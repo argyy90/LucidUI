@@ -479,7 +479,7 @@ local function UpdateTrackers()
 
       -- Range tint when ready
       local outOfRange = false
-      if remaining <= 0 and (o.rangeCheck ~= false) and UnitExists("target") then
+      if remaining <= 0 and not f._isItem and (o.rangeCheck ~= false) and UnitExists("target") then
         local ok2, inRange = pcall(function()
           if C_Spell and C_Spell.IsSpellInRange then
             return C_Spell.IsSpellInRange(f.spellID, "target")

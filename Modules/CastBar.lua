@@ -270,7 +270,7 @@ local function OnUpdate(self, dt)
   end
 
   -- Cast finished naturally
-  if (casting and now >= castEndTime) or (channeling and now >= castEndTime) then
+  if (casting or channeling) and now >= castEndTime then
     StopCast(false)
   end
 end
@@ -447,7 +447,6 @@ function CB.SetupSettings(parent)
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
     CreateBar(); ApplyBarStyle()
     if unlocked then
-      -- Show bar as draggable preview
       bar:Show(); bar:SetAlpha(1)
       bar.bar:SetValue(0.65)
       bar.spellText:SetText("Cast Bar"); bar.timerText:SetText("1.5")
@@ -456,16 +455,22 @@ function CB.SetupSettings(parent)
       bar:SetScript("OnDragStop", function(s)
         s:StopMovingOrSizing()
         local left, top = s:GetLeft(), s:GetTop()
-        if left then
-          OptSet("pos", {p = "TOPLEFT", x = left, y = top - GetScreenHeight()})
-        end
+        if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+        NS.UpdateMoverPopup()
+      end)
+      NS.ShowMoverPopup(bar, "Cast Bar", function(f)
+        local left, top = f:GetLeft(), f:GetTop()
+        if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+      end, function()
+        OptSet("pos", nil)
+        if bar then NS.AnchorToChain(bar, "CastBar") end
       end)
     else
-      -- Lock: hide preview, restore normal behavior
       if not (casting or channeling) then bar:Hide() end
       bar:EnableMouse(false); bar:RegisterForDrag()
       bar:SetScript("OnDragStart", nil); bar:SetScript("OnDragStop", nil)
       bar.spellText:SetText(""); bar.timerText:SetText("")
+      NS.HideMoverPopup()
     end
   end)
   lockBtn:SetScript("OnEnter", function() local r,g,b = NS.ChatGetAccentRGB(); lockBtn:SetBackdropBorderColor(r, g, b, 0.8) end)

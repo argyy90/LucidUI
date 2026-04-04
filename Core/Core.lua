@@ -130,6 +130,189 @@ function NS.RefreshAnchorChain()
   if barC and not db["bb_buffBarPos"] then NS.AnchorToChain(barC, "BuffBars") end
 end
 
+-- ── Mover/Nudge Window ──────────────────────────────────────────────────────
+-- Accent border + label on unlocked frames. Popup with editable X/Y on click.
+local moverPopup = nil
+local moverTarget = nil
+local moverSaveFunc = nil
+local moverResetFunc = nil
+local moverFrames = {} -- all currently unlocked frames
+
+local function BuildMoverPopup()
+  if moverPopup then return end
+  local ar, ag, ab = NS.ChatGetAccentRGB()
+  local SBD = {bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1}
+
+  local f = CreateFrame("Frame", "LucidUIMoverPopup", UIParent, "BackdropTemplate")
+  f:SetSize(220, 100); f:SetFrameStrata("FULLSCREEN_DIALOG")
+  f:SetMovable(true); f:SetClampedToScreen(true); f:EnableMouse(true)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", f.StartMoving)
+  f:SetScript("OnDragStop", f.StopMovingOrSizing)
+  f:SetBackdrop(SBD)
+  f:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
+  f:SetBackdropBorderColor(ar, ag, ab, 0.6)
+
+  -- Title
+  f._title = f:CreateFontString(nil, "OVERLAY")
+  f._title:SetFont("Fonts/FRIZQT__.TTF", 10, ""); f._title:SetPoint("TOP", 0, -6)
+  f._title:SetTextColor(0.8, 0.8, 0.9)
+
+  -- X EditBox
+  local xLbl = f:CreateFontString(nil, "OVERLAY")
+  xLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "OUTLINE"); xLbl:SetPoint("TOPLEFT", 12, -26)
+  xLbl:SetTextColor(ar, ag, ab); xLbl:SetText("X:")
+  local xEB = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+  xEB:SetSize(60, 18); xEB:SetPoint("LEFT", xLbl, "RIGHT", 4, 0)
+  xEB:SetAutoFocus(false); xEB:SetNumeric(false); xEB:SetFontObject("ChatFontSmall")
+  f._xEB = xEB
+
+  -- Y EditBox
+  local yLbl = f:CreateFontString(nil, "OVERLAY")
+  yLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "OUTLINE"); yLbl:SetPoint("LEFT", xEB, "RIGHT", 12, 0)
+  yLbl:SetTextColor(ar, ag, ab); yLbl:SetText("Y:")
+  local yEB = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+  yEB:SetSize(60, 18); yEB:SetPoint("LEFT", yLbl, "RIGHT", 4, 0)
+  yEB:SetAutoFocus(false); yEB:SetNumeric(false); yEB:SetFontObject("ChatFontSmall")
+  f._yEB = yEB
+
+  -- Apply on Enter
+  local function ApplyXY()
+    if not moverTarget then return end
+    local x = tonumber(xEB:GetText())
+    local y = tonumber(yEB:GetText())
+    if x and y then
+      moverTarget:ClearAllPoints()
+      moverTarget:SetPoint("TOPLEFT", UIParent, "TOPLEFT", x, y)
+      if moverSaveFunc then moverSaveFunc(moverTarget) end
+    end
+    xEB:ClearFocus(); yEB:ClearFocus()
+  end
+  xEB:SetScript("OnEnterPressed", ApplyXY)
+  yEB:SetScript("OnEnterPressed", ApplyXY)
+
+  -- Reset button
+  local resetBtn = CreateFrame("Button", nil, f, "BackdropTemplate")
+  resetBtn:SetSize(50, 18); resetBtn:SetPoint("TOP", 0, -50)
+  resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.06, 0.06, 0.1, 1); resetBtn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1)
+  local rfs = resetBtn:CreateFontString(nil, "OVERLAY"); rfs:SetFont("Fonts/FRIZQT__.TTF", 9, ""); rfs:SetPoint("CENTER"); rfs:SetTextColor(0.7, 0.7, 0.8); rfs:SetText("Reset")
+  resetBtn:SetScript("OnEnter", function() resetBtn:SetBackdropBorderColor(ar, ag, ab, 0.8) end)
+  resetBtn:SetScript("OnLeave", function() resetBtn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1) end)
+  f._resetBtn = resetBtn
+
+  -- Nudge buttons
+  local function Nudge(px, py)
+    if not moverTarget then return end
+    local left, top = moverTarget:GetLeft(), moverTarget:GetTop()
+    if not left then return end
+    moverTarget:ClearAllPoints()
+    moverTarget:SetPoint("TOPLEFT", UIParent, "TOPLEFT", left + px, (top - GetScreenHeight()) + py)
+    if moverSaveFunc then moverSaveFunc(moverTarget) end
+    NS.UpdateMoverPopup()
+  end
+
+  local function NudgeBtn(parent, text, px, py, anchor, offX, offY)
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn:SetSize(20, 18); btn:SetPoint(anchor, offX, offY)
+    btn:SetBackdrop(SBD); btn:SetBackdropColor(0.06, 0.06, 0.1, 1); btn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1)
+    local bfs = btn:CreateFontString(nil, "OVERLAY"); bfs:SetFont("Fonts/FRIZQT__.TTF", 10, ""); bfs:SetPoint("CENTER"); bfs:SetTextColor(0.6, 0.6, 0.7); bfs:SetText(text)
+    btn:SetScript("OnEnter", function() btn:SetBackdropBorderColor(ar, ag, ab, 0.8) end)
+    btn:SetScript("OnLeave", function() btn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1) end)
+    btn:SetScript("OnClick", function() Nudge(px, py) end)
+  end
+
+  NudgeBtn(f, "<",  -1,  0, "BOTTOMLEFT", 8, 6)
+  NudgeBtn(f, ">",   1,  0, "BOTTOMLEFT", 30, 6)
+  NudgeBtn(f, "^",   0,  1, "BOTTOMLEFT", 54, 6)
+  NudgeBtn(f, "v",   0, -1, "BOTTOMLEFT", 76, 6)
+  NudgeBtn(f, "<<", -10,  0, "BOTTOMRIGHT", -76, 6)
+  NudgeBtn(f, ">>",  10,  0, "BOTTOMRIGHT", -54, 6)
+  NudgeBtn(f, "^^",   0, 10, "BOTTOMRIGHT", -30, 6)
+  NudgeBtn(f, "vv",   0,-10, "BOTTOMRIGHT", -8, 6)
+
+  f:Hide()
+  moverPopup = f
+end
+
+-- Show border+label on a frame (called on unlock). Click opens popup.
+function NS.ShowMoverPopup(frame, label, onSave, onReset)
+  if not frame then return end
+  local ar, ag, ab = NS.ChatGetAccentRGB()
+
+  -- Accent border
+  if not frame._moverBorder then
+    local b = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    b:SetAllPoints(); b:SetFrameLevel(frame:GetFrameLevel() + 5)
+    b:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8", edgeSize=2})
+    b:SetBackdropColor(0, 0, 0, 0)
+    frame._moverBorder = b
+  end
+  frame._moverBorder:SetBackdropBorderColor(ar, ag, ab, 0.9)
+  frame._moverBorder:Show()
+
+  -- Label
+  if not frame._moverLabel then
+    local fs = frame._moverBorder:CreateFontString(nil, "OVERLAY")
+    fs:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
+    fs:SetPoint("TOP", frame, "TOP", 0, 12)
+    frame._moverLabel = fs
+  end
+  frame._moverLabel:SetTextColor(ar, ag, ab)
+  frame._moverLabel:SetText(label or "")
+  frame._moverLabel:Show()
+
+  -- Store callbacks on frame
+  frame._moverSave = onSave
+  frame._moverReset = onReset
+  frame._moverLabelText = label
+
+  -- Click handler to show popup for this frame
+  if not frame._moverClickSet then
+    frame._moverClickSet = true
+    frame:HookScript("OnMouseUp", function(self, button)
+      if button == "LeftButton" and self._moverBorder and self._moverBorder:IsShown() then
+        BuildMoverPopup()
+        moverTarget = self
+        moverSaveFunc = self._moverSave
+        moverResetFunc = self._moverReset
+        moverPopup._title:SetText(self._moverLabelText or "Position")
+        moverPopup._resetBtn:SetScript("OnClick", function()
+          if moverResetFunc then moverResetFunc() end
+          moverPopup:Hide()
+        end)
+        moverPopup:ClearAllPoints()
+        moverPopup:SetPoint("TOP", self, "BOTTOM", 0, -8)
+        moverPopup:Show()
+        NS.UpdateMoverPopup()
+      end
+    end)
+  end
+
+  moverFrames[frame] = true
+end
+
+function NS.UpdateMoverPopup()
+  if not moverPopup or not moverPopup:IsShown() or not moverTarget then return end
+  local left = moverTarget:GetLeft() or 0
+  local top = moverTarget:GetTop() or 0
+  local x = math.floor(left + 0.5)
+  local y = math.floor(top - GetScreenHeight() + 0.5)
+  moverPopup._xEB:SetText(x)
+  moverPopup._yEB:SetText(y)
+end
+
+function NS.HideMoverPopup()
+  if moverPopup then moverPopup:Hide() end
+  for frame in pairs(moverFrames) do
+    if frame._moverBorder then frame._moverBorder:Hide() end
+    if frame._moverLabel then frame._moverLabel:Hide() end
+  end
+  wipe(moverFrames)
+  moverTarget = nil
+  moverSaveFunc = nil
+  moverResetFunc = nil
+end
+
 -- ── Reload Popup Helper ──────────────────────────────────────────────────────
 function NS.ShowReloadPopup(message, onCancel)
   StaticPopupDialogs["LUCIDUI_RELOAD"] = {
@@ -760,7 +943,7 @@ end)
 -- ── CooldownViewer-Konflikt-Schutz ──────────────────────────────────────────────
 -- Addons die dieselben CooldownViewer-Frames verwalten (reparenten + SetPoint-Hooks)
 -- kollidieren mit LucidUIs Cooldowns/BuffBar/CastBar/EditMode-Modulen.
--- Wenn eines dieser Addons geladen ist oder lädt, deaktivieren wir die
+-- If a conflicting CDM addon is loaded, disable LucidCDM modules
 -- konkurrierenden LucidUI-Module um Crashes zu verhindern.
 local CDM_CONFLICTING_ADDONS = {
   "Ayije_CDM",
@@ -780,7 +963,7 @@ local function HasConflictingAddon()
   return false
 end
 
--- Prüfung beim Login (Ayije bereits geladen)
+-- Check on login (Ayije may already be loaded)
 local conflictCheckFrame = CreateFrame("Frame")
 conflictCheckFrame:RegisterEvent("PLAYER_LOGIN")
 conflictCheckFrame:RegisterEvent("ADDON_LOADED")
@@ -790,7 +973,7 @@ conflictCheckFrame:SetScript("OnEvent", function(self, event, addonName)
     if found then
       DisableCDMModules()
       if LucidUIDB then LucidUIDB["cdm_enabled"] = false end
-      print("|cffff8800[LucidUI]|r " .. name .. " erkannt — LucidCDM deaktiviert um Konflikte zu vermeiden.")
+      print("|cffff8800[LucidUI]|r " .. name .. " detected — LucidCDM disabled to avoid conflicts.")
     end
   elseif event == "ADDON_LOADED" then
     -- Ayije lädt nach LucidUI
@@ -798,7 +981,7 @@ conflictCheckFrame:SetScript("OnEvent", function(self, event, addonName)
       if addonName == name then
         DisableCDMModules()
         if LucidUIDB then LucidUIDB["cdm_enabled"] = false end
-        print("|cffff8800[LucidUI]|r " .. name .. " geladen — LucidCDM deaktiviert um Konflikte zu vermeiden.")
+        print("|cffff8800[LucidUI]|r " .. name .. " loaded — LucidCDM disabled to avoid conflicts.")
         break
       end
     end

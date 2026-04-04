@@ -436,9 +436,22 @@ function TR.SetupSettings(parent)
       if unlocked then
         b2:Show(); b2:EnableMouse(true); b2:SetMovable(true); b2:RegisterForDrag("LeftButton")
         b2:SetScript("OnDragStart", function(s) s:StartMoving() end)
-        b2:SetScript("OnDragStop", function(s) s:StopMovingOrSizing(); local p,_,_,x,y = s:GetPoint(); OptSet(posKey, {p=p,x=x,y=y}) end)
+        b2:SetScript("OnDragStop", function(s)
+          s:StopMovingOrSizing()
+          local left, top = s:GetLeft(), s:GetTop()
+          if left then OptSet(posKey, {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+          NS.UpdateMoverPopup()
+        end)
+        local label = posKey == "trkPos" and "Trinkets" or "Racials"
+        NS.ShowMoverPopup(b2, label, function(f)
+          local left, top = f:GetLeft(), f:GetTop()
+          if left then OptSet(posKey, {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+        end, function()
+          OptSet(posKey, nil); OptSet(offXKey, 0); OptSet(offYKey, 0); TR.Refresh()
+        end)
       else
         b2:EnableMouse(false); b2:RegisterForDrag(); b2:SetScript("OnDragStart", nil); b2:SetScript("OnDragStop", nil)
+        NS.HideMoverPopup()
         TR.Refresh()
       end
     end)

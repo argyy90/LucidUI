@@ -54,21 +54,10 @@ local hookedViewers = {}
 local hookedLayouts = {}
 local initialized = false
 
--- ── Raw SetPoint (avoid recursion) ──────────────────────────────────────
-local rawSetPoint, rawClearAllPoints
-
-local function InitRaw(frame)
-  if rawSetPoint then return end
-  local mt = getmetatable(frame)
-  if mt and mt.__index then
-    rawSetPoint = mt.__index.SetPoint
-    rawClearAllPoints = mt.__index.ClearAllPoints
-  end
-  if not rawSetPoint then
-    rawSetPoint = frame.SetPoint
-    rawClearAllPoints = frame.ClearAllPoints
-  end
-end
+-- ── Raw SetPoint/ClearAllPoints from clean proxy frame ─────────────────
+local _anchorProxy = CreateFrame("Frame")
+local rawSetPoint = _anchorProxy.SetPoint
+local rawClearAllPoints = _anchorProxy.ClearAllPoints
 
 local function GetFD(frame)
   if not frameData[frame] then frameData[frame] = {} end
@@ -100,7 +89,6 @@ end
 local function HookFrameSetPoint(frame)
   if hookedFrames[frame] then return end
   hookedFrames[frame] = true
-  InitRaw(frame)
   hooksecurefunc(frame, "SetPoint", function(self, _, relativeTo)
     local fd = frameData[self]
     if not fd or not fd.bbAnchor then return end
@@ -113,8 +101,6 @@ end
 
 -- ── Place frame with stored anchor ──────────────────────────────────────
 local function PlaceFrame(frame, container, x, y)
-  InitRaw(frame)
-  if frame:GetParent() ~= container then frame:SetParent(container) end
   local fd = GetFD(frame)
   fd.bbAnchor = {"TOPLEFT", container, "TOPLEFT", Snap(x), Snap(y)}
   rawClearAllPoints(frame)
@@ -484,7 +470,7 @@ function BB:Enable()
   LayoutBuffBars()
   -- Dynamic update ticker — re-layout when buffs change
   if not BB._ticker then
-    BB._ticker = C_Timer.NewTicker(0.15, function()
+    BB._ticker = C_Timer.NewTicker(0.3, function()
       if not NS.IsCDMEnabled() then return end
       if BB._unlocked then return end
       LayoutBuffIcons()
@@ -658,14 +644,22 @@ function BB.SetupSettings(parent)
         local pw = vn == VIEWER_BUFF_ICON and (Opt("buffIconSize") * Opt("buffIconsPerRow")) or Opt("buffBarWidth")
         local ph = vn == VIEWER_BUFF_ICON and Opt("buffIconSize") or (Opt("buffBarHeight") * 3)
         c:SetSize(math.max(pw, 120), math.max(ph, 30))
+        local posKey = vn == VIEWER_BUFF_ICON and "buffIconPos" or "buffBarPos"
         c:Show(); c:EnableMouse(true); c:RegisterForDrag("LeftButton")
         c:SetScript("OnDragStart", function(s) s:StartMoving() end)
         c:SetScript("OnDragStop", function(s) s:StopMovingOrSizing()
-          local p,_,_,x,y = s:GetPoint()
-          OptSet(vn == VIEWER_BUFF_ICON and "buffIconPos" or "buffBarPos", {p=p, x=x, y=y})
+          local left, top = s:GetLeft(), s:GetTop()
+          if left then OptSet(posKey, {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+          NS.UpdateMoverPopup()
         end)
-        if not c._unlockBorder then c._unlockBorder = c:CreateTexture(nil, "OVERLAY", nil, 7); c._unlockBorder:SetAllPoints() end
-        c._unlockBorder:SetColorTexture(r, g, b, 0.15); c._unlockBorder:Show()
+        local chainName = vn == VIEWER_BUFF_ICON and "BuffIcons" or "BuffBars"
+        NS.ShowMoverPopup(c, label, function(f)
+          local left, top = f:GetLeft(), f:GetTop()
+          if left then OptSet(posKey, {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+        end, function()
+          OptSet(posKey, nil)
+          NS.AnchorToChain(c, chainName)
+        end)
         -- Preview label
         if not c._label then
           c._label = c:CreateFontString(nil, "OVERLAY")
@@ -712,7 +706,7 @@ function BB.SetupSettings(parent)
         end
       else
         c:EnableMouse(false); c:RegisterForDrag(); c:SetScript("OnDragStart", nil); c:SetScript("OnDragStop", nil)
-        if c._unlockBorder then c._unlockBorder:Hide() end
+        NS.HideMoverPopup()
         if c._label then c._label:Hide() end
         -- Reset preview: hide all, reparent back, force Blizzard re-layout
         local viewer = _G[vn]

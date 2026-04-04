@@ -118,7 +118,6 @@ end
 
 -- ── Style a single CD frame ─────────────────────────────────────────────
 local function StyleFrame(frame, w, h)
-  if frame.SetPreventSecretValues then frame:SetPreventSecretValues(true) end
   frame:SetSize(w, h)
 
   -- Icon texture
@@ -241,7 +240,7 @@ local function HookFrameSetPoint(frame)
   if hookedFrames[frame] then return end
   hookedFrames[frame] = true
 
-  hooksecurefunc(frame, "SetPoint", function(self, point, relativeTo)
+  hooksecurefunc(frame, "SetPoint", function(self, _, relativeTo)
     local fd = frameData[self]
     if not fd or not fd.cdmAnchor then return end
     local a = fd.cdmAnchor
@@ -317,7 +316,7 @@ local function ForceReanchor(viewerName)
   for frame in viewer.itemFramePool:EnumerateActive() do
     local fd = frameData[frame]
     if fd and fd.cdmAnchor then
-          rawClearAllPoints(frame)
+      rawClearAllPoints(frame)
       rawSetPoint(frame, fd.cdmAnchor[1], fd.cdmAnchor[2], fd.cdmAnchor[3], fd.cdmAnchor[4], fd.cdmAnchor[5])
     end
   end
@@ -327,7 +326,6 @@ end
 local function SetupViewerHooks(viewerName)
   local viewer = _G[viewerName]
   if not viewer then return end
-  if viewer.SetPreventSecretValues then viewer:SetPreventSecretValues(true) end
 
   -- Hook OnAcquireItemFrame (called when pool creates/acquires a frame)
   if viewer.OnAcquireItemFrame and not hookedViewers[viewerName] then
@@ -611,22 +609,35 @@ function CD.SetupSettings(parent)
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
     for _, vn in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
       local c = GetContainer(vn)
+      local posKey = vn == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
+      local label = vn == VIEWERS.ESSENTIAL and "Essential" or "Utility"
       if unlocked then
         c:Show(); c:EnableMouse(true); c:RegisterForDrag("LeftButton")
         c:SetScript("OnDragStart", function(s) s:StartMoving() end)
         c:SetScript("OnDragStop", function(s)
           s:StopMovingOrSizing()
-          local p,_,_,x,y = s:GetPoint()
-          OptSet(vn == VIEWERS.ESSENTIAL and "essPos" or "utilPos", {p=p, x=x, y=y})
+          local left, top = s:GetLeft(), s:GetTop()
+          if left then OptSet(posKey, {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+          NS.UpdateMoverPopup()
         end)
-        if not c._unlockBorder then
-          c._unlockBorder = c:CreateTexture(nil, "OVERLAY", nil, 7); c._unlockBorder:SetAllPoints()
-        end
-        c._unlockBorder:SetColorTexture(r, g, b, 0.15); c._unlockBorder:Show()
+        NS.ShowMoverPopup(c, label, function(f)
+          local left, top = f:GetLeft(), f:GetTop()
+          if left then OptSet(posKey, {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
+        end, function()
+          OptSet(posKey, nil)
+          c:ClearAllPoints()
+          if vn == VIEWERS.ESSENTIAL then
+            c:SetPoint("CENTER", UIParent, "CENTER", 0, -220)
+          else
+            local essC = containers[VIEWERS.ESSENTIAL]
+            if essC then c:SetPoint("TOP", essC, "BOTTOM", 0, -2) end
+          end
+          NS.RefreshAnchorChain()
+        end)
       else
         c:EnableMouse(false); c:RegisterForDrag()
         c:SetScript("OnDragStart", nil); c:SetScript("OnDragStop", nil)
-        if c._unlockBorder then c._unlockBorder:Hide() end
+        NS.HideMoverPopup()
       end
     end
   end)
