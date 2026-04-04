@@ -93,7 +93,7 @@ function NS.AnchorToChain(frame, moduleName, gap)
       frame:SetPoint("BOTTOM", manaBar, "TOP", 0, 1); return true
     end
     local ess = NS.Cooldowns and NS.Cooldowns._containers and NS.Cooldowns._containers["EssentialCooldownViewer"]
-    if ess then frame:SetPoint("BOTTOM", ess, "TOP", 0, gap); return true end
+    if ess then frame:SetPoint("BOTTOM", ess, "TOP", 0, 1); return true end
 
   elseif moduleName == "CastBar" then
     -- Anchor above the topmost resource bar (secondary > primary > fallback)
@@ -118,15 +118,16 @@ end
 
 -- Refresh the entire anchor chain (called when ManaBar toggles etc.)
 function NS.RefreshAnchorChain()
-  -- Re-anchor ALL chain modules unconditionally
+  -- Re-anchor chain modules only if they don't have a saved manual position
+  local db = LucidUIDB or {}
   local res = NS.Resources and NS.Resources._mainBar
-  if res then NS.AnchorToChain(res, "Resources") end
+  if res and not db["res_pos"] then NS.AnchorToChain(res, "Resources") end
   local cb = NS.CastBar and NS.CastBar._bar
-  if cb then NS.AnchorToChain(cb, "CastBar") end
+  if cb and not db["cb_pos"] then NS.AnchorToChain(cb, "CastBar") end
   local iconC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffIconCooldownViewer"]
-  if iconC then NS.AnchorToChain(iconC, "BuffIcons") end
+  if iconC and not db["bb_buffIconPos"] then NS.AnchorToChain(iconC, "BuffIcons") end
   local barC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffBarCooldownViewer"]
-  if barC then NS.AnchorToChain(barC, "BuffBars") end
+  if barC and not db["bb_buffBarPos"] then NS.AnchorToChain(barC, "BuffBars") end
 end
 
 -- ── Reload Popup Helper ──────────────────────────────────────────────────────

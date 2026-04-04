@@ -48,12 +48,21 @@ local racEntries = {}
 local initialized = false
 
 -- ── Resolve player unitframe ────────────────────────────────────────────
+-- Matches the candidate list used by Ayije CDM's TrackerUtils.lua.
+local PLAYER_FRAME_CANDIDATES = {
+  "ElvUF_Player", "SUFUnitplayer", "UUF_Player",
+  "EllesmereUIUnitFrames_Player", "MSUF_player", "EQOLUFPlayerFrame", "oUF_Player",
+}
+
 local function GetPlayerFrame()
-  for _, name in ipairs({"ElvUF_Player", "SUFUnitplayer", "oUF_Player", "PlayerFrame"}) do
+  for _, name in ipairs(PLAYER_FRAME_CANDIDATES) do
     local f = _G[name]
-    if f and f:IsShown() then return f end
+    if f and f.IsShown and f:IsShown() then return f end
   end
-  return _G["PlayerFrame"]
+  -- Fall back to Blizzard's default frame
+  local blizz = _G["PlayerFrame"]
+  if blizz and blizz.IsShown and blizz:IsShown() then return blizz end
+  return blizz
 end
 
 -- ── Create icon frame ───────────────────────────────────────────────────
@@ -203,7 +212,8 @@ local function UpdateRacialIcon(frame, entry)
       end)
     end
     if not cdSet then frame.cd:Clear(); frame.icon:SetDesaturated(false) end
-  elseif not isItem then
+  else
+    -- Spell cooldown
     pcall(function()
       local cdInfo = C_Spell.GetSpellCooldown(id)
       if cdInfo and cdInfo.duration and cdInfo.duration > CD_MIN then
@@ -211,8 +221,6 @@ local function UpdateRacialIcon(frame, entry)
         frame.icon:SetDesaturated(true)
       else frame.cd:Clear(); frame.icon:SetDesaturated(false) end
     end)
-  else
-    frame.cd:Clear(); frame.icon:SetDesaturated(false)
   end
 
   -- Count / charges

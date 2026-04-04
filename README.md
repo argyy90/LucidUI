@@ -1,9 +1,9 @@
 # LucidUI
 
-A complete chat replacement, loot tracking, damage meter, session statistics, gold tracking, Mythic+ tracking and quality-of-life addon for World of Warcraft (Retail).
+A comprehensive UI addon for World of Warcraft (Retail) featuring a cooldown manager, custom chat, bags, damage meter, loot tracking, resource bars, cast bar, trinket/item tracking, gold tracking, Mythic+ tracking and quality-of-life features.
 
 ![Interface](https://img.shields.io/badge/Interface-12.0.x-blue)
-![Version](https://img.shields.io/badge/Version-1.16-green)
+![Version](https://img.shields.io/badge/Version-1.17-green)
 
 ---
 
@@ -97,6 +97,40 @@ A full-featured Mythic+ run tracker matching GLogger's feature set.
 - **PCB circuit trace background** decoration
 - **Live accent color updates** — all window elements update instantly when accent color changes
 
+### LucidCDM — Cooldown Manager
+Hooks into Blizzard's CooldownViewer system to restyle and reposition cooldown frames.
+
+- **Essential & Utility Cooldowns** — custom icon size, spacing, per-row count, grow direction
+- **Cast Bar** — custom width, height, textures, colors (cast/channel/failed/uninterruptible), class color option, spell name and timer display
+- **Resource Bars** — primary + secondary resource support with automatic class/spec detection, partial resource fill (Soul Shards), segmented pips, optional mana bar with auto-detection for healer specs
+- **Buff Icons & Buff Bars** — custom icon size, bar width/height, grow direction, duration text, stack count, border textures
+- **Trinkets & Racials** — two separate bars for trinket slots and custom items (healthstones, potions), anchored to player unitframe with offset sliders, cooldown text, stack count, grow direction
+- **Auto Width** — resource and cast bars automatically match Essential Cooldowns width
+- **Anchor Chain** — stacked positioning: Cooldowns → Resources → CastBar → BuffIcons → BuffBars
+- **Combat-safe** — `SetPreventSecretValues`, viewer reparenting, raw proxy SetPoint hooks prevent taint
+- **Class Layouts** — per-class CooldownViewer layouts imported during install wizard (13 classes)
+- **Spec Change handling** — automatic refresh and re-reparenting on talent/spec changes
+- **Edit Mode integration** — lock overlay prevents accidental Edit Mode repositioning
+- **`/cdm` command** — toggle Blizzard's CooldownViewer settings window
+
+### LucidBags — Custom Bags
+Replaces WoW's default bag frames with a clean, customizable inventory.
+
+- **Configurable grid** — icon size, spacing, columns
+- **Item Level display** with position and font size options
+- **Quality borders** — colored borders by item quality
+- **Junk detection** — coin icon on junk items, optional desaturation
+- **Quest & Upgrade icons** — quest exclamation mark, upgrade arrows
+- **Stack count** with position and font size options
+- **New item glow** — gold pulse on freshly looted items
+- **Reverse slot order** and **transparent slots** options
+- **Separate reagent bag** window
+- **Split individual bags** with configurable gap
+- **Slot opacity** slider
+- **Item ID in tooltip** — shown on all item tooltips via TooltipDataProcessor
+- **Auto-open** at bank, mailbox, auction house, merchant, trade
+- **Hide default bag bar** option
+
 ### Quality of Life
 
 | Feature | Description |
@@ -127,6 +161,8 @@ A full-featured Mythic+ run tracker matching GLogger's feature set.
 |---|---|
 | `/lucid` `/lui` `/lu` | Open settings |
 | `/lucid reset` | Reset all settings to defaults |
+| `/lucid install` | Re-run the install wizard |
+| `/cdm` | Toggle Blizzard CooldownViewer settings |
 
 ---
 
@@ -138,6 +174,13 @@ A full-featured Mythic+ run tracker matching GLogger's feature set.
    World of Warcraft/_retail_/Interface/AddOns/
    ```
 3. Restart WoW or type `/reload`
+4. The **Install Wizard** will appear on first login:
+   - **Step 1** — Select resolution (1440p / 1080p) for optimal sizing
+   - **Step 2** — Choose which modules to enable
+   - **Step 3** — Apply class-specific cooldown layout (auto-detected)
+   - **Step 4** — Review and reload
+
+All modules are disabled by default. Use the wizard or `/lui` settings to enable them.
 
 ---
 

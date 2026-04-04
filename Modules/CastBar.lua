@@ -286,11 +286,10 @@ local function OnEvent(_, event, unit, ...)
     return
   end
   if event == "PLAYER_LOGOUT" then
-    if bar then
+    -- Only save if user manually positioned (not auto-anchored)
+    if bar and Opt("pos") then
       local left, top = bar:GetLeft(), bar:GetTop()
-      if left then
-        OptSet("pos", {p = "TOPLEFT", x = left, y = top - GetScreenHeight()})
-      end
+      if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
     end
     return
   end
@@ -359,19 +358,16 @@ function CB.Enable()
 end
 
 function CB.Disable()
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_START")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_STOP")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_DELAYED")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_START")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_EMPOWER_START")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_EMPOWER_STOP")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_EMPOWER_UPDATE")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_INTERRUPTIBLE")
-  evFrame:UnregisterEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE")
+  local allEvents = {
+    "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED",
+    "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_DELAYED",
+    "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_CHANNEL_UPDATE",
+    "UNIT_SPELLCAST_EMPOWER_START", "UNIT_SPELLCAST_EMPOWER_STOP", "UNIT_SPELLCAST_EMPOWER_UPDATE",
+    "UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+  }
+  for _, event in ipairs(allEvents) do
+    evFrame:UnregisterEvent(event)
+  end
   if bar then bar:SetScript("OnUpdate", nil); bar:Hide() end
   -- Restore Blizzard's default cast bar
   if PlayerCastingBarFrame then

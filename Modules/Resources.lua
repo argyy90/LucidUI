@@ -307,6 +307,22 @@ local function ApplyStyle()
     local mc = POWER_COLORS[Enum.PowerType.Mana] or {0, 0.45, 1}
     manaBar.bar:SetStatusBarColor(mc[1], mc[2], mc[3])
   end
+
+  -- Match Vigor/Skyriding bar width to resource bar width
+  local vigorContainer = _G["UIWidgetPowerBarContainerFrame"]
+  if vigorContainer then
+    local resWidth = GetEffectiveWidth()
+    pcall(function()
+      for _, widget in pairs(vigorContainer.widgetFrames or {}) do
+        if widget and widget.Bar then
+          widget.Bar:SetWidth(resWidth)
+        end
+        if widget and widget.SetWidth then
+          widget:SetWidth(resWidth + 8)
+        end
+      end
+    end)
+  end
 end
 
 -- ── Update a single bar (continuous or segmented) ───────────────────────
@@ -371,6 +387,7 @@ end
 -- ── Update all bars ─────────────────────────────────────────────────────
 local function UpdatePower()
   if not mainBar or not mainBar:IsShown() then return end
+  if RES._unlocked then return end -- don't override unlock preview
 
   -- Primary bar
   if primaryType then
@@ -461,14 +478,20 @@ local function OnEvent(_, event, unit, powerType)
 
         UpdatePower()
         RES.Enable()
+        -- Hook Vigor/Skyriding bar to match our width when created
+        if _G.UIWidgetTemplateStatusBarMixin and _G.UIWidgetTemplateStatusBarMixin.Setup then
+          hooksecurefunc(_G.UIWidgetTemplateStatusBarMixin, "Setup", function()
+            C_Timer.After(0, function() ApplyStyle() end)
+          end)
+        end
       end, "Resources")
     end)
     return
   end
   if event == "PLAYER_LOGOUT" then
     if mainBar and Opt("pos") then
-      local p, _, _, x, y = mainBar:GetPoint()
-      if p then OptSet("pos", {p=p, x=x, y=y}) end
+      local left, top = mainBar:GetLeft(), mainBar:GetTop()
+      if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
     end
     return
   end
@@ -614,6 +637,7 @@ function RES.SetupSettings(parent)
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
     CreateMainBar(); CreateSecBar(); ApplyStyle()
     if unlocked then
+      RES._unlocked = true
       mainBar:Show(); mainBar:SetAlpha(1)
       mainBar.bar:Show(); mainBar.bar:SetValue(0.6)
       mainBar.text:SetText("Primary Resource")
@@ -630,6 +654,7 @@ function RES.SetupSettings(parent)
         secBar.text:SetText("Secondary Resource")
       end
     else
+      RES._unlocked = false
       mainBar:EnableMouse(false); mainBar:RegisterForDrag()
       mainBar:SetScript("OnDragStart", nil); mainBar:SetScript("OnDragStop", nil)
       DetectResources()

@@ -118,6 +118,7 @@ end
 
 -- ── Style a single CD frame ─────────────────────────────────────────────
 local function StyleFrame(frame, w, h)
+  if frame.SetPreventSecretValues then frame:SetPreventSecretValues(true) end
   frame:SetSize(w, h)
 
   -- Icon texture
@@ -297,7 +298,7 @@ local function LayoutViewer(viewerName)
   -- Size container
   local totalCols = math.min(#frames, perRow)
   local totalRows = math.ceil(math.max(1, #frames) / perRow)
-  pcall(container.SetSize, container,
+  container:SetSize(
     math.max(1, totalCols * (w + spacing) - spacing),
     math.max(1, totalRows * (h + spacing) - spacing)
   )
