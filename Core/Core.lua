@@ -1,4 +1,4 @@
--- LucidUI Core.lua
+-- LucidUI Core/Core.lua
 -- Namespace, constants, DB/theme system, Apply* functions, font helpers.
 -- Loaded first (after Locales.lua). All other files access shared state via NS.
 
@@ -23,10 +23,115 @@ NS.lines      = {}   -- formatted entries (copy dialog)
 NS.rawEntries = {}   -- raw {msg, r, g, b, ts}
 NS.debugLines = {}   -- debug log entries
 
+-- ── DB Init (must run before any module accesses LucidUIDB) ─────────────────
+-- SavedVariables are loaded between ADDON_LOADED and PLAYER_LOGIN.
+-- On first install LucidUIDB is nil — initialise it here.
+EventUtil.ContinueOnAddOnLoaded("LucidUI", function()
+  LucidUIDB = LucidUIDB or {}
+end)
+
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 -- Convert 0-1 RGB to hex string (e.g. "3bd2ed"). Use for |cff prefixes.
 function NS.RGBToHex(r, g, b)
   return string.format("%02x%02x%02x", math.floor((r or 0) * 255), math.floor((g or 0) * 255), math.floor((b or 0) * 255))
+end
+
+-- ── Slash commands ───────────────────────────────────────────────────────────
+SLASH_LUCIDCDM1 = "/cdm"
+SlashCmdList["LUCIDCDM"] = function()
+  local f = _G["CooldownViewerSettings"]
+  if f then f:SetShown(not f:IsShown()) end
+end
+
+-- ── LucidCDM single enable check ─────────────────────────────────────────────
+function NS.IsCDMEnabled()
+  return LucidUIDB and LucidUIDB["cdm_enabled"] == true
+end
+
+-- ── Get Essential Cooldowns container width (for autoSize) ──────────────────
+function NS.GetCooldownsWidth()
+  local ess = NS.Cooldowns and NS.Cooldowns._containers and NS.Cooldowns._containers["EssentialCooldownViewer"]
+  if ess then
+    local w = ess:GetWidth()
+    if w and w > 10 then return w end
+  end
+  return nil
+end
+
+-- ── Safe Call (prevents crashes from conflicting addons) ─────────────────────
+function NS.SafeCall(fn, moduleName)
+  local ok, err = pcall(fn)
+  if not ok then
+    print("|cff3BD2ED[LucidUI]|r |cffff0000" .. (moduleName or "Module") .. " error:|r " .. tostring(err))
+    print("|cff3BD2ED[LucidUI]|r This may be caused by a conflicting addon. Check your addon list.")
+  end
+end
+
+-- ── Anchor Chain Helper ──────────────────────────────────────────────────────
+-- Stack order (bottom to top): Cooldowns → Resources → CastBar → BuffIcons → BuffBars
+-- Each module anchors ABOVE the one below it.
+-- gap = pixels between elements
+function NS.AnchorToChain(frame, moduleName, gap)
+  gap = gap or 4
+  frame:ClearAllPoints()
+
+  if moduleName == "Resources" then
+    -- If ManaBar is active, anchor above ManaBar; otherwise above Cooldowns
+    local manaBar = NS.Resources and NS.Resources._manaBar
+    if manaBar and manaBar:IsShown() then
+      frame:SetPoint("BOTTOM", manaBar, "TOP", 0, 1); return true
+    end
+    local ess = NS.Cooldowns and NS.Cooldowns._containers and NS.Cooldowns._containers["EssentialCooldownViewer"]
+    if ess then frame:SetPoint("BOTTOM", ess, "TOP", 0, gap); return true end
+
+  elseif moduleName == "CastBar" then
+    -- Anchor above the topmost resource bar (secondary > primary > fallback)
+    local topBar = NS.Resources and NS.Resources.GetTopBar and NS.Resources.GetTopBar()
+    if topBar then frame:SetPoint("BOTTOM", topBar, "TOP", 0, gap - 2); return true end
+
+  elseif moduleName == "BuffIcons" then
+    -- Anchor above CastBar
+    local castBar = NS.CastBar and NS.CastBar._bar
+    if castBar then frame:SetPoint("BOTTOM", castBar, "TOP", 0, gap + 4); return true end
+
+  elseif moduleName == "BuffBars" then
+    -- Anchor above BuffIcons
+    local iconContainer = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffIconCooldownViewer"]
+    if iconContainer then frame:SetPoint("BOTTOM", iconContainer, "TOP", 0, gap); return true end
+  end
+
+  -- Fallback
+  frame:SetPoint("CENTER", UIParent, "CENTER", 0, -175)
+  return false
+end
+
+-- Refresh the entire anchor chain (called when ManaBar toggles etc.)
+function NS.RefreshAnchorChain()
+  -- Re-anchor ALL chain modules unconditionally
+  local res = NS.Resources and NS.Resources._mainBar
+  if res then NS.AnchorToChain(res, "Resources") end
+  local cb = NS.CastBar and NS.CastBar._bar
+  if cb then NS.AnchorToChain(cb, "CastBar") end
+  local iconC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffIconCooldownViewer"]
+  if iconC then NS.AnchorToChain(iconC, "BuffIcons") end
+  local barC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffBarCooldownViewer"]
+  if barC then NS.AnchorToChain(barC, "BuffBars") end
+end
+
+-- ── Reload Popup Helper ──────────────────────────────────────────────────────
+function NS.ShowReloadPopup(message, onCancel)
+  StaticPopupDialogs["LUCIDUI_RELOAD"] = {
+    text = message or "LucidUI: A reload is required for this change to take effect.",
+    button1 = "Reload",
+    button2 = "Cancel",
+    OnAccept = function() ReloadUI() end,
+    OnCancel = function()
+      if onCancel then onCancel() end
+    end,
+    timeout = 0, whileDead = true, hideOnEscape = true,
+    preferredIndex = 3,
+  }
+  StaticPopup_Show("LUCIDUI_RELOAD")
 end
 
 -- ── Constants ──────────────────────────────────────────────────────────────────
@@ -144,7 +249,7 @@ NS.DB_DEFAULTS = {
   customTilders   = {59/255, 210/255, 237/255, 1.0},
   customBtnColor  = {1.0,  1.0,  1.0,  1.0},
   -- Chat system defaults
-  chatEnabled         = true,
+  chatEnabled         = false,
   chatTimestamps      = true,
   chatTimestampFormat = "%H:%M",
   chatShowSeparator   = true,
@@ -166,7 +271,7 @@ NS.DB_DEFAULTS = {
   chatEditBoxPos      = "bottom",
   chatBarPosition     = "outside_right",
   chatBarVisibility   = "always",
-  chatBarIconsPerRow  = 8,
+  chatBarIconsPerRow  = 5,
   chatBarOrder        = {"social","settings","copy","rolls","stats","mplus","coin","voicechat"},
   chatMessageSpacing  = 0,
   chatTabSeparator    = true,
@@ -267,6 +372,7 @@ NS.DB_DEFAULTS = {
   debugWinPos          = nil,
   debugWinSize         = nil,
   -- Bags
+  ltEnabled            = false,
   bagEnabled           = false,
   bagIconSize          = 37,
   bagSpacing           = 4,
@@ -291,18 +397,20 @@ NS.DB_DEFAULTS = {
   bagCountSize         = 10,
   bagWinPos            = nil,
   -- Gold Tracker
-  gtEnabled            = true,
+  gtEnabled            = false,
   gtWhisper            = true,
   gtWinPos             = nil,
   -- Mythic+
-  mpEnabled            = true,
+  mpEnabled            = false,
   mpTeleport           = false,
   mpWinPos3            = nil,
   -- Cooldown Tracker
-  cdTrackerEnabled     = true,
+  cdTrackerEnabled     = false,
   cdTrackerGrow        = "RIGHT",
   cdTrackerMode        = "iconbar",
-  cdTrackerIconSize    = 36,
+  cdTrackerIconSize    = 36,  -- legacy
+  cdTrackerIconWidth   = 36,
+  cdTrackerIconHeight  = 36,
   cdTrackerBarWidth    = 120,
   cdTrackerPos         = nil,
 }
@@ -635,6 +743,54 @@ fontFixFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 fontFixFrame:SetScript("OnEvent", function(self)
   self:UnregisterEvent("PLAYER_ENTERING_WORLD")
   C_Timer.After(0.1, function() NS.ReapplyAllFonts() end)
+end)
+
+-- ── CooldownViewer-Konflikt-Schutz ──────────────────────────────────────────────
+-- Addons die dieselben CooldownViewer-Frames verwalten (reparenten + SetPoint-Hooks)
+-- kollidieren mit LucidUIs Cooldowns/BuffBar/CastBar/EditMode-Modulen.
+-- Wenn eines dieser Addons geladen ist oder lädt, deaktivieren wir die
+-- konkurrierenden LucidUI-Module um Crashes zu verhindern.
+local CDM_CONFLICTING_ADDONS = {
+  "Ayije_CDM",
+}
+
+local function DisableCDMModules()
+  if NS.Cooldowns then NS.Cooldowns.Disable() end
+  if NS.BuffBar   then NS.BuffBar:Disable()   end
+  if NS.CastBar   then NS.CastBar.Disable()   end
+  -- Resources hat keinen Viewer-Conflict, bleibt aktiv
+end
+
+local function HasConflictingAddon()
+  for _, name in ipairs(CDM_CONFLICTING_ADDONS) do
+    if C_AddOns.IsAddOnLoaded(name) then return true, name end
+  end
+  return false
+end
+
+-- Prüfung beim Login (Ayije bereits geladen)
+local conflictCheckFrame = CreateFrame("Frame")
+conflictCheckFrame:RegisterEvent("PLAYER_LOGIN")
+conflictCheckFrame:RegisterEvent("ADDON_LOADED")
+conflictCheckFrame:SetScript("OnEvent", function(self, event, addonName)
+  if event == "PLAYER_LOGIN" then
+    local found, name = HasConflictingAddon()
+    if found then
+      DisableCDMModules()
+      if LucidUIDB then LucidUIDB["cdm_enabled"] = false end
+      print("|cffff8800[LucidUI]|r " .. name .. " erkannt — LucidCDM deaktiviert um Konflikte zu vermeiden.")
+    end
+  elseif event == "ADDON_LOADED" then
+    -- Ayije lädt nach LucidUI
+    for _, name in ipairs(CDM_CONFLICTING_ADDONS) do
+      if addonName == name then
+        DisableCDMModules()
+        if LucidUIDB then LucidUIDB["cdm_enabled"] = false end
+        print("|cffff8800[LucidUI]|r " .. name .. " geladen — LucidCDM deaktiviert um Konflikte zu vermeiden.")
+        break
+      end
+    end
+  end
 end)
 
 NS.GetLSMFonts = function()

@@ -1,4 +1,4 @@
--- LucidUI ChatOptions.lua
+-- LucidUI Core/Settings.lua
 -- Settings dialog with 7 tabs matching the reference layout.
 -- Display | Appearance | Text | Advanced | Chat Colors | Loot | QoL
 
@@ -216,14 +216,12 @@ local function SetupDisplay(parent)
   chatEnableCB.option = "chatEnabled"
   R(c3, chatEnableCB, 26)
   table.insert(allFrames, chatEnableCB)
-  c3:Finish(); Add(c3); Add(Sep(sc),9)
-  local c1=MakeCard(sc,"Messages")
+  c3:Finish(); Add(c3); Add(Sep(sc),9)  local c1=MakeCard(sc,"Messages")
   CB2(c1,"Show vertical separator","chatShowSeparator",function(s) DBSet("chatShowSeparator",s); if NS.chatRedraw then NS.chatRedraw() end; if NS.RedrawMessages then NS.RedrawMessages() end end,"Separator",
       "Show tab separator","chatTabSeparator",function(s) DBSet("chatTabSeparator",s); if NS.chatRefreshTabs then NS.chatRefreshTabs() end end,"Accent line on tab edge")
   CB2(c1,"Combat Log tab","chatCombatLog",function(s) DBSet("chatCombatLog",s); if s then if NS.EnsureCombatLogTab then NS.EnsureCombatLogTab() end else if NS.RemoveCombatLogTab then NS.RemoveCombatLogTab() end end end,"Embed native combat log",
       "Show minimap button","chatShowMinimap",function(s) DBSet("chatShowMinimap",s); if NS.UpdateMinimapButton then NS.UpdateMinimapButton() end end,"Minimap quick-access icon")
-  c1:Finish(); Add(c1); Add(Sep(sc),9)
-  local c2=MakeCard(sc,"Behavior")
+  c1:Finish(); Add(c1); Add(Sep(sc),9)  local c2=MakeCard(sc,"Behavior")
   DD(c2,"Timestamp",function(v) if v=="none" then return DB("chatTimestamps")==false end; return DB("chatTimestamps")~=false and DB("chatTimestampFormat")==v end,function(v) if v=="none" then DBSet("chatTimestamps",false) else DBSet("chatTimestamps",true); DBSet("chatTimestampFormat",v) end; if NS.chatDisplay and NS.chatDisplay.RecomputeTimestampWidth then NS.chatDisplay:RecomputeTimestampWidth() end; if NS.chatRedraw then NS.chatRedraw() end; if NS.RedrawMessages then NS.RedrawMessages() end end,{"None","HH:MM","HH:MM:SS","HH:MM AM/PM","HH:MM:SS AM/PM"},{"none","%H:%M","%X","%I:%M %p","%I:%M:%S %p"})
   DD(c2,"Channel format",function(v) return (DB("chatShortenFormat") or "none")==v end,function(v) DBSet("chatShortenFormat",v) end,{"Full  [1. General]","Short  (1)(S)","Minimal  1 S"},{"none","bracket","minimal"})
   DD(c2,"Flash tabs on",function(v) return (DB("chatTabFlash") or "all")==v end,function(v) DBSet("chatTabFlash",v) end,{"Never","All messages","Whispers only"},{"never","all","whisper"})
@@ -506,8 +504,7 @@ local function SetupText(parent)
   local msgSpacing; msgSpacing=NS.ChatGetSlider(cFont.inner,"Spacing",0,60,"%spx",function() DBSet("chatMessageSpacing",msgSpacing:GetValue()); if NS.chatDisplay and NS.chatDisplay.SetSpacing then NS.chatDisplay:SetSpacing(msgSpacing:GetValue()) end; if NS.smf then NS.smf:SetSpacing(msgSpacing:GetValue()) end end); msgSpacing.option="chatMessageSpacing"; R(cFont,msgSpacing,40); table.insert(all,msgSpacing)
   local outlineDD=NS.ChatGetDropdown(cFont.inner,"Outline",function(v) return (DB("chatFontOutline") or "")==v end,function(v) DBSet("chatFontOutline",v); ApplyFontLive() end); outlineDD:Init({"None","Outline","Thick"},{"","OUTLINE","THICKOUTLINE"}); R(cFont,outlineDD,50); table.insert(all,outlineDD)
   local fontShadow=NS.ChatGetCheckbox(cFont.inner,"Font Shadow",26,function(s) DBSet("chatFontShadow",s); ApplyFontLive() end,"Drop shadow behind text"); fontShadow.option="chatFontShadow"; R(cFont,fontShadow,26); table.insert(all,fontShadow)
-  cFont:Finish(); Add(cFont); Add(Sep(sc),9)
-  local cFade=MakeCard(sc,"Fade")
+  cFont:Finish(); Add(cFont); Add(Sep(sc),9)  local cFade=MakeCard(sc,"Fade")
   -- Enable toggles side by side
   local fadeEnableHolder=CreateFrame("Frame",nil,cFade.inner); fadeEnableHolder:SetHeight(26)
   cFade:Row(fadeEnableHolder,26)
@@ -1022,7 +1019,6 @@ local function SetupAdvanced(parent)
 
 
   cProf:Row(profileRow,26); cProf:Finish(); Add(cProf); Add(Sep(sc),9)
-
   -- ── Card: Layout ───────────────────────────────────────────────────
   local cLayout=MakeCard(sc,"Layout")
   local function LDD(lbl,isCb,onCb,labels,vals)
@@ -1038,7 +1034,6 @@ local function SetupAdvanced(parent)
   LDD("Edit box position",function(v) return (DB("chatEditBoxPos") or "bottom")==v end,function(v) DBSet("chatEditBoxPos",v); if NS.chatEditContainer and NS.chatBg then NS.chatEditContainer:ClearAllPoints(); if v=="top" then NS.chatEditContainer:SetPoint("TOPLEFT",NS.chatBg,"TOPLEFT",0,0); NS.chatEditContainer:SetPoint("TOPRIGHT",NS.chatBg,"TOPRIGHT",0,0) else NS.chatEditContainer:SetPoint("TOPLEFT",NS.chatBg,"BOTTOMLEFT",0,-1); NS.chatEditContainer:SetPoint("TOPRIGHT",NS.chatBg,"BOTTOMRIGHT",0,-1) end end end,{"Bottom","Top"},{"bottom","top"}).option="chatEditBoxPos"
   LCB("Keep edit box visible","chatEditBoxVisible",function(s) DBSet("chatEditBoxVisible",s); if NS.chatEditContainer then if s then NS.chatEditContainer:Show() else NS.chatEditContainer:Hide() end end end,"Always show the chat input box")
   cLayout:Finish(); Add(cLayout); Add(Sep(sc),9)
-
   -- ── Card: Button Order (collapsible) ────────────────────────────────
   local ORDER_LABELS = {
     social="Social", settings="Settings", copy="Copy", rolls="Rolls",
@@ -1513,7 +1508,6 @@ local function SetupLoot(parent)
   end
 
   cMode:Finish(); Add(cMode); Add(Sep(sc),9)
-
   -- Card: Windows
   local cWin = MakeCard(sc,"Windows")
 
@@ -1582,7 +1576,6 @@ local function SetupLoot(parent)
   RefreshLootDependents()
 
   cWin:Finish(); Add(cWin); Add(Sep(sc),9)
-
   -- Card: Rolls config
   local cRolls = MakeCard(sc,"Loot Rolls")
   local rollDelay
@@ -1600,7 +1593,6 @@ local function SetupLoot(parent)
   rollDelay.option="rollCloseDelay"; R(cRolls,rollDelay,40)
 
   cRolls:Finish(); Add(cRolls); Add(Sep(sc),9)
-
   -- Card: Loot settings
   local cLoot = MakeCard(sc,"Loot Settings")
 
@@ -1789,7 +1781,6 @@ local function SetupQoL(parent)
     end
   end)
   cSys:Row(sysRow,26); cSys:Finish(); Add(cSys); Add(Sep(sc),9)
-
   local function CB(card,lbl,key,cb,tip)
     local w=NS.ChatGetCheckbox(card.inner,lbl,26,cb,tip); w.option=key; R(card,w,26); return w
   end
@@ -1879,7 +1870,6 @@ local function SetupQoL(parent)
   R(cRing,ringColorRow,26)
   for _,w in ipairs({ringEn,ringHide,ringOOC,ringSz,ringOp}) do table.insert(ringFrames,w) end
   cRing:Finish(); Add(cRing); Add(Sep(sc),9)
-
   -- ── Card: Combat Timer ───────────────────────────────────────────────────
   local cTimer=MakeCard(sc,"Combat Timer"); local timerFrames={}; local timerColorRow
   QCB2(cTimer,timerFrames,"Enable Combat Timer","qolCombatTimer",function(s) DBSet("qolCombatTimer",s) end,nil,
@@ -1957,7 +1947,6 @@ local function SetupQoL(parent)
   end
   for _,w in ipairs({tEn,tInst,tHide,tShowBg,tSz}) do table.insert(timerFrames,w) end
   cTimer:Finish(); Add(cTimer); Add(Sep(sc),9)
-
   -- ── Card: Combat Alert ───────────────────────────────────────────────────
   local cAlert=MakeCard(sc,"Combat Alert"); local alertFrames={}
   local alertEnterColorRow, alertLeaveColorRow, enterTextRow, leaveTextRow
@@ -2070,7 +2059,6 @@ local function SetupQoL(parent)
 
   for _,w in ipairs({aEn,aSz}) do table.insert(alertFrames,w) end
   cAlert:Finish(); Add(cAlert); Add(Sep(sc),9)
-
   -- ── Card: Misc QoL ───────────────────────────────────────────────────────
   local cMisc=MakeCard(sc,"Misc"); local miscFrames={}; local repairModeDD
   QCB2(cMisc,miscFrames,"Faster Loot","qolFasterLoot",function(s) DBSet("qolFasterLoot",s) end,nil,"Auto Sell Grey","qolAutoSellGrey",function(s) DBSet("qolAutoSellGrey",s) end,nil)
@@ -2478,6 +2466,146 @@ NS.UpdatePCBTextures = function(pcbList)
   end
 end
 
+-- ═══════════════════════════════════════════════════════════════════════
+--  LucidCDM Tab  —  Enable-Toggle + 4 horizontale Tabs inline
+-- ═══════════════════════════════════════════════════════════════════════
+local function SetupLucidCDMTab(parent)
+  local container = CreateFrame("Frame", nil, parent)
+  -- Pre-set width from parent so MakePage inside modules gets correct dimensions
+  local pw = parent:GetWidth()
+  if pw and pw > 100 then container:SetWidth(pw - 180) end  -- subtract sidebar width
+
+  local function allEnabled()
+    return NS.IsCDMEnabled()
+  end
+
+  local ar, ag, ab = NS.ChatGetAccentRGB()
+
+  -- ── Enable Card ────────────────────────────────────────────────────────
+  local MakeCard = NS._SMakeCard
+  local cEnable = MakeCard(container, "LucidCDM")
+  local enCb; enCb = NS.ChatGetCheckbox(cEnable.inner,
+    "Enable LucidCDM  |cff555555(reload)|r", 26,
+    function(s)
+      local prev = LucidUIDB and LucidUIDB["cdm_enabled"]
+      if LucidUIDB then LucidUIDB["cdm_enabled"] = s end
+      NS.ShowReloadPopup("LucidCDM settings changed. A reload is required.", function()
+        if LucidUIDB then LucidUIDB["cdm_enabled"] = prev end
+        if enCb and enCb.SetValue then enCb:SetValue(not s) end
+      end)
+    end,
+    "Enable/disable Cooldowns, Cast Bar, Resources and Buffs")
+  NS._SR(cEnable, enCb, 26)
+  enCb:SetValue(allEnabled())
+  -- Tab bar inside the card (below the checkbox)
+  local TAB_BAR_H = 22
+  local tabBar = CreateFrame("Frame", nil, cEnable.inner)
+  NS._SR(cEnable, tabBar, TAB_BAR_H)
+
+
+  -- ── Module ────────────────────────────────────────────────────────────
+  local modules = {
+    {name = "Cooldowns", fn = NS.Cooldowns.SetupSettings},
+    {name = "Cast Bar",  fn = NS.CastBar.SetupSettings},
+    {name = "Resources", fn = NS.Resources.SetupSettings},
+    {name = "Buffs",     fn = NS.BuffBar.SetupSettings},
+  }
+  local N = #modules
+
+  cEnable:Finish()
+  cEnable:ClearAllPoints()
+  cEnable:SetPoint("TOPLEFT", container, "TOPLEFT", 12, -14)
+  cEnable:SetPoint("TOPRIGHT", container, "TOPRIGHT", -54, -14)
+  cEnable:SetFrameLevel(container:GetFrameLevel() + 20)
+  cEnable:SetScript("OnShow", function() enCb:SetValue(allEnabled()) end)
+
+  local CONTENT_Y = cEnable:GetHeight() + 14
+
+  local subContainers = {}
+  local subTabs       = {}
+
+  local function CDMSelect(idx)
+    local cr, cg, cb = NS.ChatGetAccentRGB()
+    for i = 1, N do
+      subContainers[i]:Hide()
+      local t = subTabs[i]
+      t._lbl:SetTextColor(0.46, 0.46, 0.56)
+      t._line:Hide()
+    end
+    subContainers[idx]:Show()
+    local t = subTabs[idx]
+    t._lbl:SetTextColor(cr, cg, cb)
+    t._line:SetColorTexture(cr, cg, cb, 1); t._line:Show()
+  end
+
+  for i, mod in ipairs(modules) do
+    -- Modul-Settings-Container (pre-size before building settings)
+    local ok, tc = pcall(mod.fn, container)
+    if not ok then tc = CreateFrame("Frame", nil, container) end
+    tc:ClearAllPoints()
+    tc:SetPoint("TOPLEFT",     container, "TOPLEFT",     0, -CONTENT_Y)
+    tc:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0,  0)
+    tc:SetClipsChildren(true)
+    tc:Hide()
+    subContainers[i] = tc
+
+    -- Tab-Button
+    local btn = CreateFrame("Button", nil, tabBar)
+    btn:SetHeight(TAB_BAR_H)
+
+
+    local lbl = btn:CreateFontString(nil, "OVERLAY")
+    lbl:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+    lbl:SetPoint("CENTER"); lbl:SetTextColor(0.46, 0.46, 0.56)
+    lbl:SetText(mod.name)
+    btn._lbl = lbl
+
+    local line = btn:CreateTexture(nil, "OVERLAY", nil, 3)
+    line:SetHeight(2)
+    line:SetPoint("BOTTOMLEFT",  btn, "BOTTOMLEFT",  2, 0)
+    line:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 0)
+    line:SetColorTexture(ar, ag, ab, 1); line:Hide()
+    btn._line = line
+    table.insert(NS.chatOptAccentTextures, {tex = line, alpha = 1})
+
+
+    btn:SetScript("OnEnter", function()
+      if not subContainers[i]:IsShown() then
+        lbl:SetTextColor(NS.ChatGetAccentRGB())
+      end
+    end)
+    btn:SetScript("OnLeave", function()
+      if not subContainers[i]:IsShown() then
+        lbl:SetTextColor(0.46, 0.46, 0.56)
+      end
+    end)
+    local ci = i; btn:SetScript("OnClick", function() CDMSelect(ci) end)
+    subTabs[i] = btn
+  end
+
+  -- Tab-Breiten nach Leisten-Breite verteilen
+  local function LayoutTabs()
+    local totalW = tabBar:GetWidth()
+    if not totalW or totalW < 1 then return end
+    local w = math.floor(totalW / N)
+    for i, btn in ipairs(subTabs) do
+      btn:SetWidth(w)
+      btn:ClearAllPoints()
+      btn:SetPoint("TOPLEFT",    tabBar, "TOPLEFT",    (i - 1) * w, 0)
+      btn:SetPoint("BOTTOMLEFT", tabBar, "BOTTOMLEFT", (i - 1) * w, 0)
+      if btn._sep then
+        btn._sep:SetPoint("TOPLEFT",    tabBar, "TOPLEFT",    i * w, 4)
+        btn._sep:SetPoint("BOTTOMLEFT", tabBar, "BOTTOMLEFT", i * w, 4)
+      end
+    end
+  end
+  tabBar:SetScript("OnSizeChanged", LayoutTabs)
+  C_Timer.After(0, LayoutTabs)
+
+  CDMSelect(1)
+  return container
+end
+
 NS.BuildChatOptionsWindow = function()
   if chatOptWin then
     local wasVisible = chatOptWin:IsVisible()
@@ -2756,6 +2884,7 @@ NS.BuildChatOptionsWindow = function()
     {name="Gold",        callback=NS.GoldTracker.SetupSettings},
     {name="Mythic+",     callback=NS.MythicPlus.SetupSettings},
     {name="CD Tracker",  callback=NS.CooldownTracker.SetupSettings},
+    {name="LucidCDM",   callback=SetupLucidCDMTab},
     {name="Tab Settings",callback=SetupTabSettings,hidden=true},
   }
 
@@ -2776,7 +2905,7 @@ NS.BuildChatOptionsWindow = function()
         if btn._label   then btn._label:SetTextColor(0.56,0.56,0.66) end
         if btn._selLine  then btn._selLine:Hide() end
         if btn._selLineR then btn._selLineR:Hide() end
-        if btn._selBg    then btn._selBg:Hide() end
+        if btn._selBg and not btn:IsMouseOver() then btn._selBg:Hide() end
         if btn._tabIcon  then btn._tabIcon:SetAlpha(0.55) end
       end
     end
@@ -2837,10 +2966,11 @@ NS.BuildChatOptionsWindow = function()
       -- Tab icon (right side)
       local TAB_ICONS={Display="Tab_Display",Appearance="Tab_Appearance",Text="Tab_Text",Advanced="Tab_Advanced",
         ["Chat Colors"]="Tab_ChatColors",Loot="Tab_Loot",QoL="Tab_QoL",LucidMeter="Tab_LucidMeter",
-        Bags="Tab_Bags",Gold="Tab_Gold",["Mythic+"]="Tab_MythicPlus",["CD Tracker"]="Tab_CDTracker"}
+        Bags="Tab_Bags",Gold="Tab_Gold",["Mythic+"]="Tab_MythicPlus",["CD Tracker"]="Tab_CDTracker",
+        LucidCDM="Tab_Resources"}
       local iconFile=TAB_ICONS[setup.name]
       if iconFile then
-        local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(16,16)
+        local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(20,20)
         ico:SetPoint("RIGHT",-8,0); ico:SetTexture("Interface/AddOns/LucidUI/Assets/"..iconFile..".png")
         ico:SetAlpha(0.35); tabBtn._tabIcon=ico
       end

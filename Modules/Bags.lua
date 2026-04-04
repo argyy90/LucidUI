@@ -1,4 +1,4 @@
--- LucidUI Bags Module
+-- LucidUI Modules/Bags.lua
 -- All-in-one bag replacement
 
 local NS = LucidUINS
@@ -1125,11 +1125,48 @@ hookFrame:SetScript("OnEvent", function(self)
   SuppressBlizzardFrame(_G["BackpackFrame"])
   SuppressBlizzardFrame(_G["CombinedBagsFrame"])
 
-  -- Hook bag functions instead of overriding globals (avoids Taint)
-  hooksecurefunc("ToggleAllBags",  function() B.ToggleBags() end)
-  hooksecurefunc("ToggleBackpack", function() B.ToggleBags() end)
-  hooksecurefunc("OpenAllBags",    function() B.OpenBags() end)
-  hooksecurefunc("CloseAllBags",   function() B.CloseBags() end)
+  -- Hook bag functions (post-hooks) with guard to prevent double-toggle
+  local _bagGuard = false
+  local function GuardedToggle()
+    if _bagGuard then return end
+    _bagGuard = true
+    B.ToggleBags()
+    C_Timer.After(0, function() _bagGuard = false end)
+  end
+  local function GuardedOpen()
+    if _bagGuard then return end
+    _bagGuard = true
+    B.OpenBags()
+    C_Timer.After(0, function() _bagGuard = false end)
+  end
+  local function GuardedClose()
+    if _bagGuard then return end
+    _bagGuard = true
+    B.CloseBags()
+    C_Timer.After(0, function() _bagGuard = false end)
+  end
+
+  hooksecurefunc("ToggleAllBags",  GuardedToggle)
+  hooksecurefunc("ToggleBackpack", GuardedToggle)
+  hooksecurefunc("OpenAllBags",    GuardedOpen)
+  hooksecurefunc("CloseAllBags",   GuardedClose)
+
+  -- Hook backpack button directly (Midnight may use a different code path)
+  local bpBtn = _G["MainMenuBarBackpackButton"]
+  if bpBtn then
+    bpBtn:HookScript("PostClick", GuardedToggle)
+  end
+
+  -- Hide default bag bar if option set
+  if DB("bagHideDefaultBar") then
+    local bagsBar = _G["BagsBar"]
+    if bagsBar then
+      bagsBar:Hide()
+      bagsBar:SetScript("OnShow", function(s)
+        if DB("bagEnabled") and DB("bagHideDefaultBar") then s:Hide() end
+      end)
+    end
+  end
 
   -- Close bags on escape
   table.insert(UISpecialFrames, "LucidUIBags")
@@ -1192,6 +1229,12 @@ function B.SetupSettings(parent)
     StaticPopup_Show("LUCIDUI_BAGS_RELOAD")
   end, "Replace default bags (requires reload)")
   enableCB.option = "bagEnabled"; R(cEn, enableCB, 26)
+  local hideBagBarCB
+  hideBagBarCB = NS.ChatGetCheckbox(cEn.inner, "Hide Default Bag Bar", 26, function(state)
+    DBSet("bagHideDefaultBar", state)
+    NS.ShowReloadPopup("LucidUI: Bag bar visibility changed. Reload to apply.")
+  end, "Hide the default WoW bag bar (requires reload)")
+  hideBagBarCB.option = "bagHideDefaultBar"; R(cEn, hideBagBarCB, 26)
   cEn:Finish(); Add(cEn); Add(Sep(sc), 9)
 
   -- ── Card: Layout ──────────────────────────────────────────────────
@@ -1297,7 +1340,7 @@ function B.SetupSettings(parent)
   -- ── OnShow ───────────────────────────────────────────────────────
   container:SetScript("OnShow", function()
     local all = {
-      enableCB, showIlvl, showCount, showQuality, showJunk,
+      enableCB, hideBagBarCB, showIlvl, showCount, showQuality, showJunk,
       junkDesat, newGlow, questIcon, upgradeArrow, reverseSlots, transpCB,
       splitReagent, splitBags, autoBank, autoMail, autoAH,
       iconSize, spacing, columns, splitSpacing,

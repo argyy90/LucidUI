@@ -1,7 +1,7 @@
 ## Interface: 120001, 120000
 ## Title: LucidUI
 ## Notes: Complete chat replacement, loot tracking, session stats & QoL features
-## Version: 1.10
+## Version: 1.15
 ## SavedVariables: LucidUIDB
 ## IconTexture: Interface\\AddOns\\LucidUI\\Assets\\Logo.png
 
@@ -17,8 +17,22 @@
 ## Category-zhCN: 用户界面
 ## Category-zhTW: 使用者介面
 
-Locales.lua
-Core.lua
+Core\Locales.lua
+Core\Core.lua
+Core\Classes\DeathKnight.lua
+Core\Classes\DemonHunter.lua
+Core\Classes\Druid.lua
+Core\Classes\Evoker.lua
+Core\Classes\Hunter.lua
+Core\Classes\Mage.lua
+Core\Classes\Monk.lua
+Core\Classes\Paladin.lua
+Core\Classes\Priest.lua
+Core\Classes\Rogue.lua
+Core\Classes\Shaman.lua
+Core\Classes\Warlock.lua
+Core\Classes\Warrior.lua
+Core\InstallWizard.lua
 
 Chat\Messages.lua
 Chat\ChatFormat.lua
@@ -37,15 +51,17 @@ LucidMeter\Main.lua
 LucidMeter\Display.lua
 LucidMeter\Settings.lua
 
-Bags\Bags.lua
+Modules\Bags.lua
+Modules\GoldTracker.lua
+Modules\MythicPlus.lua
+Modules\CooldownTracker.lua
+Modules\CastBar.lua
+Modules\Resources.lua
+Modules\Cooldowns.lua
+Modules\EditMode.lua
+Modules\BuffBar.lua
 
-GoldTracker\GoldTracker.lua
-
-MythicPlus\MythicPlus.lua
-
-CooldownTracker\CooldownTracker.lua
-
-Settings\Main.lua
+Core\Settings.lua
 
 Debug\Main.lua
 Debug\AddonProfiler.lua

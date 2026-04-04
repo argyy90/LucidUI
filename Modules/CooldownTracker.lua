@@ -1,4 +1,4 @@
--- LucidUI CooldownTracker.lua
+-- LucidUI Modules/CooldownTracker.lua
 -- Spell cooldown tracker with icon + bar display modes.
 
 local NS = LucidUINS
@@ -41,14 +41,17 @@ local function BuildTracker(uid, spellID, entry)
     for _, g in ipairs(GetGroups()) do if g.name == entry.group then grp = g; break end end
   end
   -- Group settings override individual when grouped
-  local DB_MAP = {iconSize="cdTrackerIconSize", barWidth="cdTrackerBarWidth", mode="cdTrackerMode"}
+  local DB_MAP = {iconWidth="cdTrackerIconWidth", iconHeight="cdTrackerIconHeight", barWidth="cdTrackerBarWidth", mode="cdTrackerMode"}
   local function Opt(key, default)
     if grp and grp[key] ~= nil then return grp[key] end
     if entry[key] ~= nil then return entry[key] end
+    -- Legacy: map old iconSize to width/height
+    if (key == "iconWidth" or key == "iconHeight") and entry.iconSize then return entry.iconSize end
     if DB_MAP[key] then return NS.DB(DB_MAP[key]) or default end
     return default
   end
-  local ICON_SIZE = Opt("iconSize", 36)
+  local ICON_W = Opt("iconWidth", 36)
+  local ICON_H = Opt("iconHeight", 36)
   local BAR_W = Opt("barWidth", 120)
   local BAR_H = 14
   local mode = Opt("mode", "iconbar")
@@ -184,6 +187,10 @@ local function BuildTracker(uid, spellID, entry)
     showSpellName = Opt("showSpellName", true),
     alphaOnCD = Opt("alphaOnCD", 1),
     alphaOnReady = Opt("alphaOnReady", 1),
+    rangeCheck = Opt("rangeCheck", true),
+    showOnlyActive = Opt("showOnlyActive", false),
+    timeFormat = Opt("timeFormat", "pointed"),
+    cdFont = Opt("cdFont", "default"),
   }
 
   -- Spell data
@@ -193,16 +200,14 @@ local function BuildTracker(uid, spellID, entry)
   f.barName:SetText(name)
 
 
-  -- CD text size
-  f.cdText:SetFont(CD_FONT, f._opts.cdTextSize or 14, "OUTLINE")
+  -- Font + text size
+  local fontPath = NS.GetFontPath(f._opts.cdFont or "default")
+  local txtSize = f._opts.cdTextSize or 14
+  f.cdText:SetFont(fontPath, txtSize, "OUTLINE")
 
   -- Spell name on bar
   if f._opts.showSpellName == false then f.barName:SetText("") end
-
-  -- Apply text size to both cdText and barTime
-  local txtSize = f._opts.cdTextSize or 14
-  f.cdText:SetFont(CD_FONT, txtSize, "OUTLINE")
-  f.barTime:SetFont(CD_FONT, math.max(8, txtSize - 2), "OUTLINE")
+  f.barTime:SetFont(fontPath, math.max(8, txtSize - 2), "OUTLINE")
 
   -- Apply bar texture (uses same texture library as LucidMeter)
   local barTexKey = f._opts.barTexture or "Flat"
@@ -219,12 +224,12 @@ local function BuildTracker(uid, spellID, entry)
   f._mode = mode
   local totalW, totalH
   if showIcon and showBar then
-    totalW = ICON_SIZE + BAR_W; totalH = ICON_SIZE
-    f.iconFrame:SetSize(ICON_SIZE, ICON_SIZE); f.iconFrame:ClearAllPoints(); f.iconFrame:SetPoint("LEFT", f, "LEFT", 0, 0)
+    totalW = ICON_W + BAR_W; totalH = ICON_H
+    f.iconFrame:SetSize(ICON_W, ICON_H); f.iconFrame:ClearAllPoints(); f.iconFrame:SetPoint("LEFT", f, "LEFT", 0, 0)
     f.iconTex:ClearAllPoints(); f.iconTex:SetAllPoints(f.iconFrame)
     f.cd:SetAllPoints(f.iconTex)
-    f.barBg:SetSize(BAR_W, ICON_SIZE); f.barBg:ClearAllPoints(); f.barBg:SetPoint("LEFT", f.iconFrame, "RIGHT", 0, 0)
-    f.barFill:SetHeight(ICON_SIZE - 2)
+    f.barBg:SetSize(BAR_W, ICON_H); f.barBg:ClearAllPoints(); f.barBg:SetPoint("LEFT", f.iconFrame, "RIGHT", 0, 0)
+    f.barFill:SetHeight(ICON_H - 2)
     f.iconFrame:Show(); f.barBg:Show()
     f.barName:Show(); f.barTime:Show()
     f.cdText:Hide()
@@ -233,9 +238,9 @@ local function BuildTracker(uid, spellID, entry)
     f.barBg:SetSize(BAR_W, BAR_H + 4); f.barBg:ClearAllPoints(); f.barBg:SetPoint("LEFT", f, "LEFT", 0, 0)
     f.iconFrame:Hide()
     f.barBg:Show(); f.barName:Show(); f.barTime:Show()
-  else -- icon only (no name)
-    totalW = ICON_SIZE; totalH = ICON_SIZE
-    f.iconFrame:SetSize(ICON_SIZE, ICON_SIZE); f.iconFrame:ClearAllPoints(); f.iconFrame:SetPoint("CENTER", f, "CENTER", 0, 0)
+  else -- icon only
+    totalW = ICON_W; totalH = ICON_H
+    f.iconFrame:SetSize(ICON_W, ICON_H); f.iconFrame:ClearAllPoints(); f.iconFrame:SetPoint("CENTER", f, "CENTER", 0, 0)
     f.iconTex:ClearAllPoints(); f.iconTex:SetAllPoints(f.iconFrame)
     f.cd:SetAllPoints(f.iconTex)
     f.iconFrame:Show(); f.barBg:Hide()
@@ -250,10 +255,15 @@ local function BuildTracker(uid, spellID, entry)
   if pos and pos.p then
     f:ClearAllPoints(); f:SetPoint(pos.p, UIParent, pos.p, pos.x, pos.y)
   else
-    local spells = GetSpells()
-    local idx = 1
-    for i, e in ipairs(spells) do if e.uid == uid then idx = i; break end end
-    f:ClearAllPoints(); f:SetPoint("CENTER", UIParent, "CENTER", 0, -100 - (idx - 1) * (totalH + 6))
+    -- Count only unpositioned spells for default stacking
+    local idx = 0
+    for _, e in ipairs(GetSpells()) do
+      if not (e.pos and e.pos.p) then
+        idx = idx + 1
+        if e.uid == uid then break end
+      end
+    end
+    f:ClearAllPoints(); f:SetPoint("CENTER", UIParent, "CENTER", 0, -((idx - 1) * (totalH + 6)))
   end
 
   f:Show()
@@ -330,97 +340,159 @@ end
 -- Update loop via C_Timer (no OnUpdate frame overhead)
 local updateTicker = nil
 
+local function FormatTime(sec, fmt)
+  if sec >= 60 then return math.ceil(sec / 60) .. "m" end
+  if fmt == "pointed" then return string.format("%.1f", sec) end
+  return tostring(math.ceil(sec))
+end
+
 local function UpdateTrackers()
   for _, f in pairs(trackerFrames) do
-    if f:IsShown() and f.spellID then
-      local state = cdState[f.spellID]
-      local remaining = 0
-      local duration = 0
-
-      if state and state.castTime > 0 and state.duration > 0 then
-        remaining = (state.castTime + state.duration) - GetTime()
-        duration = state.duration
-        if remaining < 0 then remaining = 0 end
-      end
-
-      -- Feed to Blizzard CD frame for the sweep animation
-      if state and state.castTime > 0 and state.duration > 0 and remaining > 0 then
-        f.cd:SetCooldown(state.castTime, state.duration)
-      end
-
+    if f.spellID then
       local o = f._opts or {}
-      local useDesat = o.desaturate ~= false
-      local useText = o.showCDText ~= false
-      local useGlow = o.glow ~= false
-      local glowDur = o.glowDuration or 3
-      local barCDColor = o.barColorCD or {0.8, 0.3, 0.1}
-      local barRdyColor = o.barColorReady or {0.15, 0.65, 0.2}
+      local tFmt = o.timeFormat or "pointed"
 
-      if remaining > 0 then
-        f:SetAlpha(o.alphaOnCD or 1); f:Show()
-        local hasBar = f._mode == "bar" or f._mode == "iconbar"
-        local hasIconText = f._mode == "icon"
-        local tc = o.cdTextColor or {1, 0.8, 0.2}
-        if useText and hasIconText then
-          if remaining >= 60 then f.cdText:SetText(math.ceil(remaining / 60) .. "m")
-          else f.cdText:SetText(string.format("%.1f", remaining)) end
-          f.cdText:SetTextColor(tc[1], tc[2], tc[3])
-        else
-          f.cdText:SetText("")
+      -- "Show Only When Active" mode: track buff/aura duration
+      if o.showOnlyActive then
+        local auraRemaining, auraDuration = 0, 0
+        local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, f.spellID)
+        if ok and aura and aura.expirationTime then
+          auraRemaining = aura.expirationTime - GetTime()
+          auraDuration = aura.duration or 0
+          if auraRemaining < 0 then auraRemaining = 0 end
         end
-        f.iconTex:SetDesaturated(useDesat)
-        if hasBar then
-          local pct = duration > 0 and (remaining / duration) or 0
-          local barW = f.barBg:GetWidth() - 2
-          f.barFill:SetWidth(math.max(1, pct * barW))
-          f.barFill:SetVertexColor(barCDColor[1], barCDColor[2], barCDColor[3], 0.9)
-          if useText then
-            f.barTime:SetText(remaining >= 60 and math.ceil(remaining / 60) .. "m" or string.format("%.1f", remaining))
-            f.barTime:SetTextColor(tc[1], tc[2], tc[3])
-          else f.barTime:SetText("") end
-        end
-      else
-        f:SetAlpha(o.alphaOnReady or 1); f:Show()
-        f.cdText:SetText(""); f.cd:Clear(); f.iconTex:SetDesaturated(false)
-        local hasBar2 = f._mode == "bar" or f._mode == "iconbar"
-        if hasBar2 then
-          local barW = f.barBg:GetWidth() - 2
-          f.barFill:SetWidth(barW)
-          f.barFill:SetVertexColor(barRdyColor[1], barRdyColor[2], barRdyColor[3], 0.8)
-          f.barTime:SetText("Ready"); f.barTime:SetTextColor(barRdyColor[1]+0.15, barRdyColor[2]+0.15, barRdyColor[3]+0.15)
-        end
-        if useGlow and f._wasOnCD and not f._glowing then
-          f._glowing = true; f._glowStart = GetTime()
-          local gt = o.glowType or "border"; f._glowType = gt
-          local gc = o.glowColor or {0.3, 1, 0.3}
-          if gt == "border" then
-            for _, gb in ipairs(f._glowBorder) do gb:SetColorTexture(gc[1],gc[2],gc[3],0.8); gb:Show() end
-          elseif gt == "pixel" then
-            for _, dot in ipairs(f._glowPixels) do dot:SetColorTexture(gc[1],gc[2],gc[3],0.9); dot:Show() end
-          elseif gt == "shine" then
-            f._glowShine:SetVertexColor(gc[1],gc[2],gc[3],0.7); f._glowShine:Show()
+        if auraRemaining > 0 then
+          f:Show(); f:SetAlpha(1)
+          f.iconTex:SetDesaturated(false); f.iconTex:SetVertexColor(1, 1, 1)
+          -- Sweep animation for buff duration
+          if auraDuration > 0 then
+            f.cd:SetReverse(true)
+            f.cd:SetCooldown(aura.expirationTime - auraDuration, auraDuration)
           end
-          if f._glowFrame then f._glowFrame:Show() end
+          -- Text
+          local tc = o.cdTextColor or {1, 0.8, 0.2}
+          local hasBar = f._mode == "bar" or f._mode == "iconbar"
+          local hasIconText = f._mode == "icon"
+          if (o.showCDText ~= false) and hasIconText then
+            f.cdText:SetText(FormatTime(auraRemaining, tFmt))
+            f.cdText:SetTextColor(tc[1], tc[2], tc[3])
+          else
+            f.cdText:SetText("")
+          end
+          if hasBar then
+            local pct = auraDuration > 0 and (auraRemaining / auraDuration) or 1
+            local barW = f.barBg:GetWidth() - 2
+            f.barFill:SetWidth(math.max(1, pct * barW))
+            local rc = o.barColorReady or {0.15, 0.65, 0.2}
+            f.barFill:SetVertexColor(rc[1], rc[2], rc[3], 0.9)
+            if o.showCDText ~= false then
+              f.barTime:SetText(FormatTime(auraRemaining, tFmt))
+              f.barTime:SetTextColor(tc[1], tc[2], tc[3])
+            else f.barTime:SetText("") end
+          end
+        else
+          f:Hide()
         end
-        f._wasOnCD = false
-      end
-      if f._glowing and f._glowStart and (GetTime() - f._glowStart > glowDur) then
-        f._glowing = false
-        for _, gb in ipairs(f._glowBorder) do gb:Hide() end
-        for _, dot in ipairs(f._glowPixels) do dot:Hide() end
-        f._glowShine:Hide()
-        if f._glowFrame then f._glowFrame:Hide() end
-      end
-      if remaining > 0 then
-        f._wasOnCD = true
-        if f._glowing then
+      -- Normal cooldown tracking mode
+      elseif f:IsShown() then
+        local state = cdState[f.spellID]
+        local remaining = 0
+        local duration = 0
+        if state and state.castTime > 0 and state.duration > 0 then
+          remaining = (state.castTime + state.duration) - GetTime()
+          duration = state.duration
+          if remaining < 0 then remaining = 0 end
+        end
+        -- Feed to Blizzard CD frame for the sweep animation
+        if state and state.castTime > 0 and state.duration > 0 and remaining > 0 then
+          f.cd:SetCooldown(state.castTime, state.duration)
+        end
+        local useDesat = o.desaturate ~= false
+        local useText = o.showCDText ~= false
+        local useGlow = o.glow ~= false
+        local glowDur = o.glowDuration or 3
+        local barCDColor = o.barColorCD or {0.8, 0.3, 0.1}
+        local barRdyColor = o.barColorReady or {0.15, 0.65, 0.2}
+        -- Range check
+        local outOfRange = false
+        if remaining <= 0 and o.rangeCheck ~= false and UnitExists("target") then
+          local ok2, inRange = pcall(function()
+            if C_Spell and C_Spell.IsSpellInRange then
+              return C_Spell.IsSpellInRange(f.spellID, "target")
+            elseif IsSpellInRange then
+              local name = C_Spell.GetSpellName(f.spellID)
+              if name then return IsSpellInRange(name, "target") == 1 end
+            end
+          end)
+          if ok2 and inRange == false then outOfRange = true end
+        end
+        if remaining > 0 then
+          f:SetAlpha(o.alphaOnCD or 1); f:Show()
+          local hasBar = f._mode == "bar" or f._mode == "iconbar"
+          local hasIconText = f._mode == "icon"
+          local tc = o.cdTextColor or {1, 0.8, 0.2}
+          if useText and hasIconText then
+            f.cdText:SetText(FormatTime(remaining, tFmt))
+            f.cdText:SetTextColor(tc[1], tc[2], tc[3])
+          else f.cdText:SetText("") end
+          f.iconTex:SetDesaturated(useDesat); f.iconTex:SetVertexColor(1, 1, 1)
+          if hasBar then
+            local pct = duration > 0 and (remaining / duration) or 0
+            local barW = f.barBg:GetWidth() - 2
+            f.barFill:SetWidth(math.max(1, pct * barW))
+            f.barFill:SetVertexColor(barCDColor[1], barCDColor[2], barCDColor[3], 0.9)
+            if useText then
+              f.barTime:SetText(FormatTime(remaining, tFmt))
+              f.barTime:SetTextColor(tc[1], tc[2], tc[3])
+            else f.barTime:SetText("") end
+          end
+        else
+          f:SetAlpha(o.alphaOnReady or 1); f:Show()
+          f.cdText:SetText(""); f.cd:Clear(); f.iconTex:SetDesaturated(false)
+          if outOfRange then f.iconTex:SetVertexColor(0.8, 0.15, 0.15)
+          else f.iconTex:SetVertexColor(1, 1, 1) end
+          local hasBar2 = f._mode == "bar" or f._mode == "iconbar"
+          if hasBar2 then
+            local barW = f.barBg:GetWidth() - 2
+            f.barFill:SetWidth(barW)
+            f.barFill:SetVertexColor(barRdyColor[1], barRdyColor[2], barRdyColor[3], 0.8)
+            f.barTime:SetText("Ready"); f.barTime:SetTextColor(barRdyColor[1]+0.15, barRdyColor[2]+0.15, barRdyColor[3]+0.15)
+          end
+          if useGlow and f._wasOnCD and not f._glowing then
+            f._glowing = true; f._glowStart = GetTime()
+            local gt = o.glowType or "border"; f._glowType = gt
+            local gc = o.glowColor or {0.3, 1, 0.3}
+            if gt == "border" then
+              for _, gb in ipairs(f._glowBorder) do gb:SetColorTexture(gc[1],gc[2],gc[3],0.8); gb:Show() end
+            elseif gt == "pixel" then
+              for _, dot in ipairs(f._glowPixels) do dot:SetColorTexture(gc[1],gc[2],gc[3],0.9); dot:Show() end
+            elseif gt == "shine" then
+              f._glowShine:SetVertexColor(gc[1],gc[2],gc[3],0.7); f._glowShine:Show()
+            end
+            if f._glowFrame then f._glowFrame:Show() end
+          end
+          f._wasOnCD = false
+        end
+        -- Glow timeout
+        if f._glowing and f._glowStart and (GetTime() - f._glowStart > glowDur) then
           f._glowing = false
           for _, gb in ipairs(f._glowBorder) do gb:Hide() end
           for _, dot in ipairs(f._glowPixels) do dot:Hide() end
           f._glowShine:Hide()
           if f._glowFrame then f._glowFrame:Hide() end
         end
-      end
+        -- Track CD→Ready transition
+        if remaining > 0 then
+          f._wasOnCD = true
+          if f._glowing then
+            f._glowing = false
+            for _, gb in ipairs(f._glowBorder) do gb:Hide() end
+            for _, dot in ipairs(f._glowPixels) do dot:Hide() end
+            f._glowShine:Hide()
+            if f._glowFrame then f._glowFrame:Hide() end
+          end
+        end
+      end -- if showOnlyActive / elseif normal CD
     end
   end
 end
@@ -521,7 +593,7 @@ function CT.Refresh()
       if gpos and gpos.p then
         f1:ClearAllPoints(); f1:SetPoint(gpos.p, UIParent, gpos.p, gpos.x, gpos.y)
       elseif not members[1].entry.pos then
-        f1:ClearAllPoints(); f1:SetPoint("CENTER", UIParent, "CENTER", 0, -100)
+        f1:ClearAllPoints(); f1:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
       end
       -- Remaining members anchor to previous
       local grow = g.grow or "DOWN"
@@ -864,9 +936,34 @@ function CT.SetupSettings(parent)
       R(card, s, 40)
       s:SetValue(scale and (data[key] or default) * scale or (data[key] or default))
     end
-    -- Helper: toggle
-    local function Toggle(card, label, key, default)
-      local cb = NS.ChatGetCheckbox(card.inner, label, 26, function(s) data[key] = s; CT.Refresh() end)
+    -- Helper: number input box
+    local function NumInput(card, label, key, default, suffix)
+      local row = CreateFrame("Frame", nil, card.inner); row:SetHeight(26)
+      local lbl = row:CreateFontString(nil, "OVERLAY"); lbl:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+      lbl:SetPoint("LEFT", 20, 0); lbl:SetTextColor(1, 1, 1); lbl:SetText(label)
+      local box = CreateFrame("EditBox", nil, row, "BackdropTemplate")
+      box:SetSize(50, 20); box:SetPoint("RIGHT", suffix and -30 or -8, 0)
+      box:SetBackdrop(SBD); box:SetBackdropColor(0.06, 0.06, 0.1, 1); box:SetBackdropBorderColor(0.2, 0.2, 0.3, 1)
+      box:SetFont("Fonts/FRIZQT__.TTF", 11, ""); box:SetTextColor(1, 1, 1)
+      box:SetJustifyH("CENTER"); box:SetAutoFocus(false); box:SetNumeric(true)
+      box:SetText(tostring(data[key] or default))
+      if suffix then
+        local sfx = row:CreateFontString(nil, "OVERLAY"); sfx:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+        sfx:SetPoint("LEFT", box, "RIGHT", 4, 0); sfx:SetTextColor(0.5, 0.5, 0.6); sfx:SetText(suffix)
+      end
+      local function Commit()
+        local v = tonumber(box:GetText())
+        if v and v >= 1 then data[key] = math.floor(v); CT.Refresh() end
+        box:ClearFocus()
+      end
+      box:SetScript("OnEnterPressed", Commit)
+      box:SetScript("OnEscapePressed", function() box:SetText(tostring(data[key] or default)); box:ClearFocus() end)
+      box:SetScript("OnEditFocusGained", function() box:HighlightText() end)
+      R(card, row, 26)
+    end
+    -- Helper: toggle (with optional tooltip)
+    local function Toggle(card, label, key, default, tip)
+      local cb = NS.ChatGetCheckbox(card.inner, label, 26, function(s) data[key] = s; CT.Refresh() end, tip)
       R(card, cb, 26)
       cb:SetValue(data[key] ~= nil and data[key] or default)
     end
@@ -898,7 +995,7 @@ function CT.SetupSettings(parent)
       -- Enable toggle for individual spells
       local enCb = NS.ChatGetCheckbox(cHdr.inner, "Enabled", 26, function(s)
         data.enabled = s; CT.Refresh()
-      end)
+      end, "Enable or disable this spell tracker")
       R(cHdr, enCb, 26)
       enCb:SetValue(data.enabled ~= false)
     else
@@ -965,45 +1062,65 @@ function CT.SetupSettings(parent)
       return
     end
 
+    local curMode = data.mode or NS.DB("cdTrackerMode") or "iconbar"
+    local hasIcon = curMode == "icon" or curMode == "iconbar"
+    local hasBar = curMode == "bar" or curMode == "iconbar"
+
     -- ── Display card ──
     local cDisp = MakeCard(sc, "Display")
     Dropdown(cDisp, "Display Mode", {"Icon", "Bar", "Icon + Bar"}, {"icon", "bar", "iconbar"},
-      "mode", NS.DB("cdTrackerMode") or "iconbar", function(v) data.mode = v; CT.Refresh(); refreshCb() end)
-    Slider(cDisp, "Icon Size", "iconSize", 16, 80, "%spx", NS.DB("cdTrackerIconSize") or 36)
-    Slider(cDisp, "Bar Width", "barWidth", 40, 300, "%spx", NS.DB("cdTrackerBarWidth") or 120)
+      "mode", curMode, function(v) data.mode = v; CT.Refresh(); refreshCb() end)
+    if hasIcon then
+      NumInput(cDisp, "Icon Width", "iconWidth", NS.DB("cdTrackerIconWidth") or 36, "px")
+      NumInput(cDisp, "Icon Height", "iconHeight", NS.DB("cdTrackerIconHeight") or 36, "px")
+    end
+    if hasBar then
+      Slider(cDisp, "Bar Width", "barWidth", 40, 300, "%spx", NS.DB("cdTrackerBarWidth") or 120)
+    end
     cDisp:Finish(); Append(cDisp, cDisp:GetHeight())
 
     -- ── Cooldown card ──
     local cCD = MakeCard(sc, "Cooldown")
-    Toggle(cCD, "Desaturate on CD", "desaturate", true)
-    Toggle(cCD, "Inverse CD", "cooldownInverse", false)
+    Toggle(cCD, "Only Show When Active", "showOnlyActive", false, "Only show when the buff/aura is active, displaying remaining duration")
+    Toggle(cCD, "Range Check", "rangeCheck", true, "Tint icon red when target is out of spell range")
+    if hasIcon then Toggle(cCD, "Desaturate on CD", "desaturate", true, "Grey out icon while on cooldown") end
+    Toggle(cCD, "Inverse CD", "cooldownInverse", false, "Reverse the cooldown sweep animation")
     Slider(cCD, "Alpha on CD", "alphaOnCD", 0, 10, "%s", 1, 10)
     Slider(cCD, "Alpha on Ready", "alphaOnReady", 0, 10, "%s", 1, 10)
     cCD:Finish(); Append(cCD, cCD:GetHeight())
 
     -- ── Text card ──
     local cTxt = MakeCard(sc, "Text")
-    Toggle(cTxt, "Show CD Text", "showCDText", true)
+    Toggle(cTxt, "Show CD Text", "showCDText", true, "Display remaining time on the icon or bar")
+    Dropdown(cTxt, "Time Format", {"12.3 (pointed)", "13 (rounded)"}, {"pointed", "rounded"}, "timeFormat", "pointed")
+    -- Font dropdown
+    local fontNames, fontValues = {"Default"}, {"default"}
+    for _, ft in ipairs(NS.GetLSMFonts()) do fontNames[#fontNames+1] = ft.label; fontValues[#fontValues+1] = ft.label end
+    Dropdown(cTxt, "Font", fontNames, fontValues, "cdFont", "default", nil, 200)
     Slider(cTxt, "Text Size", "cdTextSize", 8, 28, "%spx", 14)
     ColorRow(cTxt, "Text Color:", "cdTextColor", {1, 0.8, 0.2})
-    Toggle(cTxt, "Show Spell Name", "showSpellName", true)
+    if hasBar then Toggle(cTxt, "Show Spell Name", "showSpellName", true, "Display spell name on the bar") end
     cTxt:Finish(); Append(cTxt, cTxt:GetHeight())
 
-    -- ── Bar card ──
-    local cBar = MakeCard(sc, "Bar")
-    ColorRow(cBar, "CD Color:", "barColorCD", {0.8, 0.3, 0.1})
-    ColorRow(cBar, "Ready Color:", "barColorReady", {0.15, 0.65, 0.2})
-    Dropdown(cBar, "Bar Texture", barTexNames, barTexNames, "barTexture", "Flat", nil, 200)
-    Dropdown(cBar, "Bar Background", barTexNames, barTexNames, "barBgTexture", "Flat", nil, 200)
-    cBar:Finish(); Append(cBar, cBar:GetHeight())
+    -- ── Bar card (only when bar mode) ──
+    if hasBar then
+      local cBar = MakeCard(sc, "Bar")
+      ColorRow(cBar, "CD Color:", "barColorCD", {0.8, 0.3, 0.1})
+      ColorRow(cBar, "Ready Color:", "barColorReady", {0.15, 0.65, 0.2})
+      Dropdown(cBar, "Bar Texture", barTexNames, barTexNames, "barTexture", "Flat", nil, 200)
+      Dropdown(cBar, "Bar Background", barTexNames, barTexNames, "barBgTexture", "Flat", nil, 200)
+      cBar:Finish(); Append(cBar, cBar:GetHeight())
+    end
 
-    -- ── Glow card ──
-    local cGlow = MakeCard(sc, "Glow")
-    Toggle(cGlow, "Glow on Ready", "glow", true)
-    Dropdown(cGlow, "Glow Type", {"Border Pulse", "Pixel Dots", "Shine"}, {"border", "pixel", "shine"}, "glowType", "border")
-    Slider(cGlow, "Glow Duration", "glowDuration", 1, 10, "%ss", 3)
-    ColorRow(cGlow, "Glow Color:", "glowColor", {1, 0.82, 0})
-    cGlow:Finish(); Append(cGlow, cGlow:GetHeight())
+    -- ── Glow card (only when icon mode) ──
+    if hasIcon then
+      local cGlow = MakeCard(sc, "Glow")
+      Toggle(cGlow, "Glow on Ready", "glow", true, "Play glow animation when spell comes off cooldown")
+      Dropdown(cGlow, "Glow Type", {"Border Pulse", "Pixel Dots", "Shine"}, {"border", "pixel", "shine"}, "glowType", "border")
+      Slider(cGlow, "Glow Duration", "glowDuration", 1, 10, "%ss", 3)
+      ColorRow(cGlow, "Glow Color:", "glowColor", {1, 0.82, 0})
+      cGlow:Finish(); Append(cGlow, cGlow:GetHeight())
+    end
 
     -- ── Group Layout card (group only) ──
     if isGroup then
@@ -1062,9 +1179,9 @@ function CT.SetupSettings(parent)
       rgFS2:SetText("Reset Position"); rgBtn:SetScript("OnClick", function() data.pos = nil; CT.Refresh() end)
     else
       rgFS2:SetText("Reset to Global"); rgBtn:SetScript("OnClick", function()
-        data.mode = nil; data.iconSize = nil; data.barWidth = nil
+        data.mode = nil; data.iconWidth = nil; data.iconHeight = nil; data.iconSize = nil; data.barWidth = nil
         data.glow = nil; data.glowType = nil; data.glowDuration = nil; data.glowColor = nil
-        data.cooldownInverse = nil; data.desaturate = nil; data.showCDText = nil; data.cdTextSize = nil; data.cdTextColor = nil
+        data.cooldownInverse = nil; data.desaturate = nil; data.showCDText = nil; data.timeFormat = nil; data.cdFont = nil; data.cdTextSize = nil; data.cdTextColor = nil
         data.barColorCD = nil; data.barColorReady = nil; data.barTexture = nil; data.barBgTexture = nil
         data.showSpellName = nil; data.alphaOnCD = nil; data.alphaOnReady = nil
         CT.Refresh(); refreshCb()
@@ -1093,6 +1210,7 @@ function CT.SetupSettings(parent)
   end
 
   -- ── Reorder + Select ────────────────────────────────────────────────
+  -- Swap within same group (or both ungrouped). Returns true if swapped.
   local function SwapSpells(idx1, idx2)
     local spells = GetSpells()
     if idx1 >= 1 and idx1 <= #spells and idx2 >= 1 and idx2 <= #spells then
@@ -1102,6 +1220,25 @@ function CT.SetupSettings(parent)
   end
   local function FindSpellIndex(uid)
     for i2, e2 in ipairs(GetSpells()) do if e2.uid == uid then return i2 end end
+  end
+  -- Find next/prev spell index within the same group (or ungrouped)
+  local function FindSiblingIndex(uid, direction)
+    local spells = GetSpells()
+    local myIdx, myGroup
+    for i, e in ipairs(spells) do
+      if e.uid == uid then myIdx = i; myGroup = e.group; break end
+    end
+    if not myIdx then return nil end
+    if direction > 0 then
+      for i = myIdx + 1, #spells do
+        if spells[i].group == myGroup then return i end
+      end
+    else
+      for i = myIdx - 1, 1, -1 do
+        if spells[i].group == myGroup then return i end
+      end
+    end
+    return nil
   end
 
   -- ── Refresh sidebar ────────────────────────────────────────────────
@@ -1171,11 +1308,11 @@ function CT.SetupSettings(parent)
             local dn = CreateFrame("Button", nil, sr); dn:SetSize(14, 14); dn:SetPoint("RIGHT", -2, 0)
             local dTex = dn:CreateTexture(nil, "OVERLAY"); dTex:SetTexture("Interface/AddOns/LucidUI/Assets/Arrow_right_orange.png"); dTex:SetSize(10, 10); dTex:SetPoint("CENTER"); dTex:SetRotation(math.rad(-90)); dTex:SetAlpha(0.5)
             dn:SetScript("OnEnter", function() dTex:SetAlpha(1) end); dn:SetScript("OnLeave", function() dTex:SetAlpha(0.5) end)
-            dn:SetScript("OnClick", function() local idx = FindSpellIndex(capUID); if idx and idx < #GetSpells() then SwapSpells(idx, idx + 1) end end)
+            dn:SetScript("OnClick", function() local idx = FindSpellIndex(capUID); local t = FindSiblingIndex(capUID, 1); if idx and t then SwapSpells(idx, t) end end)
             local up = CreateFrame("Button", nil, sr); up:SetSize(14, 14); up:SetPoint("RIGHT", dn, "LEFT", -1, 0)
             local uTex = up:CreateTexture(nil, "OVERLAY"); uTex:SetTexture("Interface/AddOns/LucidUI/Assets/Arrow_right_green.png"); uTex:SetSize(10, 10); uTex:SetPoint("CENTER"); uTex:SetRotation(math.rad(90)); uTex:SetAlpha(0.5)
             up:SetScript("OnEnter", function() uTex:SetAlpha(1) end); up:SetScript("OnLeave", function() uTex:SetAlpha(0.5) end)
-            up:SetScript("OnClick", function() local idx = FindSpellIndex(capUID); if idx and idx > 1 then SwapSpells(idx, idx - 1) end end)
+            up:SetScript("OnClick", function() local idx = FindSpellIndex(capUID); local t = FindSiblingIndex(capUID, -1); if idx and t then SwapSpells(idx, t) end end)
             -- Select
             local capE = e
             local hit = CreateFrame("Button", nil, sr); hit:SetPoint("TOPLEFT"); hit:SetPoint("BOTTOMRIGHT", up, "BOTTOMLEFT", -2, 0)
@@ -1213,11 +1350,11 @@ function CT.SetupSettings(parent)
           local dn2 = CreateFrame("Button", nil, sr); dn2:SetSize(14, 14); dn2:SetPoint("RIGHT", -2, 0)
           local dT2 = dn2:CreateTexture(nil, "OVERLAY"); dT2:SetTexture("Interface/AddOns/LucidUI/Assets/Arrow_right_orange.png"); dT2:SetSize(10, 10); dT2:SetPoint("CENTER"); dT2:SetRotation(math.rad(-90)); dT2:SetAlpha(0.5)
           dn2:SetScript("OnEnter", function() dT2:SetAlpha(1) end); dn2:SetScript("OnLeave", function() dT2:SetAlpha(0.5) end)
-          dn2:SetScript("OnClick", function() local idx = FindSpellIndex(capUID2); if idx and idx < #GetSpells() then SwapSpells(idx, idx + 1) end end)
+          dn2:SetScript("OnClick", function() local idx = FindSpellIndex(capUID2); local t = FindSiblingIndex(capUID2, 1); if idx and t then SwapSpells(idx, t) end end)
           local up2 = CreateFrame("Button", nil, sr); up2:SetSize(14, 14); up2:SetPoint("RIGHT", dn2, "LEFT", -1, 0)
           local uT2 = up2:CreateTexture(nil, "OVERLAY"); uT2:SetTexture("Interface/AddOns/LucidUI/Assets/Arrow_right_green.png"); uT2:SetSize(10, 10); uT2:SetPoint("CENTER"); uT2:SetRotation(math.rad(90)); uT2:SetAlpha(0.5)
           up2:SetScript("OnEnter", function() uT2:SetAlpha(1) end); up2:SetScript("OnLeave", function() uT2:SetAlpha(0.5) end)
-          up2:SetScript("OnClick", function() local idx = FindSpellIndex(capUID2); if idx and idx > 1 then SwapSpells(idx, idx - 1) end end)
+          up2:SetScript("OnClick", function() local idx = FindSpellIndex(capUID2); local t = FindSiblingIndex(capUID2, -1); if idx and t then SwapSpells(idx, t) end end)
           local capE2 = e
           local hit2 = CreateFrame("Button", nil, sr); hit2:SetPoint("TOPLEFT"); hit2:SetPoint("BOTTOMRIGHT", up2, "BOTTOMLEFT", -2, 0)
           hit2:SetScript("OnClick", function() selectedType = "spell"; selectedKey = capUID2; ShowSpellOptions(capE2); RefreshList() end)
@@ -1251,7 +1388,9 @@ function CT.SetupSettings(parent)
         if name ~= "" then CT.AddGroup(name); RefreshList() end
       end,
       EditBoxOnEnterPressed = function(self)
-        local dlg = self:GetParent(); if dlg and dlg.Buttons and dlg.Buttons[1] then dlg.Buttons[1]:Click() end
+        local name = strtrim(self:GetText())
+        if name ~= "" then CT.AddGroup(name); RefreshList() end
+        self:GetParent():Hide()
       end, timeout = 0, whileDead = true, hideOnEscape = true}
     StaticPopup_Show("LUI_CD_ADD_GROUP")
   end)

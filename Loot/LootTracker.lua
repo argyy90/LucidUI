@@ -284,7 +284,7 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 
 -- Loot-specific events registered conditionally after DB is available
 local function RegisterLootEvents()
-  local lootActive = NS.DB("lootOwnWindow") or NS.DB("lootInChatTab")
+  local lootActive = NS.DB("ltEnabled") and (NS.DB("lootOwnWindow") or NS.DB("lootInChatTab"))
   if lootActive then
     eventFrame:RegisterEvent("CHAT_MSG_LOOT")
     eventFrame:RegisterEvent("CHAT_MSG_MONEY")
@@ -404,6 +404,8 @@ SlashCmdList["LUCIDUI"] = function(input)
   if input == "reset" then
     LucidUIDB = {}
     ReloadUI()
+  elseif input == "install" then
+    if NS.ShowInstallWizard then NS.ShowInstallWizard() end
   else
     if NS.BuildChatOptionsWindow then NS.BuildChatOptionsWindow() end
   end

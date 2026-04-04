@@ -1,4 +1,4 @@
--- LucidUI Locales.lua
+-- LucidUI Core/Locales.lua
 -- Auto-detects client language via GetLocale(). No manual selection needed.
 -- Supported: enUS, deDE, frFR, itIT, ruRU, esES/esMX, ptBR, koKR, zhCN, zhTW
 

@@ -1,4 +1,4 @@
--- LucidUI MythicPlus.lua  v2.0
+-- LucidUI Modules/MythicPlus.lua  v2.0
 -- Full-featured Mythic+ tracker matching GLogger feature set.
 -- No external dependencies — pure LucidUI style.
 --
@@ -1726,8 +1726,10 @@ function MP.SetupSettings(parent)
   rh:SetPoint("TOPLEFT",pairRow,"TOP",2,0); rh:SetPoint("BOTTOMRIGHT",pairRow,"BOTTOMRIGHT",0,0)
   local enCB=NS.ChatGetCheckbox(lh,"Enable Mythic+ Tracking",26,function(s) DBSet("mpEnabled",s); if s then DBSet("showMPlusBtn",true); MP.EnableTracking() else MP.DisableTracking() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Auto-record every Mythic+ run")
   enCB.option="mpEnabled"; enCB:SetParent(lh); enCB:ClearAllPoints(); enCB:SetAllPoints(lh)
+  enCB:SetValue(NS.DB("mpEnabled") ~= false)
   local tpCB=NS.ChatGetCheckbox(rh,"Dungeon Teleport",26,function(s) DBSet("mpTeleport",s); if MP.win and MP.win:IsShown() then MP.Refresh() end end,"Right-click a dungeon tile in the M+ window to teleport directly to that dungeon (requires a timed key)")
   tpCB.option="mpTeleport"; tpCB:SetParent(rh); tpCB:ClearAllPoints(); tpCB:SetAllPoints(rh)
+  tpCB:SetValue(NS.DB("mpTeleport") ~= false)
   local openRow=CreateFrame("Frame",nil,cT.inner); openRow:SetHeight(32)
   local openBtn=CreateFrame("Button",nil,openRow,"BackdropTemplate"); openBtn:SetSize(0,26)
   openBtn:SetPoint("TOPLEFT",openRow,"TOPLEFT",0,-3); openBtn:SetPoint("TOPRIGHT",openRow,"TOPRIGHT",0,-3)

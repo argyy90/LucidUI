@@ -1,4 +1,4 @@
--- LucidUI GoldTracker.lua
+-- LucidUI Modules/GoldTracker.lua
 -- Tracks completed trades: items + gold exchanged, with whom.
 -- History window in cyberpunk card style matching the rest of LucidUI.
 --
