@@ -1,7 +1,7 @@
 ## Interface: 120001, 120000
 ## Title: LucidUI
 ## Notes: Complete chat replacement, loot tracking, session stats & QoL features
-## Version: 1.18
+## Version: 1.19
 ## SavedVariables: LucidUIDB
 ## IconTexture: Interface\\AddOns\\LucidUI\\Assets\\Logo.png
 

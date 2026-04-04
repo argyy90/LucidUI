@@ -298,7 +298,7 @@ local function OnEvent(_, event, unit, ...)
   if event == "UNIT_SPELLCAST_START" then StartCast(unit)
   elseif event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_EMPOWER_START" then StartChannel(unit)
   elseif event == "UNIT_SPELLCAST_STOP" then if casting then StopCast(false) end
-  elseif event == "UNIT_SPELLCAST_SUCCEEDED" then if casting and not channeling then StopCast(false) end
+  elseif event == "UNIT_SPELLCAST_SUCCEEDED" then -- let OnUpdate finish the cast naturally via castEndTime
   elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then if channeling then StopCast(false) end
   elseif event == "UNIT_SPELLCAST_INTERRUPTED" then StopCast(true)
   elseif event == "UNIT_SPELLCAST_DELAYED" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" or event == "UNIT_SPELLCAST_EMPOWER_UPDATE" then UpdateCastDelay(unit)

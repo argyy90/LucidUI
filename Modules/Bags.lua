@@ -108,6 +108,16 @@ local function IsItemUpgrade(hyperlink)
 
   for _, slotID in ipairs(slotIDs) do
     local equippedLink = GetInventoryItemLink("player", slotID)
+    if not equippedLink and slotID == 17 then
+      -- Off-hand empty: check if main-hand is a two-hander (covers both slots)
+      local mhLink = GetInventoryItemLink("player", 16)
+      if mhLink then
+        local _, _, _, _, _, _, _, _, mhLoc = C_Item.GetItemInfo(mhLink)
+        if mhLoc == "INVTYPE_2HWEAPON" then
+          equippedLink = mhLink -- compare against the two-hander
+        end
+      end
+    end
     if equippedLink then
       local equippedIlvl = C_Item.GetDetailedItemLevelInfo(equippedLink)
       if equippedIlvl and bagIlvl > equippedIlvl then return true end
