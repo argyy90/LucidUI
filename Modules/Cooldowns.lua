@@ -50,14 +50,10 @@ local hookedLayouts = {}
 local combatDirty = {}
 local initialized = false
 
--- ── Raw SetPoint/ClearAllPoints (avoid recursion) ───────────────────────
-local rawSetPoint = nil
-local rawClearAllPoints = nil
-
--- Store raw frame methods from a clean proxy frame (never hooked by anyone)
+-- ── Raw SetPoint/ClearAllPoints from clean proxy frame ─────────────────
 local _anchorProxy = CreateFrame("Frame")
-rawSetPoint = _anchorProxy.SetPoint
-rawClearAllPoints = _anchorProxy.ClearAllPoints
+local rawSetPoint = _anchorProxy.SetPoint
+local rawClearAllPoints = _anchorProxy.ClearAllPoints
 
 
 -- ── Frame data (weak-key) ───────────────────────────────────────────────
@@ -230,7 +226,7 @@ local function StyleFrame(frame, w, h)
 end
 
 -- ── Place a frame at a position, storing cdmAnchor ──────────────────────
-local function PlaceFrame(frame, container, x, y, viewer)
+local function PlaceFrame(frame, container, x, y)
   local fd = GetFD(frame)
   fd.cdmAnchor = {"TOPLEFT", container, "TOPLEFT", Snap(x), Snap(y)}
 
@@ -292,7 +288,7 @@ local function LayoutViewer(viewerName)
       yOff = row * (h + spacing)
     end
 
-    PlaceFrame(frame, container, xOff, -yOff, viewer)
+    PlaceFrame(frame, container, xOff, -yOff)
 
     col = col + 1
     if col >= perRow then col = 0; row = row + 1 end
