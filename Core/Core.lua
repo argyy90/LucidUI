@@ -36,6 +36,17 @@ function NS.RGBToHex(r, g, b)
   return string.format("%02x%02x%02x", math.floor((r or 0) * 255), math.floor((g or 0) * 255), math.floor((b or 0) * 255))
 end
 
+-- ── Suppress taint popups (benign ADDON_ACTION_BLOCKED from combat hooks) ───
+local taintSuppressor = CreateFrame("Frame")
+taintSuppressor:RegisterEvent("ADDON_ACTION_BLOCKED")
+taintSuppressor:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+taintSuppressor:SetScript("OnEvent", function(_, _, addon)
+  if addon == "LucidUI" then
+    StaticPopup_Hide("ADDON_ACTION_FORBIDDEN")
+    StaticPopup_Hide("ADDON_ACTION_BLOCKED")
+  end
+end)
+
 -- ── Slash commands ───────────────────────────────────────────────────────────
 SLASH_LUCIDCDM1 = "/cdm"
 SlashCmdList["LUCIDCDM"] = function()

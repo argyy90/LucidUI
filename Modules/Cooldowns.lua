@@ -47,24 +47,18 @@ local hookedFrames = {}
 local hookedViewers = {}
 local hookedPools = {}
 local hookedLayouts = {}
+local combatDirty = {}
 local initialized = false
 
 -- ── Raw SetPoint/ClearAllPoints (avoid recursion) ───────────────────────
 local rawSetPoint = nil
 local rawClearAllPoints = nil
 
-local function InitRawFunctions(frame)
-  if rawSetPoint then return end
-  local mt = getmetatable(frame)
-  if mt and mt.__index then
-    rawSetPoint = mt.__index.SetPoint
-    rawClearAllPoints = mt.__index.ClearAllPoints
-  end
-  if not rawSetPoint then
-    rawSetPoint = frame.SetPoint
-    rawClearAllPoints = frame.ClearAllPoints
-  end
-end
+-- Store raw frame methods from a clean proxy frame (never hooked by anyone)
+local _anchorProxy = CreateFrame("Frame")
+rawSetPoint = _anchorProxy.SetPoint
+rawClearAllPoints = _anchorProxy.ClearAllPoints
+
 
 -- ── Frame data (weak-key) ───────────────────────────────────────────────
 local function GetFD(frame)
@@ -82,6 +76,7 @@ local function GetContainer(viewerName)
   local f = CreateFrame("Frame", "LucidUI_CD_" .. viewerName, UIParent)
   f:SetFrameStrata("MEDIUM"); f:SetFrameLevel(10)
   f:SetClampedToScreen(true); f:SetMovable(true); f:EnableMouse(false)
+  if f.SetPreventSecretValues then f:SetPreventSecretValues(true) end
 
   local posKey = viewerName == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
   local pos = Opt(posKey)
@@ -236,12 +231,6 @@ end
 
 -- ── Place a frame at a position, storing cdmAnchor ──────────────────────
 local function PlaceFrame(frame, container, x, y, viewer)
-  InitRawFunctions(frame)
-  -- Reparent to UIParent so viewer hierarchy doesn't interfere
-  if frame:GetParent() ~= UIParent then
-    frame:SetParent(UIParent)
-  end
-
   local fd = GetFD(frame)
   fd.cdmAnchor = {"TOPLEFT", container, "TOPLEFT", Snap(x), Snap(y)}
 
@@ -254,13 +243,11 @@ end
 local function HookFrameSetPoint(frame)
   if hookedFrames[frame] then return end
   hookedFrames[frame] = true
-  InitRawFunctions(frame)
 
   hooksecurefunc(frame, "SetPoint", function(self, point, relativeTo)
     local fd = frameData[self]
     if not fd or not fd.cdmAnchor then return end
     local a = fd.cdmAnchor
-    -- If Blizzard is trying to anchor to something other than our container, override
     if relativeTo == a[2] then return end
     rawClearAllPoints(self)
     rawSetPoint(self, a[1], a[2], a[3], a[4], a[5])
@@ -269,7 +256,7 @@ end
 
 -- ── Layout a viewer's frames ────────────────────────────────────────────
 local function LayoutViewer(viewerName)
-  if InCombatLockdown() then return end  -- protected frames, defer to after combat
+  if InCombatLockdown() then return end
   local viewer = _G[viewerName]
   if not viewer or not viewer.itemFramePool then return end
   if not NS.IsCDMEnabled() then return end
@@ -314,17 +301,15 @@ local function LayoutViewer(viewerName)
   -- Size container
   local totalCols = math.min(#frames, perRow)
   local totalRows = math.ceil(math.max(1, #frames) / perRow)
-  container:SetSize(
+  pcall(container.SetSize, container,
     math.max(1, totalCols * (w + spacing) - spacing),
     math.max(1, totalRows * (h + spacing) - spacing)
   )
 
-  -- Sync viewer to container (prevent it from moving our frames)
-  if not InCombatLockdown() then
-    viewer:ClearAllPoints()
-    viewer:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-    viewer:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
-  end
+  -- Sync viewer to container
+  rawClearAllPoints(viewer)
+  rawSetPoint(viewer, "TOPLEFT", container, "TOPLEFT", 0, 0)
+  rawSetPoint(viewer, "BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
 end
 
 -- ── Force reanchor all frames in a viewer ───────────────────────────────
@@ -335,8 +320,7 @@ local function ForceReanchor(viewerName)
   for frame in viewer.itemFramePool:EnumerateActive() do
     local fd = frameData[frame]
     if fd and fd.cdmAnchor then
-      InitRawFunctions(frame)
-      rawClearAllPoints(frame)
+          rawClearAllPoints(frame)
       rawSetPoint(frame, fd.cdmAnchor[1], fd.cdmAnchor[2], fd.cdmAnchor[3], fd.cdmAnchor[4], fd.cdmAnchor[5])
     end
   end
@@ -346,6 +330,7 @@ end
 local function SetupViewerHooks(viewerName)
   local viewer = _G[viewerName]
   if not viewer then return end
+  if viewer.SetPreventSecretValues then viewer:SetPreventSecretValues(true) end
 
   -- Hook OnAcquireItemFrame (called when pool creates/acquires a frame)
   if viewer.OnAcquireItemFrame and not hookedViewers[viewerName] then
@@ -353,9 +338,12 @@ local function SetupViewerHooks(viewerName)
     hooksecurefunc(viewer, "OnAcquireItemFrame", function(_, itemFrame)
       if not NS.IsCDMEnabled() then return end
       HookFrameSetPoint(itemFrame)
-      local fd = GetFD(itemFrame)
-      fd.cdmAnchor = nil  -- Will be set on next layout
-      C_Timer.After(0, function() LayoutViewer(viewerName) end)
+      -- Defer layout to outside combat only
+      if not InCombatLockdown() then
+        C_Timer.After(0, function() LayoutViewer(viewerName) end)
+      else
+        combatDirty[viewerName] = true
+      end
     end)
   end
 
@@ -364,24 +352,29 @@ local function SetupViewerHooks(viewerName)
     hookedPools[viewerName] = true
     hooksecurefunc(viewer.itemFramePool, "Acquire", function()
       if not NS.IsCDMEnabled() then return end
-      C_Timer.After(0, function() LayoutViewer(viewerName) end)
+      if not InCombatLockdown() then
+        C_Timer.After(0, function() LayoutViewer(viewerName) end)
+      else
+        combatDirty[viewerName] = true
+      end
     end)
   end
 
-  -- Hook RefreshLayout — intercept and force our positions
+  -- Hook RefreshLayout + Layout (hooksecurefunc only — no taint)
   if viewer.RefreshLayout and not hookedLayouts[viewerName .. "_rl"] then
     hookedLayouts[viewerName .. "_rl"] = true
     hooksecurefunc(viewer, "RefreshLayout", function()
       if not NS.IsCDMEnabled() then return end
+      if InCombatLockdown() then combatDirty[viewerName] = true; return end
       C_Timer.After(0, function() LayoutViewer(viewerName) end)
     end)
   end
 
-  -- Hook Layout — same interception
   if viewer.Layout and not hookedLayouts[viewerName .. "_l"] then
     hookedLayouts[viewerName .. "_l"] = true
     hooksecurefunc(viewer, "Layout", function()
       if not NS.IsCDMEnabled() then return end
+      if InCombatLockdown() then combatDirty[viewerName] = true; return end
       C_Timer.After(0, function()
         ForceReanchor(viewerName)
         LayoutViewer(viewerName)
@@ -394,12 +387,12 @@ local function SetupViewerHooks(viewerName)
     hookedLayouts[viewerName .. "_sp"] = true
     hooksecurefunc(viewer, "SetPoint", function(_, _, relativeTo)
       if not NS.IsCDMEnabled() then return end
-      if InCombatLockdown() then return end
       local container = containers[viewerName]
       if not container or relativeTo == container then return end
-      viewer:ClearAllPoints()
-      viewer:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-      viewer:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+      if InCombatLockdown() then return end
+      rawClearAllPoints(viewer)
+      rawSetPoint(viewer, "TOPLEFT", container, "TOPLEFT", 0, 0)
+      rawSetPoint(viewer, "BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
     end)
   end
 end
@@ -411,6 +404,12 @@ function CD.Enable()
   for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
     GetContainer(name)
     SetupViewerHooks(name)
+    -- Reparent viewer to UIParent to remove from Blizzard's managed BottomFrameContainer
+    -- This prevents UIParentManageFramePositions from repositioning the viewer during combat
+    local viewer = _G[name]
+    if viewer and viewer:GetParent() ~= UIParent then
+      viewer:SetParent(UIParent)
+    end
     LayoutViewer(name)
   end
   -- Re-anchor Utility below Essential now that both are sized
@@ -423,7 +422,7 @@ function CD.Enable()
   end
   if not updateTicker then
     updateTicker = C_Timer.NewTicker(0.5, function()
-      if NS.IsCDMEnabled() then CD.Refresh() end
+      if NS.IsCDMEnabled() and not InCombatLockdown() then CD.Refresh() end
     end)
   end
 end
@@ -470,9 +469,13 @@ local function OnSpecChange()
   C_Timer.After(0.5, function()
     specChangePending = false
     if InCombatLockdown() then return end
-    -- Clear all frame data (new spec = new spells)
-    for k in pairs(frameData) do frameData[k] = nil end
-    -- Re-layout all viewers at staggered intervals
+    -- Re-reparent viewers (Blizzard may have reparented them back on spec change)
+    for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+      local viewer = _G[name]
+      if viewer and viewer:GetParent() ~= UIParent then
+        viewer:SetParent(UIParent)
+      end
+    end
     CD.Refresh()
     C_Timer.After(0.3, function() CD.Refresh() end)
     C_Timer.After(1.0, function() CD.Refresh() end)
@@ -501,7 +504,15 @@ evFrame:SetScript("OnEvent", function(_, event)
   elseif event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "SPELLS_CHANGED" then
     OnSpecChange()
   elseif event == "PLAYER_REGEN_ENABLED" then
-    if initialized and NS.IsCDMEnabled() then CD.Refresh() end
+    if initialized and NS.IsCDMEnabled() then
+      -- Flush any dirty viewers from combat
+      for vn in pairs(combatDirty) do
+        ForceReanchor(vn)
+        LayoutViewer(vn)
+      end
+      wipe(combatDirty)
+      CD.Refresh()
+    end
   elseif event == "PLAYER_LOGOUT" then
     for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
       local posKey = viewerName == VIEWERS.ESSENTIAL and "essPos" or "utilPos"

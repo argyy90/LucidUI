@@ -315,21 +315,37 @@ local function UpdateBar(bar, pipTable, powerType, isSegm, showText)
   local color = POWER_COLORS[powerType] or {1, 1, 1}
 
   if isSegm then
-    local power, maxPower = 0, 1
+    local power, maxPower, rawPower = 0, 1, 0
     pcall(function()
       power = UnitPower("player", powerType)
       maxPower = UnitPowerMax("player", powerType)
+      rawPower = UnitPower("player", powerType, true) -- partial values (×10)
     end)
     local ok, pNum = pcall(function() return power + 0 end)
     if not ok then pNum = 0 end
     local ok2, mNum = pcall(function() return maxPower + 0 end)
     if not ok2 then mNum = 1 end
+    local ok3, rawNum = pcall(function() return rawPower + 0 end)
+    if not ok3 then rawNum = pNum * 10 end
+
+    -- Detect partial support: raw differs from whole × 10 scale
+    local hasPartial = (rawNum ~= pNum) or (rawNum > 0 and rawNum ~= pNum * 10) or (mNum > 0 and rawNum % 10 ~= 0)
+    -- Fallback: if raw == whole, no partial (ComboPoints, Chi, etc.)
+    if rawNum == pNum then hasPartial = false; rawNum = pNum * 10 end
 
     UpdatePipsFor(bar, pipTable, mNum, powerType)
     for i = 1, mNum do
       if pipTable[i] then
-        pipTable[i]:SetValue(i <= pNum and 1 or 0)
-        pipTable[i]:SetAlpha(i <= pNum and 1 or 0.25)
+        if hasPartial then
+          -- Partial fill: each pip = 10 units of raw power
+          local pipRaw = rawNum - (i - 1) * 10
+          local fill = math.max(0, math.min(1, pipRaw / 10))
+          pipTable[i]:SetValue(fill)
+          pipTable[i]:SetAlpha(fill >= 1 and 1 or (fill > 0 and 0.5 or 0.25))
+        else
+          pipTable[i]:SetValue(i <= pNum and 1 or 0)
+          pipTable[i]:SetAlpha(i <= pNum and 1 or 0.25)
+        end
       end
     end
     if showText then
