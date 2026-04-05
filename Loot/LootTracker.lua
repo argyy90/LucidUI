@@ -281,6 +281,7 @@ local eventFrame = CreateFrame("Frame")
 -- Core events always needed for addon initialization
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
+eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 
 -- Loot-specific events registered conditionally after DB is available
 local function RegisterLootEvents()
@@ -352,11 +353,7 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
     if not NS.win then LucidUIDB = LucidUIDB or {}; BuildWindow() end
     local pn, pr = UnitFullName("player")
     NS.characterFullName = (pn and pr) and (pn.."-"..pr) or (pn or UnitName("player"))
-    if (DB("clearOnReload") or DB("clearOnLogin")) and LucidUIDB then
-      LucidUIDB.history = {}
-      LucidUIDB._rollData = nil; LucidUIDB._rollEncounter = nil
-      NS.rollSessions = {}; NS.currentEncounterName = nil
-    end
+    -- Clear history is now handled in PLAYER_ENTERING_WORLD (has isInitialLogin/isReloadingUi)
     NS.LoadHistory()
     -- Register loot events only if loot tracking is enabled
     RegisterLootEvents()
@@ -384,6 +381,23 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
   elseif ev == "CHAT_MSG_MONEY" then
     NS.OnMoney(msg)
   elseif ev == "PLAYER_ENTERING_WORLD" then
+    local isInitialLogin, isReloadingUi = msg, sender
+    -- Clear loot history based on setting
+    if LucidUIDB then
+      local shouldClear = false
+      if DB("clearOnLogin") and isInitialLogin and not isReloadingUi then
+        shouldClear = true
+      elseif DB("clearOnReload") and isReloadingUi then
+        shouldClear = true
+      end
+      if shouldClear then
+        LucidUIDB.history = {}
+        LucidUIDB._rollData = nil; LucidUIDB._rollEncounter = nil
+        NS.rollSessions = {}; NS.currentEncounterName = nil
+        if NS.smf then NS.smf:Clear() end
+        wipe(NS.lines); wipe(NS.rawEntries)
+      end
+    end
     if NS.StatsOnEnteringWorld then NS.StatsOnEnteringWorld() end
   elseif ev == "ZONE_CHANGED_NEW_AREA" then
     if NS.StatsOnZoneChanged then NS.StatsOnZoneChanged() end

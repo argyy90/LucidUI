@@ -241,8 +241,8 @@ local function FlashSnapLines(line1, line2)
   line2:SetAlpha(1); line2:Show()
   local elapsed = 0
   local ticker
-  ticker = C_Timer.NewTicker(0.016, function()
-    elapsed = elapsed + 0.016
+  ticker = C_Timer.NewTicker(0.033, function()
+    elapsed = elapsed + 0.033
     if elapsed >= 0.6 then
       line1:Hide(); line2:Hide()
       line1:SetAlpha(1); line2:SetAlpha(1)

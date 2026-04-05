@@ -27,9 +27,6 @@ function NS.CreateChatMessageArea(parent, name)
   local SEP_GAP_L = 0
   local SEP_GAP_R = 6
   local ROW_GAP   = 0
-  local SEP_INSET_TOP = 8
-  local SEP_INSET_BOT = 4
-  local TS_Y_OFFSET   = -8
 
   -- Fading
   local fadingEnabled = false
@@ -207,67 +204,20 @@ function NS.CreateChatMessageArea(parent, name)
     s.sepTex = frame:CreateTexture(nil, "ARTWORK")
     s.sepTex:SetWidth(SEP_W)
 
-    s.contentFS = CreateFrame("ScrollingMessageFrame", nil, frame)
+    -- Content: FontString with word wrap (like Chattynator)
+    -- Top-aligned, no internal padding, supports WoW color/hyperlink escape codes
+    s.contentFS = frame:CreateFontString(nil, "OVERLAY")
     applyFont(s.contentFS, FACE, SIZE, OUTLINE)
     s.contentFS:SetJustifyH("LEFT")
-    s.contentFS:SetInsertMode("TOP")
-    s.contentFS:SetMaxLines(50)
-    s.contentFS:SetFading(false)
-    s.contentFS:SetIndentedWordWrap(false)
-    s.contentFS:SetFrameLevel(frame:GetFrameLevel() + 5)
-    s.contentFS:EnableMouse(true)
-    s.contentFS:SetHyperlinksEnabled(true)
-    if s.contentFS.SetHyperlinkPropagateToParent then
-      s.contentFS:SetHyperlinkPropagateToParent(true)
+    s.contentFS:SetJustifyV("TOP")
+    s.contentFS:SetWordWrap(true)
+    s.contentFS:SetNonSpaceWrap(true)
+    -- Compatibility shims for SMF-style API calls
+    s.contentFS.Clear = function(self) self:SetText("") end
+    s.contentFS.AddMessage = function(self, text, r, g, b)
+      self:SetText(text or "")
+      if r then self:SetTextColor(r, g or 1, b or 1) end
     end
-    s.contentFS:SetScript("OnHyperlinkClick", function(self, link, text, btn)
-      local linkType = link and link:match("^([^:]+)")
-      if linkType == "clubTicketInfo" or linkType == "clubFinder"
-        or linkType == "community" or linkType == "clubTicket"
-        or linkType == "playerCommunity" or linkType == "BNplayerCommunity" then
-        return
-      end
-      if IsShiftKeyDown() then
-        local eb = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-        if eb then eb:Insert(text) end
-      elseif linkType == "player" then
-        -- Open whisper to this player
-        local playerName = link:match("^player:([^:]+)")
-        if playerName then
-          local eb = ChatFrame1EditBox or ChatFrameEditBox
-          if eb then
-            -- ChatEdit_OpenChat is the Midnight-compatible API
-            local openFn = ChatEdit_OpenChat or ChatFrame_OpenChat
-            if openFn then
-              openFn("/w " .. playerName .. " ", ChatFrame1)
-              -- Deferred focus ensures our activation runs after Blizzard's own OnShow handlers
-              local eb2 = ChatFrame1EditBox or ChatFrameEditBox
-              if eb2 then C_Timer.After(0, function() if eb2 and not eb2:HasFocus() then eb2:SetFocus() end end) end
-            end
-          end
-        end
-      elseif linkType == "url" then
-        local url = link:match("^url:(.+)")
-        if url and url ~= "" then
-          if IsShiftKeyDown() then
-            local eb2 = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
-            if eb2 then eb2:Insert(url) end
-          else
-            NS.ShowURLCopyBox(url)
-          end
-        end
-      else
-        pcall(SetItemRef, link, text, btn, ChatFrame1 or self)
-      end
-    end)
-    s.contentFS:SetScript("OnHyperlinkEnter", function(self, link)
-      if InCombatLockdown() then return end
-      local linkType = link and link:match("^([^:]+)")
-      if not linkType or not TOOLTIP_LINK_TYPES[linkType] then return end
-      GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-      if GameTooltip.SetHyperlink then GameTooltip:SetHyperlink(link); GameTooltip:Show() end
-    end)
-    s.contentFS:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
 
     s.measureFS = frame:CreateFontString(nil, "BACKGROUND")
     applyFont(s.measureFS, FACE, SIZE, OUTLINE)
@@ -314,40 +264,42 @@ function NS.CreateChatMessageArea(parent, name)
         cLeftX = L_PAD
       end
 
-      -- Content column
-      s.contentFS:ClearAllPoints()
-      s.contentFS:SetPoint("BOTTOMLEFT",  frame, "BOTTOMLEFT",  cLeftX,       yOff)
-      s.contentFS:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(SB_W + 4), yOff)
-      s.contentFS:Clear()
-      s.contentFS:AddMessage(m.t, m.r, m.g, m.b)
-
+      -- Content column: measure first, then position
       local cw = frame:GetWidth() - cLeftX - (SB_W + 4)
       local h = LINE_H
-      -- Try measuring; if text is tainted, estimate from string length
+
+      -- Measure text height
       local measured = false
       local lenOk, textLen = pcall(string.len, m.t)
       if lenOk and textLen then
-        -- Not tainted — measure precisely
         s.measureFS:SetWidth(cw > 0 and cw or 200)
         s.measureFS:SetText(m.t)
         local strH = s.measureFS:GetStringHeight()
         if strH and strH > 0 then
-          h = math.max(LINE_H, math.ceil(strH / LINE_H) * LINE_H)
+          h = math.max(LINE_H, math.ceil(strH) + 4)
           measured = true
         end
       end
       if not measured then
-        -- Tainted text: estimate lines from average char width
         local charsPerLine = math.max(1, math.floor((cw > 0 and cw or 200) / (SIZE * 0.6)))
-        local estLen = 80 -- conservative default for tainted strings
+        local estLen = 80
         local estLines = math.max(1, math.ceil(estLen / charsPerLine))
         h = estLines * LINE_H
       end
       h = math.max(LINE_H, h)
-      s.contentFS:SetHeight(h)
+
+      -- Position content FontString: set width, let height be natural
+      s.contentFS:ClearAllPoints()
+      s.contentFS:SetWidth(cw > 0 and cw or 200)
+      s.contentFS:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", cLeftX, yOff)
+      s.contentFS:Clear()
+      s.contentFS:AddMessage(m.t, m.r, m.g, m.b)
       s.contentFS:Show()
 
-      -- Timestamp column (only if timestamps enabled)
+      -- Get actual rendered height from the FontString (no LINE_H padding)
+      h = s.contentFS:GetStringHeight() or LINE_H
+
+      -- Timestamp: anchor LEFT + same vertical position as content TOP
       if showTs then
         local livePrefix = m.prefix
         if m.ts and NS.ChatFormatTimestamp then
@@ -355,12 +307,10 @@ function NS.CreateChatMessageArea(parent, name)
         end
         local tsLabel = extractTsLabel(livePrefix)
 
-        local numLines = math.max(1, math.floor(h / LINE_H + 0.5))
-        local tsNudge = (numLines > 1) and TS_Y_OFFSET or 0
-        s.tsFS:SetWidth(tsColW)
-        s.tsFS:SetHeight(LINE_H)
         s.tsFS:ClearAllPoints()
-        s.tsFS:SetPoint("TOPLEFT", s.contentFS, "TOPLEFT", -(cLeftX - L_PAD), tsNudge)
+        s.tsFS:SetPoint("LEFT", frame, "LEFT", L_PAD, 0)
+        s.tsFS:SetPoint("TOP", s.contentFS)
+        s.tsFS:SetWidth(tsColW)
         s.tsFS:Clear()
         local tsr, tsg, tsb = 0.45, 0.45, 0.45
         local tc = NS.DB("chatTimestampColor")
@@ -371,25 +321,24 @@ function NS.CreateChatMessageArea(parent, name)
         s.tsFS:Hide()
       end
 
-      -- Separator (independent of timestamp)
+      -- Separator: anchor to content TOP/BOTTOM
       if showSep then
         local ar, ag, ab = getAccent()
         s.sepTex:SetColorTexture(ar, ag, ab, 0.6)
-        s.sepTex:SetHeight(math.max(1, h - SEP_INSET_TOP - SEP_INSET_BOT))
         s.sepTex:ClearAllPoints()
-        local sepX
-        if showTs then
-          sepX = L_PAD + tsColW + SEP_GAP_L
-        else
-          sepX = L_PAD
-        end
-        s.sepTex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", sepX, yOff + SEP_INSET_BOT)
+        local sepX = showTs and (L_PAD + tsColW + SEP_GAP_L) or L_PAD
+        s.sepTex:SetPoint("LEFT", frame, "LEFT", sepX, 0)
+        s.sepTex:SetPoint("TOP", s.contentFS)
+        s.sepTex:SetPoint("BOTTOM", s.contentFS, "BOTTOM", 0, 1)
         s.sepTex:Show()
       else
         s.sepTex:Hide()
       end
 
-      yOff = yOff + h + ROW_GAP
+      -- Consistent spacing: base gap + user spacing
+      -- Multi-line messages get a small minimum gap so text doesn't run together
+      local baseGap = 2
+      yOff = yOff + h + baseGap + ROW_GAP
 
       -- Fade alpha (only when at bottom, scroll up reveals faded messages)
       if fadingEnabled and m.addedAt and offset == 0 then
@@ -410,28 +359,59 @@ function NS.CreateChatMessageArea(parent, name)
 
     for j = i + 1, #slots do hideSlot(slots[j]) end
 
-    -- Fade timer: periodic check via C_Timer (no per-frame overhead)
-    if fadingEnabled then
-      if not frame._fadeTicker then
-        frame._fadeTicker = C_Timer.NewTicker(0.25, function()
-          if not fadingEnabled then frame._fadeTicker:Cancel(); frame._fadeTicker = nil; return end
-          if offset ~= 0 then return end  -- don't fade while scrolled up
-          local needsUpdate = false
+    -- Start/stop smooth fade via OnUpdate (only when fading is active)
+    if fadingEnabled and offset == 0 then
+      if not frame._fadeActive then
+        frame._fadeActive = true
+        local fadeElapsed = 0
+        frame:SetScript("OnUpdate", function(_, dt)
+          fadeElapsed = fadeElapsed + dt
+          if fadeElapsed < 0.05 then return end -- throttle to ~20fps
+          fadeElapsed = 0
+          if not fadingEnabled or offset ~= 0 then
+            frame._fadeActive = nil; frame:SetScript("OnUpdate", nil); return
+          end
           local now = GetTime()
-          for idx = math.max(1, #msgs - numSlots()), #msgs do
-            local m2 = msgs[idx]
-            if m2 and m2.addedAt then
-              local age = now - m2.addedAt
-              if age > fadeAfter and age < fadeAfter + fadeDuration + 1 then
-                needsUpdate = true; break
+          local anyFading = false
+          local total2 = #msgs
+          for si = 1, #slots do
+            local s2 = slots[si]
+            if s2 and s2.contentFS:IsShown() then
+              -- Find which message this slot displays (bottom-up order)
+              local mi = total2 - offset - (si - 1)
+              local m2 = msgs[mi]
+              if m2 and m2.addedAt then
+                local age = now - m2.addedAt
+                local alpha = 1
+                if age > fadeAfter then
+                  alpha = math.max(0, 1 - (age - fadeAfter) / fadeDuration)
+                  if alpha > 0 then anyFading = true end
+                end
+                s2.tsFS:SetAlpha(alpha); s2.contentFS:SetAlpha(alpha); s2.sepTex:SetAlpha(alpha)
               end
             end
           end
-          if needsUpdate then renderContent() end
+          if not anyFading then
+            -- Check if any visible message will start fading soon
+            local willFade = false
+            for si2 = 1, #slots do
+              local s3 = slots[si2]
+              if s3 and s3.contentFS:IsShown() then
+                local mi2 = total2 - offset - (si2 - 1)
+                local m3 = msgs[mi2]
+                if m3 and m3.addedAt and (now - m3.addedAt) < fadeAfter + fadeDuration then
+                  willFade = true; break
+                end
+              end
+            end
+            if not willFade then
+              frame._fadeActive = nil; frame:SetScript("OnUpdate", nil)
+            end
+          end
         end)
       end
-    elseif frame._fadeTicker then
-      frame._fadeTicker:Cancel(); frame._fadeTicker = nil
+    elseif frame._fadeActive then
+      frame._fadeActive = nil; frame:SetScript("OnUpdate", nil)
     end
   end
 

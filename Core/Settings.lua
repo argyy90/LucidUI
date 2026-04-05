@@ -225,7 +225,8 @@ local function SetupDisplay(parent)
   DD(c2,"Timestamp",function(v) if v=="none" then return DB("chatTimestamps")==false end; return DB("chatTimestamps")~=false and DB("chatTimestampFormat")==v end,function(v) if v=="none" then DBSet("chatTimestamps",false) else DBSet("chatTimestamps",true); DBSet("chatTimestampFormat",v) end; if NS.chatDisplay and NS.chatDisplay.RecomputeTimestampWidth then NS.chatDisplay:RecomputeTimestampWidth() end; if NS.chatRedraw then NS.chatRedraw() end; if NS.RedrawMessages then NS.RedrawMessages() end end,{"None","HH:MM","HH:MM:SS","HH:MM AM/PM","HH:MM:SS AM/PM"},{"none","%H:%M","%X","%I:%M %p","%I:%M:%S %p"})
   DD(c2,"Channel format",function(v) return (DB("chatShortenFormat") or "none")==v end,function(v) DBSet("chatShortenFormat",v) end,{"Full  [1. General]","Short  (1)(S)","Minimal  1 S"},{"none","bracket","minimal"})
   DD(c2,"Flash tabs on",function(v) return (DB("chatTabFlash") or "all")==v end,function(v) DBSet("chatTabFlash",v) end,{"Never","All messages","Whispers only"},{"never","all","whisper"})
-  CB(c2,"New whispers open tab","chatWhisperTab",function(s) DBSet("chatWhisperTab",s) end,"New tab per whisper")
+  CB2(c2,"New whispers open tab","chatWhisperTab",function(s) DBSet("chatWhisperTab",s) end,"New tab per whisper",
+      "Show realm name","chatShowRealm",function(s) DBSet("chatShowRealm",s) end,"Show server name after player")
   CB2(c2,"Store messages","chatStoreMessages",function(s) DBSet("chatStoreMessages",s) end,"Remember between sessions",
       "Remove old messages","chatRemoveOldMessages",function(s) DBSet("chatRemoveOldMessages",s) end,"Delete oldest at limit")
   c2:Finish(); Add(c2)

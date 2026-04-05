@@ -1020,6 +1020,9 @@ function NS._WizardFinish()
     end
   end
 
+  -- Free profile strings from memory (they're no longer needed after install)
+  NS.Profiles = nil
+
   LucidUIDB._installComplete = true
   ReloadUI()
 end
@@ -1044,7 +1047,11 @@ local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:SetScript("OnEvent", function()
   C_Timer.After(1, function()
-    if LucidUIDB and LucidUIDB._installComplete then return end
+    if LucidUIDB and LucidUIDB._installComplete then
+      -- Install already done — free profile strings (~350KB)
+      NS.Profiles = nil
+      return
+    end
     if not LucidUIDB then LucidUIDB = {} end
     NS.ShowInstallWizard()
   end)

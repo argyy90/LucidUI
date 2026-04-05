@@ -12,6 +12,11 @@ local NS = LucidUINS
 NS.EditMode = NS.EditMode or {}
 local EM = NS.EditMode
 
+-- Ensure VehicleLeaveButtonHolder exists early (our viewer reparenting removes it from the frame tree)
+if not _G["VehicleLeaveButtonHolder"] then
+  CreateFrame("Frame", "VehicleLeaveButtonHolder", UIParent):Hide()
+end
+
 -- ── CooldownViewer frame names ──────────────────────────────────────────
 local VIEWER_NAMES = {
   "EssentialCooldownViewer",

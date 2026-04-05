@@ -551,7 +551,7 @@ end
 
 local function StartUpdateTicker()
   if not updateTicker then
-    updateTicker = C_Timer.NewTicker(0.05, UpdateTrackers)
+    updateTicker = C_Timer.NewTicker(0.1, UpdateTrackers)
   end
 end
 local function StopUpdateTicker()

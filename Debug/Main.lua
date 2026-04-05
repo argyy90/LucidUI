@@ -1,433 +1,489 @@
--- LucidUI Debug Window
--- Categorized debug log with filter, pause, and persistent history.
+-- LucidUI Debug/Main.lua
+-- Dev Monitor: passive error/taint logging + active monitoring panels.
+-- Passive mode (window closed): ring-buffer for errors, zero tickers.
+-- Active mode (window open): live event monitor, perf stats, chat debug.
 
 local NS = LucidUINS
-local L  = LucidUIL
 NS.Debug = NS.Debug or {}
 
-local debugWin = nil
-local smf = nil
-local isPaused = false
-local MAX_LINES = 500
+local BD = {bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1}
+local FONT = "Fonts/FRIZQT__.TTF"
+local MAX_LOG = 200
 
--- Categories with colors
-local CATEGORIES = {
-  EVENT   = {0.5, 0.8, 1},
-  LOOT    = {0, 0.67, 0},
-  ROLL    = {1, 0.8, 0.2},
-  STATS   = {0.8, 0.5, 1},
-  CONFIG  = {1, 1, 0},
-  SKIN    = {0, 1, 1},
-  MESSAGE = {0.7, 0.7, 0.7},
-  ERROR   = {1, 0.3, 0.3},
-  INFO    = {0.6, 0.6, 0.6},
+-- ── Passive ring-buffer (always active, no tickers) ────────────────────
+local logBuffer = {}  -- {timestamp, category, text, r, g, b}
+
+local CATS = {
+  ERROR  = {1, 0.3, 0.3},
+  TAINT  = {1, 0.6, 0.2},
+  EVENT  = {0.5, 0.8, 1},
+  CHAT   = {0.4, 0.9, 0.5},
+  CDM    = {0.8, 0.5, 1},
+  PERF   = {1, 0.9, 0.4},
+  INFO   = {0.6, 0.6, 0.6},
 }
 
-local activeFilter = "ALL"
-
-local function GetAccentColor()
-  return NS.CYAN[1], NS.CYAN[2], NS.CYAN[3]
-end
-
-local function GetIconColor()
-  local ic = NS.DB("chatIconColor")
-  if ic and type(ic) == "table" and ic.r then return ic.r, ic.g, ic.b end
-  return 0.5, 0.5, 0.5
-end
-
--- Log storage for filtering
-local logEntries = {}
-
-local function AddLogEntry(category, text, r, g, b)
-  if isPaused then return end
-  local ts = date("%H:%M:%S")
-  local catColor = CATEGORIES[category] or CATEGORIES.INFO
-  r = r or catColor[1]
-  g = g or catColor[2]
-  b = b or catColor[3]
-
-  local catHex = string.format("%02x%02x%02x", catColor[1] * 255, catColor[2] * 255, catColor[3] * 255)
-  local formatted = "|cff737373" .. ts .. "|r |cff" .. catHex .. "[" .. category .. "]|r " .. text
-
-  local entry = {cat = category, text = formatted, r = r, g = g, b = b}
-  table.insert(logEntries, entry)
-  while #logEntries > MAX_LINES do
-    table.remove(logEntries, 1)
-  end
-
-  -- Save to persistent history
-  local history = NS.DB("debugHistory")
-  if history and type(history) == "table" then
-    table.insert(history, entry)
-    while #history > MAX_LINES do
-      table.remove(history, 1)
-    end
-  end
-
-  if smf and (activeFilter == "ALL" or activeFilter == category) then
-    smf:AddMessage(formatted, r, g, b)
-  end
-end
-
--- Public API
-function NS.Debug.Log(category, text, r, g, b)
-  AddLogEntry(category or "INFO", text or "", r, g, b)
-end
-
--- Smart DebugLog: auto-detect category from text prefix
-NS.DebugLog = function(text, r, g, b)
-  if not text then return end
-  -- Auto-categorize based on text content
-  local cat = "INFO"
-  if text:match("^ROLL") or text:match("^roll") then cat = "ROLL"
-  elseif text:match("^EVENT") or text:match("^OnLoot") then cat = "EVENT"
-  elseif text:match("^LOOT") or text:match("^ALLOWED") or text:match("^BLOCKED") then cat = "LOOT"
-  elseif text:match("^STATS") or text:match("^stat") then cat = "STATS"
-  elseif text:match("^CONFIG") or text:match("^Setting") then cat = "CONFIG"
-  elseif text:match("^SKIN") or text:match("^Refresh") then cat = "SKIN"
-  elseif text:match("^ERROR") or text:match("^error") then cat = "ERROR"
-  end
-  AddLogEntry(cat, text, r, g, b)
-end
-
-local function RefreshDisplay()
-  if not smf then return end
-  smf:Clear()
-  for _, entry in ipairs(logEntries) do
-    if activeFilter == "ALL" or activeFilter == entry.cat then
-      smf:AddMessage(entry.text, entry.r, entry.g, entry.b)
+local function AddLog(cat, text)
+  local entry = {
+    ts = date("%H:%M:%S"),
+    cat = cat or "INFO",
+    text = text or "",
+  }
+  logBuffer[#logBuffer + 1] = entry
+  if #logBuffer > MAX_LOG then table.remove(logBuffer, 1) end
+  -- If window is open, push to display (respecting active filter)
+  if NS._devMonitorSMF and not NS._devMonitorPaused then
+    local filt = NS._devMonitorFilter or "ALL"
+    if filt == "ALL" or filt == entry.cat then
+      local cc = CATS[entry.cat] or CATS.INFO
+      local catHex = string.format("%02x%02x%02x", cc[1]*255, cc[2]*255, cc[3]*255)
+      NS._devMonitorSMF:AddMessage(
+        "|cff737373" .. entry.ts .. "|r |cff" .. catHex .. "[" .. entry.cat .. "]|r " .. entry.text,
+        cc[1], cc[2], cc[3]
+      )
     end
   end
 end
 
+-- Public API (passive, cheap)
+function NS.Debug.Log(cat, text) AddLog(cat, text) end
+NS.DebugLog = function(text) AddLog("INFO", text) end
+
+-- ── Passive error capture ──────────────────────────────────────────────
+-- Hook Blizzard's error handler to capture LucidUI errors
+local origErrorHandler = geterrorhandler()
+seterrorhandler(function(msg)
+  if msg and type(msg) == "string" and msg:find("LucidUI") then
+    AddLog("ERROR", msg:sub(1, 200))
+  end
+  if origErrorHandler then return origErrorHandler(msg) end
+end)
+
+-- Capture taint events passively
+local taintFrame = CreateFrame("Frame")
+taintFrame:RegisterEvent("ADDON_ACTION_BLOCKED")
+taintFrame:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+taintFrame:SetScript("OnEvent", function(_, event, addon, func)
+  if addon == "LucidUI" then
+    AddLog("TAINT", event .. ": " .. (func or "?"))
+  end
+end)
+
+-- ── Active monitoring (only when window is open) ───────────────────────
+local devWin = nil
+local activeTab = "log"
+local eventMonitorFrame = nil
+
+local function GetAccent()
+  local C = NS.CYAN; return C[1], C[2], C[3]
+end
+
+-- ── Build Dev Monitor Window ───────────────────────────────────────────
 NS.BuildDebugWindow = function()
-  if debugWin then
-    debugWin:SetShown(not debugWin:IsShown())
-    return
+  if devWin then devWin:SetShown(not devWin:IsShown()); return end
+
+  local ar, ag, ab = GetAccent()
+
+  -- Helper: create SMF with scrollbar
+  local function CreateSMFWithScrollbar(parent, fontSize)
+    local container = CreateFrame("Frame", nil, parent)
+    container:SetAllPoints()
+    local SB_W = 14
+    local smfInner = CreateFrame("ScrollingMessageFrame", nil, container)
+    smfInner:SetPoint("TOPLEFT"); smfInner:SetPoint("BOTTOMRIGHT", -SB_W, 0)
+    smfInner:SetFont(FONT, fontSize or 10, ""); smfInner:SetJustifyH("LEFT")
+    smfInner:SetMaxLines(MAX_LOG); smfInner:SetFading(false)
+    smfInner:SetInsertMode(SCROLLING_MESSAGE_FRAME_INSERT_MODE_BOTTOM)
+
+    local sbTrack = container:CreateTexture(nil, "BACKGROUND")
+    sbTrack:SetWidth(SB_W); sbTrack:SetPoint("TOPRIGHT"); sbTrack:SetPoint("BOTTOMRIGHT")
+    sbTrack:SetColorTexture(0.03, 0.03, 0.05, 0.8)
+
+    local sb = CreateFrame("Slider", nil, container)
+    sb:SetOrientation("VERTICAL"); sb:SetWidth(SB_W - 4)
+    sb:SetPoint("TOPRIGHT", -2, -2); sb:SetPoint("BOTTOMRIGHT", -2, 2)
+    sb:SetMinMaxValues(0, 1); sb:SetValue(1); sb:SetValueStep(1); sb:SetObeyStepOnDrag(true)
+    sb:SetThumbTexture("Interface/Buttons/WHITE8X8")
+    local thumb = sb:GetThumbTexture()
+    if thumb then thumb:SetSize(SB_W - 4, 30); thumb:SetColorTexture(0.4, 0.4, 0.5, 0.7) end
+
+    smfInner:EnableMouseWheel(true)
+    smfInner:SetScript("OnMouseWheel", function(self, delta)
+      if delta > 0 then self:ScrollUp() else self:ScrollDown() end
+    end)
+
+    return smfInner
   end
 
-  local ar, ag, ab = GetAccentColor()
-
-  local function SaveDebugPos()
-    if not debugWin then return end
-    local point, _, relPoint, x, y = debugWin:GetPoint(1)
-    NS.DBSet("debugWinPos", {point, relPoint, math.floor(x), math.floor(y)})
-  end
-  local function SaveDebugSize()
-    if not debugWin then return end
-    NS.DBSet("debugWinSize", {math.floor(debugWin:GetWidth()), math.floor(debugWin:GetHeight())})
-  end
-
-  debugWin = CreateFrame("Frame", "LucidUIDebugWindow", UIParent, "BackdropTemplate")
-  local size = NS.DB("debugWinSize") or {600, 400}
-  debugWin:SetSize(size[1], size[2])
+  devWin = CreateFrame("Frame", "LucidUIDevMonitor", UIParent, "BackdropTemplate")
+  local size = NS.DB("debugWinSize") or {650, 420}
+  devWin:SetSize(size[1], size[2])
   local pos = NS.DB("debugWinPos")
-  if pos then
-    debugWin:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
-  else
-    debugWin:SetPoint("CENTER")
-  end
-  debugWin:SetFrameStrata("MEDIUM")
-  debugWin:SetToplevel(true)
-  debugWin:SetMovable(true)
-  debugWin:SetResizable(true)
-  debugWin:SetResizeBounds(400, 200)
-  debugWin:SetClampedToScreen(true)
-  debugWin:EnableMouse(true)
-  debugWin:SetBackdrop({bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1})
-  debugWin:SetBackdropColor(0.02, 0.02, 0.02, 0.97)
-  debugWin:SetBackdropBorderColor(0.15, 0.15, 0.15, 1)
-  debugWin:RegisterForDrag("LeftButton")
-  debugWin:SetScript("OnDragStart", debugWin.StartMoving)
-  debugWin:SetScript("OnDragStop", function() debugWin:StopMovingOrSizing(); SaveDebugPos() end)
-  debugWin:SetScript("OnSizeChanged", SaveDebugSize)
-  NS.debugWin = debugWin
-
-  -- Title bar
-  local titleBar = CreateFrame("Frame", nil, debugWin, "BackdropTemplate")
-  titleBar:SetHeight(22)
-  titleBar:SetPoint("TOPLEFT", 1, -1)
-  titleBar:SetPoint("TOPRIGHT", -1, -1)
-  titleBar:SetBackdrop({bgFile = "Interface/Buttons/WHITE8X8"})
-  titleBar:SetBackdropColor(0.06, 0.06, 0.06, 1)
-  titleBar:EnableMouse(true)
-  titleBar:RegisterForDrag("LeftButton")
-  titleBar:SetScript("OnDragStart", function() debugWin:StartMoving() end)
-  titleBar:SetScript("OnDragStop", function() debugWin:StopMovingOrSizing(); SaveDebugPos() end)
-
-  local hex = string.format("%02x%02x%02x", ar * 255, ag * 255, ab * 255)
-  local titleTxt = titleBar:CreateFontString(nil, "OVERLAY")
-  titleTxt:SetFont("Fonts/FRIZQT__.TTF", 11, "")
-  titleTxt:SetPoint("LEFT", 8, 0)
-  titleTxt:SetTextColor(1, 1, 1, 1)
-  titleTxt:SetText("|cff" .. hex .. ">|r " .. L["Debug"] .. " |cff" .. hex .. "<|r")
-  debugWin._titleTxt = titleTxt
+  if pos then devWin:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
+  else devWin:SetPoint("CENTER") end
+  devWin:SetFrameStrata("HIGH"); devWin:SetToplevel(true)
+  devWin:SetMovable(true); devWin:SetResizable(true); devWin:SetResizeBounds(500, 300)
+  devWin:SetClampedToScreen(true); devWin:EnableMouse(true)
+  devWin:RegisterForDrag("LeftButton")
+  devWin:SetScript("OnDragStart", devWin.StartMoving)
+  devWin:SetScript("OnDragStop", function()
+    devWin:StopMovingOrSizing()
+    local p, _, rp, x, y = devWin:GetPoint(1)
+    NS.DBSet("debugWinPos", {p, rp, math.floor(x), math.floor(y)})
+  end)
+  devWin:SetBackdrop(BD)
+  devWin:SetBackdropColor(0.025, 0.025, 0.038, 0.97)
+  devWin:SetBackdropBorderColor(ar, ag, ab, 0.38)
+  NS.debugWin = devWin
 
   -- Accent line
-  local accentLine = debugWin:CreateTexture(nil, "ARTWORK")
-  accentLine:SetHeight(1)
-  accentLine:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, 0)
-  accentLine:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, 0)
-  accentLine:SetColorTexture(ar, ag, ab, 0.6)
-  debugWin._accentLine = accentLine
+  local acc = devWin:CreateTexture(nil, "OVERLAY", nil, 5)
+  acc:SetPoint("TOPLEFT", 1, -1); acc:SetPoint("TOPRIGHT", -1, -1)
+  acc:SetHeight(1); acc:SetColorTexture(ar, ag, ab, 1)
 
-  -- Close button (same style as other windows)
-  local closeBtn = CreateFrame("Button", nil, titleBar)
-  closeBtn:SetSize(20, 20)
-  closeBtn:SetPoint("TOPRIGHT", -2, -1)
-  closeBtn:SetFrameStrata("HIGH")
-  local closeTxt = closeBtn:CreateFontString(nil, "ARTWORK")
-  closeTxt:SetFont("Fonts/FRIZQT__.TTF", 13, ""); closeTxt:SetPoint("CENTER")
-  closeTxt:SetTextColor(0.55, 0.55, 0.55, 1); closeTxt:SetText("X")
-  closeBtn:SetScript("OnEnter", function() closeTxt:SetTextColor(NS.CYAN[1], NS.CYAN[2], NS.CYAN[3], 1) end)
-  closeBtn:SetScript("OnLeave", function() closeTxt:SetTextColor(0.55, 0.55, 0.55, 1) end)
-  closeBtn:SetScript("OnClick", function() debugWin:Hide() end)
+  -- Header
+  local hdr = devWin:CreateTexture(nil, "BACKGROUND", nil, 2)
+  hdr:SetPoint("TOPLEFT", 1, -1); hdr:SetPoint("TOPRIGHT", -1, -1)
+  hdr:SetHeight(28); hdr:SetColorTexture(0.01, 0.01, 0.02, 1)
 
-  -- Collapse button
-  local collapseBtn = CreateFrame("Button", nil, titleBar)
-  collapseBtn:SetSize(20, 20)
-  collapseBtn:SetPoint("RIGHT", closeBtn, "LEFT", -2, 0)
-  collapseBtn:SetFrameLevel(titleBar:GetFrameLevel() + 5)
-  local collapseTex = collapseBtn:CreateTexture(nil, "ARTWORK")
-  collapseTex:SetTexture("Interface/AddOns/LucidUI/Assets/ScrollToBottom.png")
-  collapseTex:SetSize(12, 12)
-  collapseTex:SetPoint("CENTER")
-  do local r2,g2,b2 = GetIconColor(); collapseTex:SetVertexColor(r2, g2, b2, 1) end
+  local title = devWin:CreateFontString(nil, "OVERLAY")
+  title:SetFont(FONT, 11, ""); title:SetPoint("LEFT", hdr, "LEFT", 10, 0)
+  title:SetTextColor(ar, ag, ab); title:SetText("Dev Monitor")
 
-  -- Copy button (next to collapse)
-  local copyBtn = CreateFrame("Button", nil, titleBar)
-  copyBtn:SetSize(20, 20)
-  copyBtn:SetPoint("RIGHT", collapseBtn, "LEFT", -2, 0)
-  copyBtn:SetFrameLevel(titleBar:GetFrameLevel() + 5)
-  local copyTex = copyBtn:CreateTexture(nil, "ARTWORK")
-  copyTex:SetTexture("Interface/AddOns/LucidUI/Assets/Copy.png")
-  copyTex:SetSize(12, 12)
-  copyTex:SetPoint("CENTER")
-  do local r3,g3,b3 = GetIconColor(); copyTex:SetVertexColor(r3, g3, b3, 1) end
+  -- Copy button
+  local copyBtn = CreateFrame("Button", nil, devWin, "BackdropTemplate")
+  copyBtn:SetSize(20, 20); copyBtn:SetPoint("TOPRIGHT", -28, -4)
+  copyBtn:SetBackdrop(BD); copyBtn:SetBackdropColor(0.05, 0.05, 0.09, 1)
+  copyBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
+  local copyLbl = copyBtn:CreateFontString(nil, "OVERLAY")
+  copyLbl:SetFont(FONT, 9, ""); copyLbl:SetPoint("CENTER"); copyLbl:SetTextColor(0.44, 0.44, 0.52); copyLbl:SetText("C")
   copyBtn:SetScript("OnEnter", function()
-    copyTex:SetVertexColor(NS.CYAN[1], NS.CYAN[2], NS.CYAN[3], 1)
-    GameTooltip:SetOwner(copyBtn, "ANCHOR_LEFT"); GameTooltip:SetText(L["Copy Log"]); GameTooltip:Show()
+    copyBtn:SetBackdropBorderColor(ar, ag, ab, 0.75); copyLbl:SetTextColor(ar, ag, ab)
+    GameTooltip:SetOwner(copyBtn, "ANCHOR_LEFT"); GameTooltip:SetText("Copy Log"); GameTooltip:Show()
   end)
   copyBtn:SetScript("OnLeave", function()
-    local r3,g3,b3 = GetIconColor(); copyTex:SetVertexColor(r3, g3, b3, 1); GameTooltip:Hide()
+    copyBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1); copyLbl:SetTextColor(0.44, 0.44, 0.52); GameTooltip:Hide()
   end)
   copyBtn:SetScript("OnClick", function()
-    -- Toggle: close if already open
-    local existing = _G["LTDebugCopyFrame"]
-    if existing and existing:IsShown() then existing:Hide(); return end
-
-    -- Build plain text from log entries
     local lines = {}
-    for _, entry in ipairs(logEntries) do
-      if activeFilter == "ALL" or activeFilter == entry.cat then
-        local clean = entry.text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-        table.insert(lines, clean)
+    -- Copy content based on active tab
+    local sourceSMF
+    if activeTab == "log" then
+      for _, e in ipairs(logBuffer) do
+        lines[#lines+1] = e.ts .. " [" .. e.cat .. "] " .. e.text
       end
+      sourceSMF = NS._devMonitorSMF
+    elseif activeTab == "events" then
+      sourceSMF = devWin._evSMF
+    elseif activeTab == "chat" then
+      sourceSMF = NS._devChatSMF
     end
-    if #lines == 0 then lines[1] = "(No log entries)" end
-    local text = table.concat(lines, "\n")
-    if existing then existing:Hide() end
-    local frame = CreateFrame("Frame", "LTDebugCopyFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(500, 300); frame:SetPoint("CENTER")
-    frame:SetFrameStrata("FULLSCREEN_DIALOG"); frame:SetMovable(true); frame:SetClampedToScreen(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function() frame:StartMoving() end)
-    frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
-    frame:EnableMouse(true)
-    frame:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-    frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95); frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
-    local cTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    cTitle:SetPoint("TOP", 0, -6); cTitle:SetText(">" .. L["Copy Debug Log"] .. "<")
-    cTitle:SetTextColor(NS.CYAN[1], NS.CYAN[2], NS.CYAN[3])
-    local cClose = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    cClose:SetPoint("TOPRIGHT", 2, 2)
-    cClose:SetScript("OnClick", function() frame:Hide() end)
-    local sf = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", 10, -22); sf:SetPoint("BOTTOMRIGHT", -30, 10)
-    local eb = CreateFrame("EditBox", nil, frame)
-    eb:SetMultiLine(true); eb:SetAutoFocus(true); eb:SetFontObject(GameFontHighlight); eb:SetWidth(460)
-    eb:SetScript("OnEscapePressed", function() frame:Hide() end)
-    sf:SetScrollChild(eb)
-    C_Timer.After(0, function()
-      if not frame:IsShown() then return end
-      eb:SetWidth(sf:GetWidth()); eb:SetText(text); eb:HighlightText()
-    end)
-  end)
-
-  -- Collapse/expand state
-  local savedSize = NS.DB("debugWinSize") or {600, 400}
-  -- Forward declare filterBar so collapse can hide it
-  local filterBar
-  if savedSize[2] <= 30 then
-    debugWin.collapsed = true
-    debugWin.expandedHeight = 400
-    collapseTex:SetTexCoord(0, 1, 1, 0)
-  else
-    debugWin.collapsed = false
-    debugWin.expandedHeight = savedSize[2]
-  end
-  collapseBtn:SetScript("OnClick", function()
-    if not debugWin.collapsed then
-      debugWin.expandedHeight = debugWin:GetHeight()
-      debugWin.collapsed = true
-      collapseTex:SetTexCoord(0, 1, 1, 0)
-      debugWin:SetHeight(24)
-      if filterBar then filterBar:Hide() end
-    else
-      debugWin.collapsed = false
-      collapseTex:SetTexCoord(0, 1, 0, 1)
-      if debugWin.expandedHeight and debugWin.expandedHeight > 30 then
-        debugWin:SetHeight(debugWin.expandedHeight)
-      else
-        debugWin:SetHeight(400)
-      end
-      if filterBar then filterBar:Show() end
-    end
-  end)
-  collapseBtn:SetScript("OnEnter", function() collapseTex:SetVertexColor(NS.CYAN[1], NS.CYAN[2], NS.CYAN[3], 1) end)
-  collapseBtn:SetScript("OnLeave", function() local r2,g2,b2 = GetIconColor(); collapseTex:SetVertexColor(r2, g2, b2, 1) end)
-
-  -- Filter buttons bar
-  filterBar = CreateFrame("Frame", nil, debugWin)
-  filterBar:SetHeight(20)
-  if debugWin.collapsed then filterBar:Hide() end
-  filterBar:SetPoint("TOPLEFT", 4, -25)
-  filterBar:SetPoint("TOPRIGHT", -4, -25)
-
-  local filters = {"ALL", "EVENT", "LOOT", "ROLL", "STATS", "CONFIG", "SKIN", "ERROR"}
-  local filterBtns = {}
-  local xOff = 0
-  for _, cat in ipairs(filters) do
-    local btn = CreateFrame("Button", nil, filterBar)
-    local catColor = CATEGORIES[cat] or {1, 1, 1}
-    local btnW = cat == "ALL" and 30 or 50
-    btn:SetSize(btnW, 16)
-    btn:SetPoint("LEFT", xOff, 0)
-    local txt = btn:CreateFontString(nil, "OVERLAY")
-    txt:SetFont("Fonts/FRIZQT__.TTF", 8, "")
-    txt:SetPoint("CENTER")
-    local isActive = activeFilter == cat
-    if cat == "ALL" then
-      txt:SetTextColor(1, 1, 1, isActive and 1 or 0.4)
-    else
-      txt:SetTextColor(catColor[1], catColor[2], catColor[3], isActive and 1 or 0.4)
-    end
-    txt:SetText(cat)
-    btn:SetScript("OnClick", function()
-      activeFilter = cat
-      for _, fb in ipairs(filterBtns) do
-        local fc = CATEGORIES[fb.cat] or {1, 1, 1}
-        local active = activeFilter == fb.cat
-        if fb.cat == "ALL" then
-          fb.txt:SetTextColor(1, 1, 1, active and 1 or 0.4)
-        else
-          fb.txt:SetTextColor(fc[1], fc[2], fc[3], active and 1 or 0.4)
+    -- If we have an SMF, extract messages from it
+    if #lines == 0 and sourceSMF and sourceSMF.GetNumMessages then
+      for i = 1, sourceSMF:GetNumMessages() do
+        local msg = sourceSMF:GetMessageInfo(i)
+        if msg then
+          -- Strip WoW color codes for plain text copy
+          local clean = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+          lines[#lines+1] = clean
         end
       end
-      RefreshDisplay()
+    end
+    if #lines == 0 then lines[1] = "(No entries)" end
+    local text = table.concat(lines, "\n")
+
+    local cf = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    cf:SetSize(500, 350); cf:SetPoint("CENTER"); cf:SetFrameStrata("FULLSCREEN_DIALOG")
+    cf:SetMovable(true); cf:SetClampedToScreen(true); cf:EnableMouse(true)
+    cf:RegisterForDrag("LeftButton")
+    cf:SetScript("OnDragStart", cf.StartMoving); cf:SetScript("OnDragStop", cf.StopMovingOrSizing)
+    cf:SetBackdrop(BD); cf:SetBackdropColor(0.025, 0.025, 0.038, 0.97)
+    cf:SetBackdropBorderColor(ar, ag, ab, 0.38)
+
+    local cfAcc = cf:CreateTexture(nil, "OVERLAY", nil, 5)
+    cfAcc:SetPoint("TOPLEFT", 1, -1); cfAcc:SetPoint("TOPRIGHT", -1, -1)
+    cfAcc:SetHeight(1); cfAcc:SetColorTexture(ar, ag, ab, 1)
+
+    local cfTitle = cf:CreateFontString(nil, "OVERLAY")
+    cfTitle:SetFont(FONT, 10, ""); cfTitle:SetPoint("TOPLEFT", 10, -8)
+    cfTitle:SetTextColor(ar, ag, ab); cfTitle:SetText("Copy Log (Ctrl+A, Ctrl+C)")
+
+    local cfClose = CreateFrame("Button", nil, cf)
+    cfClose:SetSize(16, 16); cfClose:SetPoint("TOPRIGHT", -4, -4)
+    local cfX = cfClose:CreateFontString(nil, "OVERLAY")
+    cfX:SetFont(FONT, 11, ""); cfX:SetPoint("CENTER"); cfX:SetTextColor(0.5, 0.3, 0.3); cfX:SetText("X")
+    cfClose:SetScript("OnClick", function() cf:Hide() end)
+    cfClose:SetScript("OnEnter", function() cfX:SetTextColor(1, 0.3, 0.3) end)
+    cfClose:SetScript("OnLeave", function() cfX:SetTextColor(0.5, 0.3, 0.3) end)
+
+    local sf = CreateFrame("ScrollFrame", nil, cf, "UIPanelScrollFrameTemplate")
+    sf:SetPoint("TOPLEFT", 8, -24); sf:SetPoint("BOTTOMRIGHT", -28, 8)
+    local eb = CreateFrame("EditBox", nil, cf)
+    eb:SetMultiLine(true); eb:SetAutoFocus(true); eb:SetFontObject(GameFontHighlight); eb:SetWidth(460)
+    eb:SetScript("OnEscapePressed", function() cf:Hide() end)
+    sf:SetScrollChild(eb)
+    C_Timer.After(0, function()
+      if cf:IsShown() then eb:SetWidth(sf:GetWidth()); eb:SetText(text); eb:HighlightText() end
     end)
-    btn:SetScript("OnEnter", function()
-      if cat == "ALL" then txt:SetTextColor(1, 1, 1, 1)
-      else txt:SetTextColor(catColor[1], catColor[2], catColor[3], 1) end
-    end)
-    btn:SetScript("OnLeave", function()
-      local active = activeFilter == cat
-      if cat == "ALL" then txt:SetTextColor(1, 1, 1, active and 1 or 0.4)
-      else txt:SetTextColor(catColor[1], catColor[2], catColor[3], active and 1 or 0.4) end
-    end)
-    table.insert(filterBtns, {btn = btn, cat = cat, txt = txt})
-    xOff = xOff + btnW + 2
+  end)
+
+  -- Close
+  local closeBtn = CreateFrame("Button", nil, devWin, "BackdropTemplate")
+  closeBtn:SetSize(20, 20); closeBtn:SetPoint("TOPRIGHT", -4, -4)
+  closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09, 0.02, 0.02, 1)
+  closeBtn:SetBackdropBorderColor(0.34, 0.09, 0.09, 1)
+  local cX = closeBtn:CreateFontString(nil, "OVERLAY")
+  cX:SetFont(FONT, 10, ""); cX:SetPoint("CENTER"); cX:SetTextColor(0.6, 0.18, 0.18); cX:SetText("X")
+  closeBtn:SetScript("OnClick", function()
+    devWin:Hide()
+    -- Stop active monitoring
+    if eventMonitorFrame then eventMonitorFrame:UnregisterAllEvents() end
+    if devWin._perfTicker then devWin._perfTicker:Cancel(); devWin._perfTicker = nil end
+    NS._devChatSMF = nil
+    NS._devMonitorSMF = nil
+  end)
+  closeBtn:SetScript("OnEnter", function() closeBtn:SetBackdropBorderColor(0.6, 0.12, 0.12, 1); cX:SetTextColor(1, 0.3, 0.3) end)
+  closeBtn:SetScript("OnLeave", function() closeBtn:SetBackdropBorderColor(0.34, 0.09, 0.09, 1); cX:SetTextColor(0.6, 0.18, 0.18) end)
+
+  -- Header line
+  local hLine = devWin:CreateTexture(nil, "OVERLAY", nil, 4)
+  hLine:SetPoint("TOPLEFT", 1, -28); hLine:SetPoint("TOPRIGHT", -1, -28)
+  hLine:SetHeight(1); hLine:SetColorTexture(ar, ag, ab, 0.3)
+
+  -- ── Tab buttons ──────────────────────────────────────────────────────
+  local TAB_Y = -30
+  local TAB_H = 20
+  local tabs = {"Log", "Events", "Perf", "Chat"}
+  local tabBtns = {}
+  local contentFrames = {}
+
+  local function SelectTab(tabName)
+    activeTab = tabName:lower()
+    for _, t in ipairs(tabBtns) do
+      local sel = t.name:lower() == activeTab
+      t.label:SetTextColor(sel and ar or 0.45, sel and ag or 0.45, sel and ab or 0.55)
+      t.sel:SetShown(sel)
+    end
+    for k, cf in pairs(contentFrames) do cf:SetShown(k == activeTab) end
+    -- Start/stop event monitor
+    if activeTab == "events" then
+      if eventMonitorFrame then
+        for _, ev in ipairs({"SPELL_UPDATE_COOLDOWN","UNIT_SPELLCAST_START","UNIT_SPELLCAST_STOP","UNIT_SPELLCAST_SUCCEEDED","PLAYER_REGEN_DISABLED","PLAYER_REGEN_ENABLED","UNIT_AURA","PLAYER_TARGET_CHANGED"}) do
+          pcall(eventMonitorFrame.RegisterEvent, eventMonitorFrame, ev)
+        end
+      end
+    elseif eventMonitorFrame then
+      eventMonitorFrame:UnregisterAllEvents()
+    end
+    -- Start/stop perf ticker
+    if activeTab == "perf" then
+      if not devWin._perfTicker then
+        devWin._perfTicker = C_Timer.NewTicker(1, function()
+          if contentFrames.perf and contentFrames.perf:IsShown() then
+            local fps = math.floor(GetFramerate())
+            local latH, latW = select(3, GetNetStats()), select(4, GetNetStats())
+            local mem = math.floor(collectgarbage("count"))
+            if UpdateAddOnMemoryUsage then UpdateAddOnMemoryUsage() end
+            local luiMem = GetAddOnMemoryUsage and GetAddOnMemoryUsage("LucidUI") or 0
+            contentFrames.perf._fps:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "FPS:|r " .. fps)
+            contentFrames.perf._lat:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "Latency:|r " .. latH .. "ms (H) " .. latW .. "ms (W)")
+            contentFrames.perf._mem:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "Total Memory:|r " .. string.format("%.1f MB", mem / 1024))
+            contentFrames.perf._luiMem:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "LucidUI:|r " .. string.format("%.1f KB", luiMem))
+          end
+        end)
+      end
+    elseif devWin._perfTicker then
+      devWin._perfTicker:Cancel(); devWin._perfTicker = nil
+    end
   end
 
-  -- Pause/Clear buttons
+  local tabX = 4
+  for _, tabName in ipairs(tabs) do
+    local btn = CreateFrame("Button", nil, devWin)
+    btn:SetSize(50, TAB_H); btn:SetPoint("TOPLEFT", tabX, TAB_Y)
+    local label = btn:CreateFontString(nil, "OVERLAY")
+    label:SetFont(FONT, 9, ""); label:SetPoint("CENTER"); label:SetTextColor(0.45, 0.45, 0.55)
+    label:SetText(tabName)
+    local sel = btn:CreateTexture(nil, "OVERLAY", nil, 5)
+    sel:SetHeight(1); sel:SetPoint("BOTTOMLEFT", 2, 0); sel:SetPoint("BOTTOMRIGHT", -2, 0)
+    sel:SetColorTexture(ar, ag, ab, 1); sel:Hide()
+    btn:SetScript("OnClick", function() SelectTab(tabName) end)
+    btn:SetScript("OnEnter", function() label:SetTextColor(ar, ag, ab) end)
+    btn:SetScript("OnLeave", function()
+      if activeTab ~= tabName:lower() then label:SetTextColor(0.45, 0.45, 0.55) end
+    end)
+    tabBtns[#tabBtns+1] = {btn=btn, name=tabName, label=label, sel=sel}
+    tabX = tabX + 54
+  end
+
+  -- Tab line
+  local tabLine = devWin:CreateTexture(nil, "OVERLAY", nil, 3)
+  tabLine:SetHeight(1); tabLine:SetPoint("TOPLEFT", 1, TAB_Y - TAB_H)
+  tabLine:SetPoint("TOPRIGHT", -1, TAB_Y - TAB_H)
+  tabLine:SetColorTexture(ar, ag, ab, 0.15)
+
+  local CONTENT_TOP = TAB_Y - TAB_H - 2
+
+  -- ── Log Tab (SMF) ────────────────────────────────────────────────────
+  local logFrame = CreateFrame("Frame", nil, devWin)
+  logFrame:SetPoint("TOPLEFT", 4, CONTENT_TOP); logFrame:SetPoint("BOTTOMRIGHT", -4, 20)
+  contentFrames["log"] = logFrame
+
+  -- Filter buttons
+  local filterBar = CreateFrame("Frame", nil, logFrame)
+  filterBar:SetHeight(16); filterBar:SetPoint("TOPLEFT"); filterBar:SetPoint("TOPRIGHT")
+  local activeFilter = "ALL"
+  NS._devMonitorFilter = "ALL"
+  local filterBtns = {}
+  local fX = 0
+  for _, cat in ipairs({"ALL","ERROR","TAINT","EVENT","CHAT","CDM","PERF","INFO"}) do
+    local fb = CreateFrame("Button", nil, filterBar)
+    local catC = CATS[cat] or {1,1,1}
+    fb:SetSize(38, 14); fb:SetPoint("LEFT", fX, 0)
+    local fl = fb:CreateFontString(nil, "OVERLAY")
+    fl:SetFont(FONT, 8, ""); fl:SetPoint("CENTER")
+    fl:SetText(cat); fl:SetTextColor(catC[1], catC[2], catC[3], activeFilter == cat and 1 or 0.4)
+    fb:SetScript("OnClick", function()
+      activeFilter = cat
+      NS._devMonitorFilter = cat
+      for _, f in ipairs(filterBtns) do
+        local fc = CATS[f.cat] or {1,1,1}
+        f.label:SetTextColor(fc[1], fc[2], fc[3], activeFilter == f.cat and 1 or 0.4)
+      end
+      -- Refresh SMF
+      NS._devMonitorSMF:Clear()
+      for _, e in ipairs(logBuffer) do
+        if activeFilter == "ALL" or activeFilter == e.cat then
+          local cc = CATS[e.cat] or CATS.INFO
+          local ch = string.format("%02x%02x%02x", cc[1]*255, cc[2]*255, cc[3]*255)
+          NS._devMonitorSMF:AddMessage("|cff737373" .. e.ts .. "|r |cff" .. ch .. "[" .. e.cat .. "]|r " .. e.text, cc[1], cc[2], cc[3])
+        end
+      end
+    end)
+    filterBtns[#filterBtns+1] = {cat=cat, label=fl}
+    fX = fX + 40
+  end
+
+  -- Pause / Clear
+  NS._devMonitorPaused = false
   local pauseBtn = CreateFrame("Button", nil, filterBar)
-  pauseBtn:SetSize(40, 16)
-  pauseBtn:SetPoint("RIGHT", -45, 0)
-  local pauseTxt = pauseBtn:CreateFontString(nil, "OVERLAY")
-  pauseTxt:SetFont("Fonts/FRIZQT__.TTF", 8, "")
-  pauseTxt:SetPoint("CENTER")
-  pauseTxt:SetTextColor(1, 0.8, 0, 1)
-  pauseTxt:SetText(L["PAUSE"])
+  pauseBtn:SetSize(36, 14); pauseBtn:SetPoint("RIGHT", -40, 0)
+  local pauseLbl = pauseBtn:CreateFontString(nil, "OVERLAY")
+  pauseLbl:SetFont(FONT, 8, ""); pauseLbl:SetPoint("CENTER"); pauseLbl:SetTextColor(1, 0.8, 0); pauseLbl:SetText("PAUSE")
   pauseBtn:SetScript("OnClick", function()
-    isPaused = not isPaused
-    pauseTxt:SetText(isPaused and L["RESUME"] or L["PAUSE"])
-    pauseTxt:SetTextColor(isPaused and 0.3 or 1, isPaused and 1 or 0.8, isPaused and 0.3 or 0, 1)
+    NS._devMonitorPaused = not NS._devMonitorPaused
+    pauseLbl:SetText(NS._devMonitorPaused and "RESUME" or "PAUSE")
+    pauseLbl:SetTextColor(NS._devMonitorPaused and 0.3 or 1, NS._devMonitorPaused and 1 or 0.8, NS._devMonitorPaused and 0.3 or 0)
   end)
 
   local clearBtn = CreateFrame("Button", nil, filterBar)
-  clearBtn:SetSize(36, 16)
-  clearBtn:SetPoint("RIGHT", 0, 0)
-  local clearTxt = clearBtn:CreateFontString(nil, "OVERLAY")
-  clearTxt:SetFont("Fonts/FRIZQT__.TTF", 8, "")
-  clearTxt:SetPoint("CENTER")
-  clearTxt:SetTextColor(1, 0.3, 0.3, 1)
-  clearTxt:SetText(L["CLEAR"])
-  clearBtn:SetScript("OnClick", function()
-    wipe(logEntries)
-    NS.DBSet("debugHistory", {})
-    if smf then smf:Clear() end
-  end)
+  clearBtn:SetSize(32, 14); clearBtn:SetPoint("RIGHT", 0, 0)
+  local clearLbl = clearBtn:CreateFontString(nil, "OVERLAY")
+  clearLbl:SetFont(FONT, 8, ""); clearLbl:SetPoint("CENTER"); clearLbl:SetTextColor(1, 0.3, 0.3); clearLbl:SetText("CLEAR")
+  clearBtn:SetScript("OnClick", function() wipe(logBuffer); NS._devMonitorSMF:Clear() end)
 
-  -- SMF
-  smf = CreateFrame("ScrollingMessageFrame", nil, debugWin)
-  smf:SetPoint("TOPLEFT", 6, -48)
-  smf:SetPoint("BOTTOMRIGHT", -6, 20)
-  smf:SetFont("Fonts/FRIZQT__.TTF", 11, "")
-  smf:SetJustifyH("LEFT")
-  smf:SetMaxLines(MAX_LINES)
-  smf:SetFading(false)
-  smf:SetInsertMode(SCROLLING_MESSAGE_FRAME_INSERT_MODE_BOTTOM)
-  smf:EnableMouseWheel(true)
-  smf:SetScript("OnMouseWheel", function(self, delta)
-    if delta > 0 then self:ScrollUp() else self:ScrollDown() end
-  end)
-  NS.debugSMF = smf
+  -- SMF for log display (with scrollbar)
+  local logContainer = CreateFrame("Frame", nil, logFrame)
+  logContainer:SetPoint("TOPLEFT", 0, -20); logContainer:SetPoint("BOTTOMRIGHT")
+  local smf = CreateSMFWithScrollbar(logContainer, 10)
+  NS._devMonitorSMF = smf
 
-  -- Resize grip
-  local resizeWidget = CreateFrame("Frame", nil, debugWin)
-  resizeWidget:SetSize(16, 16)
-  resizeWidget:SetPoint("BOTTOMRIGHT")
-  resizeWidget:SetFrameLevel(debugWin:GetFrameLevel() + 50)
-  resizeWidget:EnableMouse(true)
-  local rTex = resizeWidget:CreateTexture(nil, "OVERLAY")
-  rTex:SetTexture("Interface/AddOns/LucidUI/Assets/resize.png")
-  rTex:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
-  rTex:SetAllPoints()
-  do local r2,g2,b2 = GetIconColor(); rTex:SetVertexColor(r2, g2, b2, 0.8) end
-  resizeWidget:SetScript("OnEnter", function() rTex:SetVertexColor(NS.CYAN[1], NS.CYAN[2], NS.CYAN[3], 1) end)
-  resizeWidget:SetScript("OnLeave", function() local r2,g2,b2 = GetIconColor(); rTex:SetVertexColor(r2, g2, b2, 0.8) end)
-  resizeWidget:SetScript("OnMouseDown", function() debugWin:StartSizing("BOTTOMRIGHT") end)
-  resizeWidget:SetScript("OnMouseUp", function() debugWin:StopMovingOrSizing(); SaveDebugPos(); SaveDebugSize() end)
-
-  -- Load history
-  if #logEntries == 0 then
-    local history = NS.DB("debugHistory")
-    if history and type(history) == "table" then
-      for _, entry in ipairs(history) do
-        table.insert(logEntries, entry)
-      end
-    end
+  -- Load existing buffer into SMF
+  for _, e in ipairs(logBuffer) do
+    local cc = CATS[e.cat] or CATS.INFO
+    local ch = string.format("%02x%02x%02x", cc[1]*255, cc[2]*255, cc[3]*255)
+    smf:AddMessage("|cff737373" .. e.ts .. "|r |cff" .. ch .. "[" .. e.cat .. "]|r " .. e.text, cc[1], cc[2], cc[3])
   end
 
-  RefreshDisplay()
-  NS.Debug.Log("INFO", "Debug window opened")
+  -- ── Events Tab ───────────────────────────────────────────────────────
+  local evFrame = CreateFrame("Frame", nil, devWin)
+  evFrame:SetPoint("TOPLEFT", 4, CONTENT_TOP); evFrame:SetPoint("BOTTOMRIGHT", -4, 20)
+  evFrame:Hide()
+  contentFrames["events"] = evFrame
+
+  local evSMF = CreateSMFWithScrollbar(evFrame, 9)
+  devWin._evSMF = evSMF
+
+  eventMonitorFrame = CreateFrame("Frame")
+  eventMonitorFrame:SetScript("OnEvent", function(_, event, ...)
+    -- Filter UNIT_ events to player only
+    local arg1 = ...
+    if event:sub(1, 5) == "UNIT_" and arg1 and arg1 ~= "player" then return end
+
+    local args = ""
+    for i = 1, math.min(select("#", ...), 5) do
+      local v = select(i, ...)
+      if v ~= nil then
+        local isSecret = issecretvalue and issecretvalue(v)
+        local s = isSecret and "<secret>" or tostring(v)
+        args = args .. (i > 1 and ", " or "") .. s
+      end
+    end
+    local ts = date("%H:%M:%S")
+    local evHex = string.format("%02x%02x%02x", ar*255, ag*255, ab*255)
+    evSMF:AddMessage("|cff737373" .. ts .. "|r |cff" .. evHex .. event .. "|r " .. args, 0.7, 0.7, 0.7)
+  end)
+
+  -- ── Perf Tab ─────────────────────────────────────────────────────────
+  local perfFrame = CreateFrame("Frame", nil, devWin)
+  perfFrame:SetPoint("TOPLEFT", 4, CONTENT_TOP); perfFrame:SetPoint("BOTTOMRIGHT", -4, 20)
+  perfFrame:Hide()
+  contentFrames["perf"] = perfFrame
+
+  local function PerfLabel(yOff)
+    local fs = perfFrame:CreateFontString(nil, "OVERLAY")
+    fs:SetFont(FONT, 12, ""); fs:SetPoint("TOPLEFT", 10, yOff)
+    fs:SetTextColor(0.7, 0.7, 0.8); fs:SetJustifyH("LEFT")
+    return fs
+  end
+  perfFrame._fps = PerfLabel(-10)
+  perfFrame._lat = PerfLabel(-30)
+  perfFrame._mem = PerfLabel(-50)
+  perfFrame._luiMem = PerfLabel(-70)
+
+  -- Active tickers count
+  local tickerLabel = PerfLabel(-100)
+  tickerLabel:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "Active Tickers:|r see AddonProfiler /luiperf")
+
+  -- ── Chat Tab ─────────────────────────────────────────────────────────
+  local chatFrame = CreateFrame("Frame", nil, devWin)
+  chatFrame:SetPoint("TOPLEFT", 4, CONTENT_TOP); chatFrame:SetPoint("BOTTOMRIGHT", -4, 20)
+  chatFrame:Hide()
+  contentFrames["chat"] = chatFrame
+
+  local chatSMF = CreateSMFWithScrollbar(chatFrame, 9)
+
+  -- Hook chat engine to log raw event data
+  NS._devChatSMF = chatSMF
+
+  -- ── Resize grip ──────────────────────────────────────────────────────
+  local rg = CreateFrame("Frame", nil, devWin)
+  rg:SetSize(16, 16); rg:SetPoint("BOTTOMRIGHT")
+  rg:SetFrameLevel(devWin:GetFrameLevel() + 50); rg:EnableMouse(true)
+  local rgTex = rg:CreateTexture(nil, "OVERLAY")
+  rgTex:SetTexture("Interface/AddOns/LucidUI/Assets/resize.png"); rgTex:SetAllPoints()
+  rgTex:SetVertexColor(0.4, 0.4, 0.5)
+  rg:SetScript("OnEnter", function() rgTex:SetVertexColor(ar, ag, ab) end)
+  rg:SetScript("OnLeave", function() rgTex:SetVertexColor(0.4, 0.4, 0.5) end)
+  rg:SetScript("OnMouseDown", function() devWin:StartSizing("BOTTOMRIGHT") end)
+  rg:SetScript("OnMouseUp", function()
+    devWin:StopMovingOrSizing()
+    NS.DBSet("debugWinSize", {math.floor(devWin:GetWidth()), math.floor(devWin:GetHeight())})
+  end)
+
+  SelectTab("Log")
+  AddLog("INFO", "Dev Monitor opened")
 end
 
--- Initialize debug on login
-local debugInitFrame = CreateFrame("Frame")
-debugInitFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-debugInitFrame:SetScript("OnEvent", function(self, _, isInitialLogin, isReloadingUi)
-  self:UnregisterAllEvents()
-  if isInitialLogin and not isReloadingUi then
-    wipe(logEntries)
-    NS.DBSet("debugHistory", {})
-  else
-    local history = NS.DB("debugHistory")
-    if history and type(history) == "table" then
-      for _, entry in ipairs(history) do
-        table.insert(logEntries, entry)
-      end
-    end
+-- ── Chat debug hook (passive, always logs to buffer if chat tab was visited) ──
+-- Called from ChatFrame.lua FormatChatMessage to log raw event data
+NS.Debug.LogChat = function(event, sender, msg)
+  AddLog("CHAT", (event or "?") .. " | " .. (sender or "?") .. " | " .. (msg and msg:sub(1, 80) or ""))
+  if NS._devChatSMF and activeTab == "chat" then
+    local ts = date("%H:%M:%S")
+    NS._devChatSMF:AddMessage(
+      "|cff737373" .. ts .. "|r |cff4de64d" .. (event or "?") .. "|r " .. (sender or "?") .. ": " .. (msg and msg:sub(1, 120) or ""),
+      0.6, 0.6, 0.6
+    )
   end
-  NS.Debug.Log("INFO", "LucidUI Debug initialized")
-end)
+end

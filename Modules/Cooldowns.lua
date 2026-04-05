@@ -26,6 +26,10 @@ local DEFAULTS = {
   borderTexture = "1 Pixel",
   borderColor = {0, 0, 0, 1},
   zoomIcons = true,
+  readyGlow = true,
+  readyGlowType = "pixel",
+  readyGlowColor = {0.95, 0.95, 0.32, 1},
+  readyGlowDuration = 2,
   hideShadowOverlay = true,
   hideIconMask = true,
 }
@@ -60,6 +64,92 @@ local rawClearAllPoints = _anchorProxy.ClearAllPoints
 local function GetFD(frame)
   if not frameData[frame] then frameData[frame] = {} end
   return frameData[frame]
+end
+
+-- ── Ready Glow (LibCustomGlow) ─────────────────────────────────────────
+local LCG = LibStub and LibStub("LibCustomGlow-1.0", true)
+
+local GLOW_KEY = "LucidUIReadyGlow"
+
+local function ClearReadyGlow(frame)
+  if not LCG then return end
+  pcall(LCG.PixelGlow_Stop, frame, GLOW_KEY)
+  pcall(LCG.AutoCastGlow_Stop, frame, GLOW_KEY)
+  pcall(LCG.ButtonGlow_Stop, frame)
+  pcall(LCG.ProcGlow_Stop, frame, GLOW_KEY)
+end
+
+local function ShowReadyGlow(frame)
+  if not LCG or not Opt("readyGlow") then return end
+  ClearReadyGlow(frame)
+  local gc = Opt("readyGlowColor") or {0.95, 0.95, 0.32, 1}
+  local color = {gc[1], gc[2], gc[3], gc[4] or 1}
+  local glowType = Opt("readyGlowType") or "pixel"
+
+  if glowType == "pixel" then
+    LCG.PixelGlow_Start(frame, color, 8, 0.25, nil, 2, 0, 0, false, GLOW_KEY)
+  elseif glowType == "autocast" then
+    LCG.AutoCastGlow_Start(frame, color, 4, 0.2, 1, 0, 0, GLOW_KEY)
+  elseif glowType == "button" then
+    LCG.ButtonGlow_Start(frame, color, 0.2)
+  elseif glowType == "proc" then
+    LCG.ProcGlow_Start(frame, {color = color, duration = Opt("readyGlowDuration") or 2, key = GLOW_KEY})
+    return -- proc has its own duration, skip auto-clear
+  end
+
+  local dur = Opt("readyGlowDuration") or 2
+  C_Timer.After(dur, function()
+    if frame then ClearReadyGlow(frame) end
+  end)
+end
+
+-- Hook Blizzard's spell alert system to detect "spell ready" transitions
+-- All CooldownViewer frame properties are secret-tainted, so we can't poll them.
+-- Instead we hook the alert callbacks that Blizzard fires when spells become available.
+local glowHooksSetup = false
+local glowTrackedCDs = {} -- spellID → wasOnCD
+
+-- Safe number check (like Ayije's IsSafeNumber)
+local function IsSafeNumber(v)
+  return v ~= nil and type(v) == "number" and not (issecretvalue and issecretvalue(v))
+end
+
+local function SetupGlowHooks()
+  if glowHooksSetup then return end
+  glowHooksSetup = true
+
+  -- Read spellID from frame.cooldownInfo (like Ayije does)
+  local function GetFrameSpellID(frame)
+    local ok, info = pcall(function() return frame.cooldownInfo end)
+    if not ok or not info then return nil end
+    local id = info.overrideSpellID or info.spellID
+    return IsSafeNumber(id) and id or nil
+  end
+
+  local glowFrame = CreateFrame("Frame")
+  glowFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+  glowFrame:SetScript("OnEvent", function()
+    if not Opt("readyGlow") then return end
+    for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+      local viewer = _G[viewerName]
+      if viewer and viewer.itemFramePool then
+        for frame in viewer.itemFramePool:EnumerateActive() do
+          local spellID = GetFrameSpellID(frame)
+          if spellID then
+            local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
+            if ok and cdInfo then
+              local onCD = cdInfo.isActive and not cdInfo.isOnGCD
+              local wasOnCD = glowTrackedCDs[spellID]
+              glowTrackedCDs[spellID] = onCD
+              if wasOnCD and not onCD and frame:IsShown() then
+                ShowReadyGlow(frame)
+              end
+            end
+          end
+        end
+      end
+    end
+  end)
 end
 
 -- ── Snap to pixel ───────────────────────────────────────────────────────
@@ -420,6 +510,7 @@ function CD.Enable()
       if NS.IsCDMEnabled() and not InCombatLockdown() then CD.Refresh() end
     end)
   end
+  SetupGlowHooks()
 end
 
 function CD.Disable()
@@ -428,6 +519,7 @@ function CD.Disable()
     local viewer = _G[viewerName]
     if viewer and viewer.itemFramePool then
       for frame in viewer.itemFramePool:EnumerateActive() do
+        ClearReadyGlow(frame)
         local fd = frameData[frame]
         if fd then
           fd.cdmAnchor = nil
@@ -697,6 +789,10 @@ function CD.SetupSettings(parent)
   end
   ColorRow(cApp, "Text Color:", "textColor")
   ColorRow(cApp, "Border Color:", "borderColor")
+  local glowCB = NS.ChatGetCheckbox(cApp.inner, "Ready Glow", 26, function(s) OptSet("readyGlow", s) end, "Glow when spell comes off cooldown")
+  glowCB:SetValue(Opt("readyGlow") ~= false); R(cApp, glowCB, 26)
+  Dropdown(cApp, "Glow Type", {"Pixel", "Autocast", "Button", "Proc"}, {"pixel", "autocast", "button", "proc"}, "readyGlowType", "pixel")
+  Slider(cApp, "Glow Duration", "readyGlowDuration", 1, 5, "%ss", 2)
   cApp:Finish(); Append(cApp, cApp:GetHeight())
 
   return container

@@ -481,6 +481,7 @@ NS.DB_DEFAULTS = {
   chatCombatLog       = true,
   chatTabFlash        = "whisper",
   chatWhisperTab      = true,
+  chatShowRealm       = false,
   chatStoreMessages   = true,
   chatRemoveOldMessages = true,
   chatHistory          = {},

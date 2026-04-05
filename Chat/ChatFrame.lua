@@ -42,7 +42,7 @@ hiddenFrame:Hide()
 -- Forward declarations
 local AddToDisplay, RebuildTabButtons, RedrawDisplay, GetAccentColor
 local RepositionButtons, SaveTabData
-local renderContent, displayReady, earlyBuffer
+local displayReady, earlyBuffer
 
 displayReady = false
 earlyBuffer  = {}
@@ -392,17 +392,8 @@ RedrawDisplay = function(quickMode)
       end
       if show then
         if not entry._clean then
-          local rawMsg = entry.msg or ""
-          local cleanOk, cleanMsg = pcall(function()
-            return rawMsg
-              :gsub("^|cff%x%x%x%x%x%x%d?%d?:?%d%d:?%d?%d?[APMapm ]*|r ", "")
-              :gsub("^%d?%d?:?%d%d:?%d?%d?[APMapm ]* ", "")
-              :gsub("^|cff%x%x%x%x%x%x|||r ", "")
-          end)
-          if not cleanOk then cleanMsg = rawMsg end
-          if NS.ChatFormatURLs then cleanMsg = NS.ChatFormatURLs(cleanMsg) end
-          if NS.ChatShortenChannel then cleanMsg = NS.ChatShortenChannel(cleanMsg) end
-          entry._clean = cleanMsg
+          -- Message already formatted by our event handler — just cache it
+          entry._clean = entry.msg or ""
           entry._ts = NS.ChatFormatTimestamp(entry.t)
         end
         d:AddMessage(entry._clean, entry.r, entry.g, entry.b, entry._ts, entry.t)
@@ -414,20 +405,168 @@ end
 
 
 
--- ── Early hook: capture ALL ChatFrame1 messages ──────────────────────
+-- ── Direct event-based message engine ──────────────────────────────────
+-- Instead of hooking ChatFrame1:AddMessage (gets Blizzard-formatted string),
+-- we register our own events and format messages ourselves.
+-- This gives us full control over styling, even for secret values.
 
-local _pendingChannelName = nil
-local _pendingEventType = nil
-ChatFrame_AddMessageEventFilter("CHAT_MSG_CHANNEL", function(self, event, msg, sender, lang, channelString, ...)
-  if channelString then
-    _pendingChannelName = channelString:match("^%d+%.%s*(.+)") or channelString
+local isSecretValue = issecretvalue or function() return false end
+
+-- Channel prefix mapping: chatType → short label
+local CHANNEL_LABELS = {
+  SAY = "S", YELL = "Y", EMOTE = "", TEXT_EMOTE = "",
+  GUILD = "G", OFFICER = "O",
+  PARTY = "P", PARTY_LEADER = "PL",
+  RAID = "R", RAID_LEADER = "RL", RAID_WARNING = "RW",
+  INSTANCE_CHAT = "I", INSTANCE_CHAT_LEADER = "IL",
+  WHISPER = "W", WHISPER_INFORM = "W",
+  BN_WHISPER = "BN", BN_WHISPER_INFORM = "BN",
+}
+
+-- Chat type → Blizzard color info
+local CHAT_TYPE_INFO = ChatTypeInfo or {}
+
+-- System/no-sender events (pass message through as-is)
+local SYSTEM_EVENTS = {
+  CHAT_MSG_SYSTEM = true, CHAT_MSG_LOOT = true, CHAT_MSG_MONEY = true,
+  CHAT_MSG_CURRENCY = true, CHAT_MSG_COMBAT_XP_GAIN = true,
+  CHAT_MSG_COMBAT_HONOR_GAIN = true, CHAT_MSG_COMBAT_FACTION_CHANGE = true,
+  CHAT_MSG_SKILL = true, CHAT_MSG_TRADESKILLS = true, CHAT_MSG_OPENING = true,
+  CHAT_MSG_PET_INFO = true, CHAT_MSG_COMBAT_MISC_INFO = true,
+  CHAT_MSG_BG_SYSTEM_HORDE = true, CHAT_MSG_BG_SYSTEM_ALLIANCE = true,
+  CHAT_MSG_BG_SYSTEM_NEUTRAL = true, CHAT_MSG_ACHIEVEMENT = true,
+  CHAT_MSG_GUILD_ACHIEVEMENT = true, CHAT_MSG_GUILD_ITEM_LOOTED = true,
+  CHAT_MSG_BN_INLINE_TOAST_ALERT = true,
+  CHAT_MSG_FILTERED = true, CHAT_MSG_RESTRICTED = true, CHAT_MSG_IGNORED = true,
+  CHAT_MSG_PET_BATTLE_COMBAT_LOG = true, CHAT_MSG_PET_BATTLE_INFO = true,
+  CHAT_MSG_PING = true,
+}
+
+-- Format a chat message from raw event data
+local function FormatChatMessage(event, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12)
+  local chatType = event:gsub("^CHAT_MSG_", "")
+  local msgProtected = isSecretValue(arg1)
+  local senderProtected = isSecretValue(arg2)
+  -- guidProtected check removed — pcall in class color lookup handles it
+
+  -- Get color from Blizzard's ChatTypeInfo or custom colors
+  local info = CHAT_TYPE_INFO[chatType]
+  local cr, cg, cb = 1, 1, 1
+  if info then cr, cg, cb = info.r or 1, info.g or 1, info.b or 1 end
+
+  -- Apply custom message colors if configured
+  if LucidUIDB and LucidUIDB.chatColors then
+    local cc = LucidUIDB.chatColors[chatType]
+    if cc then cr, cg, cb = cc.r, cc.g, cc.b end
   end
-  _pendingEventType = event
-  return false
-end)
 
--- Cache event type for all message types so the AddMessage hook can read it
-local ALL_CACHED_EVENTS = {
+  -- System messages: pass through with our colors, no sender formatting
+  if SYSTEM_EVENTS[event] then
+    -- arg1 may be secret — use format() which works with secret values
+    local body = arg1
+    if not msgProtected and NS.ChatFormatURLs then
+      body = NS.ChatFormatURLs(body)
+    end
+    return body, cr, cg, cb
+  end
+
+  -- Boss/Monster messages: show message with NPC name as sender
+  local isBossMonster = chatType:sub(1, 9) == "RAID_BOSS" or chatType:sub(1, 7) == "MONSTER"
+
+  -- Build sender name with class color
+  local senderDisplay
+  if senderProtected then
+    senderDisplay = arg2
+  elseif isBossMonster then
+    senderDisplay = "|cffffff00" .. (arg2 or "") .. "|r"
+  else
+    -- Player: shorten name and apply class color
+    local shortName = arg2
+    if not senderProtected then
+      local ambigMode = NS.DB("chatShowRealm") and "none" or "short"
+      local ok, name = pcall(Ambiguate, arg2 or "", ambigMode)
+      if ok and name then shortName = name end
+    end
+    -- Try class color from GUID (pcall everything — GUID may be secret in instances)
+    local colored = false
+    if arg12 and NS.ChatGetColoredSender then
+      local ok, result = pcall(NS.ChatGetColoredSender, arg12, shortName)
+      if ok and result then senderDisplay = result; colored = true end
+    end
+    if not colored then senderDisplay = shortName end
+  end
+
+  -- Build channel prefix
+  local prefix = ""
+  local channelFmt = NS.DB("chatShortenFormat") or "none"
+  if event == "CHAT_MSG_CHANNEL" then
+    -- Numbered channel: extract number from channelString (arg4)
+    local chanNum = arg8 or ""
+    local chanName = arg4 or ""
+    if channelFmt == "bracket" then
+      prefix = "(" .. chanNum .. ") "
+    elseif channelFmt == "minimal" then
+      prefix = chanNum .. " "
+    else
+      prefix = "[" .. chanName .. "] "
+    end
+  elseif chatType == "EMOTE" then
+    -- Emote: "* Sender message"
+    local body
+    if msgProtected then
+      body = string.format("* %s ", senderDisplay)
+      -- Can't concat secret arg1, use format
+      body = body .. arg1
+    else
+      body = string.format("* %s %s", senderDisplay, arg1 or "")
+      if NS.ChatFormatURLs then body = NS.ChatFormatURLs(body) end
+    end
+    return body, cr, cg, cb
+  elseif chatType == "TEXT_EMOTE" then
+    -- Text emote: message already contains the player name
+    local body = arg1
+    if not msgProtected and NS.ChatFormatURLs then body = NS.ChatFormatURLs(body) end
+    return body, cr, cg, cb
+  else
+    local label = CHANNEL_LABELS[chatType]
+    if label and label ~= "" then
+      if channelFmt == "bracket" then
+        prefix = "(" .. label .. ") "
+      elseif channelFmt == "minimal" then
+        prefix = label .. " "
+      else
+        prefix = "[" .. label .. "] "
+      end
+    end
+  end
+
+  -- Whisper direction
+  if chatType == "WHISPER_INFORM" or chatType == "BN_WHISPER_INFORM" then
+    prefix = prefix .. "To "
+  end
+
+  -- Build final message: prefix + sender + ": " + message body
+  local body
+  if isBossMonster and chatType:find("EMOTE") then
+    -- Boss emote: no colon, just name + message
+    if msgProtected then
+      body = string.format("%s%s ", prefix, senderDisplay) .. arg1
+    else
+      body = string.format("%s%s %s", prefix, senderDisplay, arg1 or "")
+    end
+  elseif msgProtected then
+    -- Secret message: use format() to avoid taint
+    body = string.format("%s%s: ", prefix, senderDisplay) .. arg1
+  else
+    body = string.format("%s%s: %s", prefix, senderDisplay, arg1 or "")
+    if NS.ChatFormatURLs then body = NS.ChatFormatURLs(body) end
+  end
+
+  return body, cr, cg, cb
+end
+
+-- All events we handle directly
+local HANDLED_EVENTS = {
   "CHAT_MSG_SAY","CHAT_MSG_YELL","CHAT_MSG_EMOTE","CHAT_MSG_TEXT_EMOTE",
   "CHAT_MSG_GUILD","CHAT_MSG_OFFICER",
   "CHAT_MSG_WHISPER","CHAT_MSG_WHISPER_INFORM",
@@ -449,43 +588,115 @@ local ALL_CACHED_EVENTS = {
   "CHAT_MSG_VOICE_TEXT",
   "CHAT_MSG_TRADESKILLS","CHAT_MSG_OPENING","CHAT_MSG_PET_INFO","CHAT_MSG_COMBAT_MISC_INFO",
   "CHAT_MSG_PET_BATTLE_COMBAT_LOG","CHAT_MSG_PET_BATTLE_INFO",
-  "CHAT_MSG_PING",
+  "CHAT_MSG_PING","CHAT_MSG_CHANNEL",
 }
-for _, ev in ipairs(ALL_CACHED_EVENTS) do
-  ChatFrame_AddMessageEventFilter(ev, function(_, event2)
-    _pendingEventType = event2
+
+-- Track which events we handle (to suppress from Blizzard's ChatFrame1)
+local HANDLED_SET = {}
+for _, ev in ipairs(HANDLED_EVENTS) do HANDLED_SET[ev] = true end
+
+-- Track when our event handler is processing (to skip AddMessage duplicates)
+local _processingEvent = false
+
+-- Register our own event frame to capture raw chat events
+local chatEventFrame = CreateFrame("Frame")
+for _, ev in ipairs(HANDLED_EVENTS) do
+  pcall(chatEventFrame.RegisterEvent, chatEventFrame, ev)
+end
+-- Also register GUILD_MOTD to capture guild message of the day
+pcall(chatEventFrame.RegisterEvent, chatEventFrame, "GUILD_MOTD")
+
+chatEventFrame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, ...)
+  if not NS.DB("chatEnabled") then return end
+
+  -- Handle GUILD_MOTD separately
+  if event == "GUILD_MOTD" then
+    local motd = arg1
+    if not motd or motd == "" then
+      -- Try C_Club API
+      local guildID = C_Club and C_Club.GetGuildClubId and C_Club.GetGuildClubId()
+      if guildID then
+        local info = C_Club.GetClubInfo(guildID)
+        if info then motd = info.broadcast end
+      end
+    end
+    if motd and motd ~= "" and not (issecretvalue and issecretvalue(motd)) then
+      local gi = ChatTypeInfo and ChatTypeInfo["GUILD"]
+      local cr2, cg2, cb2 = gi and gi.r or 0.25, gi and gi.g or 1, gi and gi.b or 0.25
+      local formatted = string.format(GUILD_MOTD_TEMPLATE or 'Guild Message of the Day: "%s"', motd)
+      if displayReady then
+        AddToDisplay(1, formatted, cr2, cg2, cb2, "CHAT_MSG_GUILD", nil)
+      else
+        earlyBuffer[#earlyBuffer + 1] = {msg=formatted, r=cr2, g=cg2, b=cb2, event="CHAT_MSG_GUILD", t=time()}
+      end
+    end
+    return
+  end
+
+  _processingEvent = true
+  local body, cr, cg, cb = FormatChatMessage(event, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12)
+  if not body then _processingEvent = false; return end
+
+  -- Feed Dev Monitor Chat tab (only when monitor is open)
+  if NS._devChatSMF and NS.Debug and NS.Debug.LogChat then
+    local senderStr = not (isSecretValue(arg2)) and arg2 or "<secret>"
+    local msgStr = not (isSecretValue(arg1)) and arg1 and arg1:sub(1, 80) or "<secret>"
+    NS.Debug.LogChat(event, senderStr, msgStr)
+  end
+
+  -- Extract channel name for channel messages
+  local channelName = nil
+  if event == "CHAT_MSG_CHANNEL" and arg4 then
+    channelName = arg4:match("^%d+%.%s*(.+)") or arg4
+  end
+
+  if displayReady then
+    AddToDisplay(1, body, cr, cg, cb, event, channelName)
+  else
+    earlyBuffer[#earlyBuffer + 1] = {msg=body, r=cr, g=cg, b=cb, event=event, channelName=channelName, t=time()}
+  end
+  _processingEvent = false
+end)
+
+-- Suppress handled events from Blizzard's ChatFrame1 (prevent double messages)
+-- We use message filters that return true (= suppress) for events we handle ourselves
+for _, ev in ipairs(HANDLED_EVENTS) do
+  pcall(ChatFrame_AddMessageEventFilter, ev, function(self, event2, ...)
+    if NS.DB("chatEnabled") then return true end
     return false
   end)
 end
 
+-- Still hook AddMessage for addon messages (DBM, WeakAuras, etc.) that call AddMessage directly
 local f1 = ChatFrame1
 if f1 then
   hooksecurefunc(f1, "AddMessage", function(self, msg, r, g, b, infoID, accessID, typeID, event, ...)
+    if not NS.DB("chatEnabled") then return end
     if not msg then return end
-    local protected = issecretvalue and issecretvalue(msg)
-    if not protected then
-      local ok, safe = pcall(string.format, "%s", msg)
-      if ok then msg = safe end
-    end
-    -- Use cached event from message filter (most reliable), then AddMessage param, then fallback
-    local evTag = event or _pendingEventType or "LUI_ADDON"
-    _pendingEventType = nil
-    local channelName = nil
-    if evTag == "CHAT_MSG_CHANNEL" then
-      channelName = _pendingChannelName
-      _pendingChannelName = nil
+    -- Skip if our event handler is currently processing (prevents duplicates)
+    if _processingEvent then return end
+    -- Skip if this was a handled event
+    if event and HANDLED_SET[event] then return end
+    -- Skip internal Blizzard event tags that leak as messages (e.g. "FRIEND_OFFLINE")
+    local msgSafe = not (issecretvalue and issecretvalue(msg))
+    if msgSafe and type(msg) == "string" and msg:match("^[A-Z_]+$") then return end
+    -- Try to detect event type from color for guild/system messages
+    local evTag = event or "LUI_ADDON"
+    if not event then
+      local gi = ChatTypeInfo and ChatTypeInfo["GUILD"]
+      if gi and r and g and math.abs((r or 0) - (gi.r or 0)) < 0.02 and math.abs((g or 0) - (gi.g or 0)) < 0.02 then
+        evTag = "CHAT_MSG_GUILD"
+      end
     end
     local cr, cg, cb = r or 1, g or 1, b or 1
-    -- Apply custom message colors if configured
-    if event and LucidUIDB and LucidUIDB.chatColors then
-      local shortKey = event:gsub("^CHAT_MSG_", "")
-      local cc = LucidUIDB.chatColors[shortKey]
-      if cc then cr, cg, cb = cc.r, cc.g, cc.b end
+    local protected = isSecretValue(msg)
+    if not protected then
+      if NS.ChatFormatURLs then msg = NS.ChatFormatURLs(msg) end
     end
     if displayReady then
-      AddToDisplay(1, msg, cr, cg, cb, evTag, channelName)
+      AddToDisplay(1, msg, cr, cg, cb, evTag, nil)
     else
-      earlyBuffer[#earlyBuffer + 1] = {msg=msg, r=cr, g=cg, b=cb, event=evTag, channelName=channelName, t=time()}
+      earlyBuffer[#earlyBuffer + 1] = {msg=msg, r=cr, g=cg, b=cb, event=evTag, t=time()}
     end
   end)
 end
@@ -504,18 +715,8 @@ AddToDisplay = function(index, msg, r, g, b, event, channelName, unixTime)
   if not isRerendering then
     local t = unixTime or time()
     StoreMessage(index, msg, r, g, b, t, event, channelName)
+    -- Message is already formatted by our event handler — no Blizzard cleanup needed
     local cleanMsg = msg
-    if not protected then
-      local cleanOk, cleaned = pcall(function()
-        return msg
-          :gsub("^|cff%x%x%x%x%x%x%d?%d?:?%d%d:?%d?%d?[APMapm ]*|r ", "")
-          :gsub("^%d?%d?:?%d%d:?%d?%d?[APMapm ]* ", "")
-          :gsub("^|cff%x%x%x%x%x%x|||r ", "")
-      end)
-      if cleanOk then cleanMsg = cleaned end
-      if NS.ChatFormatURLs then cleanMsg = NS.ChatFormatURLs(cleanMsg) end
-      if NS.ChatShortenChannel then cleanMsg = NS.ChatShortenChannel(cleanMsg) end
-    end
     local ts = NS.ChatFormatTimestamp(t)
     local processedMsg = {t = cleanMsg or "", r = r or 1, g = g or 1, b = b or 1, prefix = ts, ts = t}
 
@@ -1538,6 +1739,9 @@ NS.ChatShowCopyWindow = function()
   if #lines == 0 then lines[1] = "(No messages)" end
   local text = table.concat(lines, "\n")
 
+  local ar, ag, ab = GetAccentColor()
+  local BD = {bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1}
+
   local frame = CreateFrame("Frame", "LTChatCopyFrame", UIParent, "BackdropTemplate")
   frame:SetSize(500, 400)
   frame:SetPoint("CENTER")
@@ -1549,21 +1753,46 @@ NS.ChatShowCopyWindow = function()
   frame:SetScript("OnDragStart", function() frame:StartMoving() end)
   frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
   frame:EnableMouse(true)
-  frame:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
-  frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95)
-  frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+  frame:SetBackdrop(BD)
+  frame:SetBackdropColor(0.025, 0.025, 0.038, 0.97)
+  frame:SetBackdropBorderColor(ar, ag, ab, 0.38)
 
-  local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  title:SetPoint("TOP", 0, -6); title:SetText(">" .. L["Copy Chat"] .. "<")
-  local ar, ag, ab = GetAccentColor()
+  -- Accent line
+  local accentLine = frame:CreateTexture(nil, "OVERLAY", nil, 5)
+  accentLine:SetPoint("TOPLEFT", 1, -1); accentLine:SetPoint("TOPRIGHT", -1, -1)
+  accentLine:SetHeight(1); accentLine:SetColorTexture(ar, ag, ab, 1)
+
+  -- Header background
+  local headerBg = frame:CreateTexture(nil, "BACKGROUND", nil, 2)
+  headerBg:SetPoint("TOPLEFT", 1, -1); headerBg:SetPoint("TOPRIGHT", -1, -1)
+  headerBg:SetHeight(28); headerBg:SetColorTexture(0.010, 0.010, 0.020, 1)
+
+  -- Title
+  local title = frame:CreateFontString(nil, "OVERLAY")
+  title:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  title:SetPoint("LEFT", headerBg, "LEFT", 10, 0)
   title:SetTextColor(ar, ag, ab)
+  title:SetText(L["Copy Chat"])
 
-  local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  closeBtn:SetPoint("TOPRIGHT", 2, 2)
+  -- Close button (settings style)
+  local closeBtn = CreateFrame("Button", nil, frame, "BackdropTemplate")
+  closeBtn:SetSize(20, 20); closeBtn:SetPoint("TOPRIGHT", -4, -4)
+  closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09, 0.02, 0.02, 1)
+  closeBtn:SetBackdropBorderColor(0.34, 0.09, 0.09, 1)
+  local cX = closeBtn:CreateFontString(nil, "OVERLAY")
+  cX:SetFont("Fonts/FRIZQT__.TTF", 10, ""); cX:SetPoint("CENTER"); cX:SetTextColor(0.60, 0.18, 0.18); cX:SetText("X")
   closeBtn:SetScript("OnClick", function() frame:Hide(); copyFrame = nil end)
+  closeBtn:SetScript("OnEnter", function() closeBtn:SetBackdropBorderColor(0.60, 0.12, 0.12, 1); cX:SetTextColor(1, 0.3, 0.3) end)
+  closeBtn:SetScript("OnLeave", function() closeBtn:SetBackdropBorderColor(0.34, 0.09, 0.09, 1); cX:SetTextColor(0.60, 0.18, 0.18) end)
 
+  -- Header line
+  local hLine = frame:CreateTexture(nil, "OVERLAY", nil, 4)
+  hLine:SetPoint("TOPLEFT", 1, -28); hLine:SetPoint("TOPRIGHT", -1, -28)
+  hLine:SetHeight(1); hLine:SetColorTexture(ar, ag, ab, 0.3)
+
+  -- Scroll frame
   local sf = CreateFrame("ScrollFrame", "LTChatCopyScroll", frame, "UIPanelScrollFrameTemplate")
-  sf:SetPoint("TOPLEFT", 10, -22); sf:SetPoint("BOTTOMRIGHT", -30, 10)
+  sf:SetPoint("TOPLEFT", 10, -34); sf:SetPoint("BOTTOMRIGHT", -30, 24)
 
   local editBox = CreateFrame("EditBox", "LTChatCopyEB", frame)
   editBox:SetMultiLine(true); editBox:SetAutoFocus(true)
@@ -1571,13 +1800,22 @@ NS.ChatShowCopyWindow = function()
   editBox:SetScript("OnEscapePressed", function() frame:Hide(); copyFrame = nil end)
   sf:SetScrollChild(editBox)
 
+  -- Resize handle
   local resizeBtn = CreateFrame("Button", nil, frame)
   resizeBtn:SetSize(16, 16); resizeBtn:SetPoint("BOTTOMRIGHT", -2, 2)
   resizeBtn:SetNormalTexture("Interface/AddOns/LucidUI/Assets/resize.png")
+  resizeBtn:GetNormalTexture():SetVertexColor(0.4, 0.4, 0.5)
   resizeBtn:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
   resizeBtn:SetScript("OnMouseUp", function()
     frame:StopMovingOrSizing(); editBox:SetWidth(sf:GetWidth())
   end)
+  resizeBtn:SetScript("OnEnter", function() resizeBtn:GetNormalTexture():SetVertexColor(ar, ag, ab) end)
+  resizeBtn:SetScript("OnLeave", function() resizeBtn:GetNormalTexture():SetVertexColor(0.4, 0.4, 0.5) end)
+
+  -- Bottom line
+  local bLine = frame:CreateTexture(nil, "OVERLAY", nil, 4)
+  bLine:SetPoint("BOTTOMLEFT", 1, 22); bLine:SetPoint("BOTTOMRIGHT", -1, 22)
+  bLine:SetHeight(1); bLine:SetColorTexture(ar, ag, ab, 0.15)
 
   C_Timer.After(0, function()
     if not frame:IsShown() then return end
