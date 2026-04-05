@@ -4,6 +4,7 @@
 local NS = LucidUINS
 NS.CastBar = NS.CastBar or {}
 local CB = NS.CastBar
+local cbInitialized = false
 
 -- ── Defaults ────────────────────────────────────────────────────────────
 local DEFAULTS = {
@@ -281,8 +282,22 @@ local evFrame = CreateFrame("Frame")
 local function OnEvent(_, event, unit, ...)
   if event == "PLAYER_LOGIN" then
     if not NS.IsCDMEnabled() then return end
-    -- Init after Resources so anchor exists
-    C_Timer.After(1.0, function() NS.SafeCall(CB.Enable, "CastBar") end)
+    C_Timer.After(1.0, function()
+      if cbInitialized then return end
+      cbInitialized = true
+      NS.SafeCall(CB.Enable, "CastBar")
+    end)
+    return
+  end
+  if event == "PLAYER_ENTERING_WORLD" then
+    local isInitialLogin = ...
+    if isInitialLogin or cbInitialized then return end
+    if not NS.IsCDMEnabled() then return end
+    C_Timer.After(1.0, function()
+      if cbInitialized then return end
+      cbInitialized = true
+      NS.SafeCall(CB.Enable, "CastBar")
+    end)
     return
   end
   if event == "PLAYER_LOGOUT" then
@@ -308,6 +323,7 @@ local function OnEvent(_, event, unit, ...)
 end
 
 evFrame:RegisterEvent("PLAYER_LOGIN")
+evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 evFrame:RegisterEvent("PLAYER_LOGOUT")
 evFrame:SetScript("OnEvent", OnEvent)
 

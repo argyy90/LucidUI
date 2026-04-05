@@ -94,7 +94,7 @@ local function ShowReadyGlow(frame)
     LCG.ButtonGlow_Start(frame, color, 0.2)
   elseif glowType == "proc" then
     LCG.ProcGlow_Start(frame, {color = color, duration = Opt("readyGlowDuration") or 2, key = GLOW_KEY})
-    return -- proc has its own duration, skip auto-clear
+    return
   end
 
   local dur = Opt("readyGlowDuration") or 2
@@ -342,7 +342,6 @@ end
 
 -- ── Layout a viewer's frames ────────────────────────────────────────────
 local function LayoutViewer(viewerName)
-  if InCombatLockdown() then return end
   local viewer = _G[viewerName]
   if not viewer or not viewer.itemFramePool then return end
   if not NS.IsCDMEnabled() then return end
@@ -392,10 +391,10 @@ local function LayoutViewer(viewerName)
     math.max(1, totalRows * (h + spacing) - spacing)
   )
 
-  -- Sync viewer to container
-  rawClearAllPoints(viewer)
-  rawSetPoint(viewer, "TOPLEFT", container, "TOPLEFT", 0, 0)
-  rawSetPoint(viewer, "BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+  -- Sync viewer to container (protected in combat — pcall to avoid taint errors)
+  pcall(rawClearAllPoints, viewer)
+  pcall(rawSetPoint, viewer, "TOPLEFT", container, "TOPLEFT", 0, 0)
+  pcall(rawSetPoint, viewer, "BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
 end
 
 -- ── Force reanchor all frames in a viewer ───────────────────────────────
@@ -489,11 +488,10 @@ function CD.Enable()
   for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
     GetContainer(name)
     SetupViewerHooks(name)
-    -- Reparent viewer to UIParent to remove from Blizzard's managed BottomFrameContainer
-    -- This prevents UIParentManageFramePositions from repositioning the viewer during combat
+    -- Reparent viewer to UIParent (protected op — pcall in combat)
     local viewer = _G[name]
     if viewer and viewer:GetParent() ~= UIParent then
-      viewer:SetParent(UIParent)
+      pcall(viewer.SetParent, viewer, UIParent)
     end
     LayoutViewer(name)
   end
@@ -571,12 +569,13 @@ end
 
 local evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
+evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 evFrame:RegisterEvent("PLAYER_LOGOUT")
 evFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 evFrame:RegisterEvent("SPELLS_CHANGED")
-evFrame:SetScript("OnEvent", function(_, event)
+evFrame:SetScript("OnEvent", function(_, event, ...)
   if event == "PLAYER_LOGIN" then
     if not NS.IsCDMEnabled() then return end
     C_Timer.After(0.5, function()
@@ -588,9 +587,29 @@ evFrame:SetScript("OnEvent", function(_, event)
     C_Timer.After(1.5, function()
       NS.RefreshAnchorChain()
     end)
+  elseif event == "PLAYER_ENTERING_WORLD" then
+    -- Reconnect/reload: PLAYER_LOGIN doesn't fire on reconnect; on reload we also re-init
+    local isInitialLogin = ...
+    if isInitialLogin or initialized then return end
+    if not NS.IsCDMEnabled() then return end
+    C_Timer.After(0.5, function()
+      if initialized then return end
+      initialized = true
+      NS.SafeCall(CD.Enable, "Cooldowns")
+    end)
+    C_Timer.After(1.5, function() NS.RefreshAnchorChain() end)
   elseif event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "SPELLS_CHANGED" then
     OnSpecChange()
   elseif event == "PLAYER_REGEN_ENABLED" then
+    -- Re-do protected ops that may have failed during combat init
+    if initialized and NS.IsCDMEnabled() then
+      for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+        local viewer = _G[name]
+        if viewer and viewer:GetParent() ~= UIParent then
+          pcall(viewer.SetParent, viewer, UIParent)
+        end
+      end
+    end
     if initialized and NS.IsCDMEnabled() then
       -- Flush any dirty viewers from combat
       for vn in pairs(combatDirty) do

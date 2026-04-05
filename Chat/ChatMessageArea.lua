@@ -274,10 +274,14 @@ function NS.CreateChatMessageArea(parent, name)
       if lenOk and textLen then
         s.measureFS:SetWidth(cw > 0 and cw or 200)
         s.measureFS:SetText(m.t)
-        local strH = s.measureFS:GetStringHeight()
-        if strH and strH > 0 then
-          h = math.max(LINE_H, math.ceil(strH) + 4)
-          measured = true
+        local rawStrH = s.measureFS:GetStringHeight()
+        if rawStrH then
+          local okH, numH = pcall(function() return tonumber(string.format("%.1f", rawStrH)) end)
+          local strH = (okH and numH) and numH or 0
+          if strH > 0 then
+            h = math.max(LINE_H, math.ceil(strH) + 4)
+            measured = true
+          end
         end
       end
       if not measured then
@@ -297,7 +301,14 @@ function NS.CreateChatMessageArea(parent, name)
       s.contentFS:Show()
 
       -- Get actual rendered height from the FontString (no LINE_H padding)
-      h = s.contentFS:GetStringHeight() or LINE_H
+      -- GetStringHeight can return a secret number (tainted text) — detaint via string.format
+      local rawH = s.contentFS:GetStringHeight()
+      if rawH then
+        local ok, num = pcall(function() return tonumber(string.format("%.1f", rawH)) end)
+        h = (ok and num and num > 0) and num or LINE_H
+      else
+        h = LINE_H
+      end
 
       -- Timestamp: anchor LEFT + same vertical position as content TOP
       if showTs then

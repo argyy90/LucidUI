@@ -532,12 +532,17 @@ end
 -- ── Init ────────────────────────────────────────────────────────────────
 local evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
+evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 evFrame:RegisterEvent("PLAYER_LOGOUT")
 evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 evFrame:RegisterEvent("SPELLS_CHANGED")
-evFrame:SetScript("OnEvent", function(_, event)
-  if event == "PLAYER_LOGIN" then
+evFrame:SetScript("OnEvent", function(_, event, arg1)
+  if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+    if event == "PLAYER_ENTERING_WORLD" then
+      if arg1 or initialized then return end -- skip initial login, already init
+    end
+    if initialized then return end
     if not NS.IsCDMEnabled() then return end
     C_Timer.After(0.5, function()
       if initialized then return end

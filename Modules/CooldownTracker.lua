@@ -760,9 +760,11 @@ end
 -- ── Init ──────────────────────────────────────────────────────────────────
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("PLAYER_LOGIN")
+initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 initFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 initFrame:RegisterEvent("PLAYER_LOGOUT")
-initFrame:SetScript("OnEvent", function(_, event)
+local ctInitialized = false
+initFrame:SetScript("OnEvent", function(_, event, arg1)
   if event == "PLAYER_LOGOUT" then
     for _, entry in ipairs(GetSpells()) do
       local f = trackerFrames[entry.uid]
@@ -783,12 +785,17 @@ initFrame:SetScript("OnEvent", function(_, event)
     end
     return
   end
-  if event == "PLAYER_LOGIN" then
+  if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+    if event == "PLAYER_ENTERING_WORLD" then
+      if arg1 or ctInitialized then return end -- skip initial login, already init
+    end
+    if ctInitialized then return end
     if NS.DB("cdTrackerEnabled") == false then
       evFrame:UnregisterAllEvents(); StopUpdateTicker(); return
     end
+    ctInitialized = true
     C_Timer.After(1, function() CT.Refresh() end)
-  else
+  elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
     CT.Refresh()
   end
 end)

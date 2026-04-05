@@ -377,10 +377,16 @@ end
 -- ── Event handling ──────────────────────────────────────────────────────
 local evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
-evFrame:SetScript("OnEvent", function(_, event)
-  if event == "PLAYER_LOGIN" then
+evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+evFrame:SetScript("OnEvent", function(_, event, arg1)
+  if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+    if event == "PLAYER_ENTERING_WORLD" then
+      if arg1 or initialized then return end -- skip initial login, already init
+    end
+    if initialized then return end
     if not NS.IsCDMEnabled() or not Opt("enabled") then return end
     C_Timer.After(1.2, function()
+      if initialized then return end
       NS.SafeCall(function()
         initialized = true
         FullRefresh()

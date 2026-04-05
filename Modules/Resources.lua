@@ -4,6 +4,7 @@
 local NS = LucidUINS
 NS.Resources = NS.Resources or {}
 local RES = NS.Resources
+local resInitialized = false
 
 -- ── Power type colors ───────────────────────────────────────────────────
 local POWER_COLORS = {
@@ -454,10 +455,16 @@ end
 -- ── Event handling ──────────────────────────────────────────────────────
 local evFrame = CreateFrame("Frame")
 
-local function OnEvent(_, event, unit, powerType)
-  if event == "PLAYER_LOGIN" then
+local function OnEvent(_, event, arg1)
+  if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+    if event == "PLAYER_ENTERING_WORLD" then
+      if arg1 or resInitialized then return end -- skip initial login, already init
+    end
+    if resInitialized then return end
     if not NS.IsCDMEnabled() then return end
     C_Timer.After(0.8, function()
+      if resInitialized then return end
+      resInitialized = true
       NS.SafeCall(function()
         DetectResources()
         CreateMainBar(); CreateSecBar(); CreateManaBar()
@@ -505,16 +512,17 @@ local function OnEvent(_, event, unit, powerType)
     return
   end
   if event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" then
-    if unit == "player" then UpdatePower() end
+    if arg1 == "player" then UpdatePower() end
     return
   end
   if event == "UNIT_POWER_POINT_CHARGE" then
-    if unit == "player" then UpdatePower() end
+    if arg1 == "player" then UpdatePower() end
     return
   end
 end
 
 evFrame:RegisterEvent("PLAYER_LOGIN")
+evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 evFrame:RegisterEvent("PLAYER_LOGOUT")
 evFrame:SetScript("OnEvent", OnEvent)
 
