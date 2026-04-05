@@ -239,9 +239,10 @@ function NS.CreateChatMessageArea(parent, name)
 
     local total  = #msgs
     local frameH = frame:GetHeight() or 200
-    local yOff   = 2
     local i      = 0
     local msgIdx = total - offset
+    local prevFS = nil  -- previous content FontString for anchor chaining
+    local gap    = ROW_GAP + 2  -- spacing between messages
 
     while msgIdx >= 1 do
       i = i + 1
@@ -257,60 +258,36 @@ function NS.CreateChatMessageArea(parent, name)
       if showTs and showSep then
         cLeftX = L_PAD + tsColW + SEP_GAP_L + SEP_W + SEP_GAP_R
       elseif showTs then
-        cLeftX = L_PAD + tsColW + 0  -- timestamp only, small gap
+        cLeftX = L_PAD + tsColW + 0
       elseif showSep then
         cLeftX = L_PAD + SEP_W + SEP_GAP_R
       else
         cLeftX = L_PAD
       end
 
-      -- Content column: measure first, then position
       local cw = frame:GetWidth() - cLeftX - (SB_W + 4)
-      local h = LINE_H
 
-      -- Measure text height
-      local measured = false
-      local lenOk, textLen = pcall(string.len, m.t)
-      if lenOk and textLen then
-        s.measureFS:SetWidth(cw > 0 and cw or 200)
-        s.measureFS:SetText(m.t)
-        local rawStrH = s.measureFS:GetStringHeight()
-        if rawStrH then
-          local okH, numH = pcall(function() return tonumber(string.format("%.1f", rawStrH)) end)
-          local strH = (okH and numH) and numH or 0
-          if strH > 0 then
-            h = math.max(LINE_H, math.ceil(strH) + 4)
-            measured = true
-          end
-        end
-      end
-      if not measured then
-        local charsPerLine = math.max(1, math.floor((cw > 0 and cw or 200) / (SIZE * 0.6)))
-        local estLen = 80
-        local estLines = math.max(1, math.ceil(estLen / charsPerLine))
-        h = estLines * LINE_H
-      end
-      h = math.max(LINE_H, h)
-
-      -- Position content FontString: set width, let height be natural
+      -- Position content FontString using anchor chaining (Chattynator approach)
+      -- WoW auto-calculates FontString height for word-wrapped text — no manual measurement needed
       s.contentFS:ClearAllPoints()
       s.contentFS:SetWidth(cw > 0 and cw or 200)
-      s.contentFS:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", cLeftX, yOff)
+      if prevFS then
+        -- Chain: anchor bottom of this message to top of previous message + gap
+        s.contentFS:SetPoint("BOTTOMLEFT", prevFS, "TOPLEFT", 0, gap)
+      else
+        -- First message: anchor to bottom of frame
+        s.contentFS:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", cLeftX, 2)
+      end
       s.contentFS:Clear()
       s.contentFS:AddMessage(m.t, m.r, m.g, m.b)
       s.contentFS:Show()
 
-      -- Get actual rendered height from the FontString (no LINE_H padding)
-      -- GetStringHeight can return a secret number (tainted text) — detaint via string.format
-      local rawH = s.contentFS:GetStringHeight()
-      if rawH then
-        local ok, num = pcall(function() return tonumber(string.format("%.1f", rawH)) end)
-        h = (ok and num and num > 0) and num or LINE_H
-      else
-        h = LINE_H
+      -- Fix left offset for chained messages (first one gets cLeftX from frame, rest inherit)
+      if prevFS then
+        s.contentFS:SetPoint("LEFT", frame, "LEFT", cLeftX, 0)
       end
 
-      -- Timestamp: anchor LEFT + same vertical position as content TOP
+      -- Timestamp: anchor to content TOP
       if showTs then
         local livePrefix = m.prefix
         if m.ts and NS.ChatFormatTimestamp then
@@ -346,10 +323,7 @@ function NS.CreateChatMessageArea(parent, name)
         s.sepTex:Hide()
       end
 
-      -- Consistent spacing: base gap + user spacing
-      -- Multi-line messages get a small minimum gap so text doesn't run together
-      local baseGap = 2
-      yOff = yOff + h + baseGap + ROW_GAP
+      prevFS = s.contentFS
 
       -- Fade alpha (only when at bottom, scroll up reveals faded messages)
       if fadingEnabled and m.addedAt and offset == 0 then
@@ -365,7 +339,8 @@ function NS.CreateChatMessageArea(parent, name)
       end
 
       msgIdx = msgIdx - 1
-      if yOff > frameH + LINE_H then break end
+      -- Overflow check: estimate if we've filled the visible area
+      if i * (LINE_H + gap) > frameH + LINE_H then break end
     end
 
     for j = i + 1, #slots do hideSlot(slots[j]) end

@@ -216,7 +216,7 @@ end
 
 -- ── Style a single CD frame ─────────────────────────────────────────────
 local function StyleFrame(frame, w, h)
-  frame:SetSize(w, h)
+  pcall(frame.SetSize, frame, w, h)
 
   -- Icon texture
   local tex = frame.Icon or (frame:GetRegions())
@@ -328,9 +328,9 @@ local function PlaceFrame(frame, container, x, y)
   local fd = GetFD(frame)
   fd.cdmAnchor = {"TOPLEFT", container, "TOPLEFT", Snap(x), Snap(y)}
 
-  rawClearAllPoints(frame)
-  rawSetPoint(frame, "TOPLEFT", container, "TOPLEFT", Snap(x), Snap(y))
-  frame:Show()
+  pcall(rawClearAllPoints, frame)
+  pcall(rawSetPoint, frame, "TOPLEFT", container, "TOPLEFT", Snap(x), Snap(y))
+  pcall(frame.Show, frame)
 end
 
 -- ── Install SetPoint hook on individual frame ───────────────────────────
@@ -391,10 +391,10 @@ local function LayoutViewer(viewerName)
     if col >= perRow then col = 0; row = row + 1 end
   end
 
-  -- Size container
+  -- Size container (protected in combat for named frames — pcall to avoid taint)
   local totalCols = math.min(#frames, perRow)
   local totalRows = math.ceil(math.max(1, #frames) / perRow)
-  container:SetSize(
+  pcall(container.SetSize, container,
     math.max(1, totalCols * (w + spacing) - spacing),
     math.max(1, totalRows * (h + spacing) - spacing)
   )
