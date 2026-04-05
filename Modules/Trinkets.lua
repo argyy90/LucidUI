@@ -31,15 +31,7 @@ local DEFAULTS = {
   showCooldownText = true,
 }
 
-local function Opt(key)
-  local db = LucidUIDB
-  if db and db["tr_" .. key] ~= nil then return db["tr_" .. key] end
-  return DEFAULTS[key]
-end
-local function OptSet(key, val)
-  if not LucidUIDB then return end
-  LucidUIDB["tr_" .. key] = val
-end
+local Opt, OptSet = NS.MakeOpt("tr_", DEFAULTS)
 
 -- ── State ───────────────────────────────────────────────────────────────
 local trkContainer, racContainer = nil, nil
@@ -68,7 +60,7 @@ end
 -- ── Create icon frame ───────────────────────────────────────────────────
 local function CreateIcon(parent)
   local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-  f:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  f:SetBackdrop({edgeFile=NS.TEX_WHITE, edgeSize=1})
   f:SetBackdropBorderColor(0, 0, 0, 1)
   f:SetBackdropColor(0, 0, 0, 0)
 
@@ -81,7 +73,7 @@ local function CreateIcon(parent)
   f.cd:SetDrawEdge(false)
 
   f.count = f:CreateFontString(nil, "OVERLAY")
-  f.count:SetFont("Fonts/FRIZQT__.TTF", 11, "THICKOUTLINE")
+  f.count:SetFont(NS.FONT, 11, "THICKOUTLINE")
   f.count:SetPoint("BOTTOMRIGHT", -1, 1)
   f.count:SetTextColor(1, 1, 1)
 
@@ -161,7 +153,7 @@ local function UpdateTrinket(frame, slotID)
   -- Apply CD font size
   local cdFs = Opt("trkCdFontSize")
   for _, region in ipairs({frame.cd:GetRegions()}) do
-    if region:IsObjectType("FontString") then region:SetFont("Fonts/FRIZQT__.TTF", cdFs, "OUTLINE") end
+    if region:IsObjectType("FontString") then region:SetFont(NS.FONT, cdFs, "OUTLINE") end
   end
   frame.count:SetText("")
   frame:Show()
@@ -262,9 +254,9 @@ local function UpdateRacialIcon(frame, entry)
   -- Apply CD + stack font sizes
   local cdFs = Opt("racCdFontSize")
   for _, region in ipairs({frame.cd:GetRegions()}) do
-    if region:IsObjectType("FontString") then region:SetFont("Fonts/FRIZQT__.TTF", cdFs, "OUTLINE") end
+    if region:IsObjectType("FontString") then region:SetFont(NS.FONT, cdFs, "OUTLINE") end
   end
-  frame.count:SetFont("Fonts/FRIZQT__.TTF", Opt("racStackFontSize") or 11, "THICKOUTLINE")
+  frame.count:SetFont(NS.FONT, Opt("racStackFontSize") or 11, "THICKOUTLINE")
   frame:Show()
 end
 
@@ -414,9 +406,13 @@ end)
 -- ── Public API ──────────────────────────────────────────────────────────
 function TR.Enable() initialized = true; FullRefresh() end
 function TR.Disable()
+  evFrame:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED")
+  evFrame:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  evFrame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
   if trkContainer then trkContainer:Hide() end
   if racContainer then racContainer:Hide() end
   if TR._ticker then TR._ticker:Cancel(); TR._ticker = nil end
+  initialized = false
 end
 function TR.Refresh() if initialized then FullRefresh() end end
 
@@ -425,7 +421,7 @@ function TR.SetupSettings(parent)
   local MakeCard = NS._SMakeCard
   local MakePage = NS._SMakePage
   local R = NS._SR
-  local SBD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local SBD = NS.BACKDROP
   local cont = CreateFrame("Frame", nil, parent)
   local sc, Append = MakePage(cont)
 
@@ -439,13 +435,13 @@ function TR.SetupSettings(parent)
     local enRow = CreateFrame("Frame", nil, card.inner); enRow:SetHeight(26)
     local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
     resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-    local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+    local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
     resetBtn:SetScript("OnClick", function() OptSet(posKey, nil); OptSet(offXKey, 0); OptSet(offYKey, 0); TR.Refresh() end)
     resetBtn:SetScript("OnEnter", function() local r,g,b = NS.ChatGetAccentRGB(); resetBtn:SetBackdropBorderColor(r, g, b, 0.8) end)
     resetBtn:SetScript("OnLeave", function() resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end)
     local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
     lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-    local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+    local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
     local unlocked = false
     lockBtn:SetScript("OnClick", function()
       unlocked = not unlocked; lockFS:SetText(unlocked and "Lock" or "Unlock")
@@ -546,9 +542,9 @@ function TR.SetupSettings(parent)
   local addBtn = CreateFrame("Button", nil, addRow, "BackdropTemplate")
   addBtn:SetSize(50, 20); addBtn:SetPoint("LEFT", eb, "RIGHT", 4, 0)
   addBtn:SetBackdrop(SBD); addBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); addBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local addFS = addBtn:CreateFontString(nil, "OVERLAY"); addFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); addFS:SetPoint("CENTER"); addFS:SetTextColor(0.65, 0.65, 0.75); addFS:SetText("Add")
+  local addFS = addBtn:CreateFontString(nil, "OVERLAY"); addFS:SetFont(NS.FONT, 9, ""); addFS:SetPoint("CENTER"); addFS:SetTextColor(0.65, 0.65, 0.75); addFS:SetText("Add")
   local hint = addRow:CreateFontString(nil, "OVERLAY")
-  hint:SetFont("Fonts/FRIZQT__.TTF", 9, ""); hint:SetPoint("LEFT", addBtn, "RIGHT", 8, 0)
+  hint:SetFont(NS.FONT, 9, ""); hint:SetPoint("LEFT", addBtn, "RIGHT", 8, 0)
   hint:SetTextColor(0.4, 0.4, 0.5); hint:SetText("Spell or Item ID")
   R(cCustom, addRow, 30)
 
@@ -562,9 +558,9 @@ function TR.SetupSettings(parent)
     local row = CreateFrame("Frame", nil, listHolder); row:SetHeight(24)
     row._icon = row:CreateTexture(nil, "ARTWORK"); row._icon:SetSize(18, 18); row._icon:SetPoint("LEFT", 4, 0)
     row._icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    row._label = row:CreateFontString(nil, "OVERLAY"); row._label:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    row._label = row:CreateFontString(nil, "OVERLAY"); row._label:SetFont(NS.FONT, 10, "")
     row._label:SetPoint("LEFT", row._icon, "RIGHT", 6, 0); row._label:SetTextColor(0.7, 0.7, 0.8)
-    row._idText = row:CreateFontString(nil, "OVERLAY"); row._idText:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+    row._idText = row:CreateFontString(nil, "OVERLAY"); row._idText:SetFont(NS.FONT, 9, "")
     row._idText:SetTextColor(0.4, 0.4, 0.5)
     local delBtn = CreateFrame("Button", nil, row); delBtn:SetSize(16, 16); delBtn:SetPoint("RIGHT", -4, 0)
     local delTex = delBtn:CreateTexture(nil, "ARTWORK"); delTex:SetAllPoints()

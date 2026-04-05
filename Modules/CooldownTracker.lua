@@ -6,7 +6,7 @@ NS.CooldownTracker = NS.CooldownTracker or {}
 local CT = NS.CooldownTracker
 CT._unlocked = false
 
-local CD_FONT = "Fonts/FRIZQT__.TTF"
+local CD_FONT = NS.FONT
 
 -- ── DB ──────────────────────────────────────────────────────────────────
 local function GetSpells()
@@ -46,6 +46,7 @@ glowTickFrame:Hide()
 local function StopGlowTicker()
   glowTickFrame:SetScript("OnUpdate", nil)
   glowTickFrame:Hide()
+  glowElapsed = 0  -- reset to prevent float precision loss over long sessions
 end
 
 local function StartGlowTicker()
@@ -196,7 +197,7 @@ local function BuildTracker(uid, spellID, entry)
     -- Bar
     f.barBg    = CreateFrame("Frame", nil, f)
     f.barBgTex = f.barBg:CreateTexture(nil, "BACKGROUND")
-    f.barBgTex:SetAllPoints(); f.barBgTex:SetTexture("Interface/Buttons/WHITE8X8")
+    f.barBgTex:SetAllPoints(); f.barBgTex:SetTexture(NS.TEX_WHITE)
     f.barBgTex:SetVertexColor(0.03, 0.03, 0.05, 0.85)
     f.barFill = f.barBg:CreateTexture(nil, "ARTWORK")
     f.barFill:SetPoint("TOPLEFT", 1, -1); f.barFill:SetPoint("BOTTOMLEFT", 1, 1)
@@ -761,8 +762,8 @@ end
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-initFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 initFrame:RegisterEvent("PLAYER_LOGOUT")
+-- ACTIVE_TALENT_GROUP_CHANGED registered after init to avoid waste when disabled
 local ctInitialized = false
 initFrame:SetScript("OnEvent", function(_, event, arg1)
   if event == "PLAYER_LOGOUT" then
@@ -794,9 +795,10 @@ initFrame:SetScript("OnEvent", function(_, event, arg1)
       evFrame:UnregisterAllEvents(); StopUpdateTicker(); return
     end
     ctInitialized = true
-    C_Timer.After(1, function() CT.Refresh() end)
+    initFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+    C_Timer.After(1, function() NS.SafeCall(CT.Refresh, "CooldownTracker") end)
   elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
-    CT.Refresh()
+    NS.SafeCall(CT.Refresh, "CooldownTracker")
   end
 end)
 
@@ -855,14 +857,14 @@ function CT.SetupSettings(parent)
   local container = CreateFrame("Frame", nil, parent)
   local function AC() return NS.ChatGetAccentRGB() end
   local ar, ag, ab = AC()
-  local SBD        = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local SBD        = {bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1}
   local SIDEBAR_W  = 200
   local TOP_H      = 30
 
   -- Card background
   local cardBg = CreateFrame("Frame", nil, container, "BackdropTemplate")
   cardBg:SetPoint("TOPLEFT", 2, -2); cardBg:SetPoint("BOTTOMRIGHT", -2, 2)
-  cardBg:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  cardBg:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
   cardBg:SetBackdropColor(0.034, 0.034, 0.056, 1)
   cardBg:SetBackdropBorderColor(0.08, 0.08, 0.13, 1)
   local accBar = cardBg:CreateTexture(nil, "OVERLAY", nil, 5); accBar:SetWidth(3)

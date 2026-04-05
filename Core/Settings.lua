@@ -21,7 +21,7 @@ StaticPopupDialogs["LUCIDUI_CHAT_RELOAD"] = {
 -- ═══════════════════════════════════════════════════════════════════════
 --  LAYOUT HELPERS  — shared via NS so LucidMeter & Bags can use them
 -- ═══════════════════════════════════════════════════════════════════════
-local BD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+local BD = NS.BACKDROP
 
 -- MakePage: scrollable page with cursor-based Append()
 local function MakePage(parent)
@@ -120,7 +120,7 @@ local function MakeCard(sc,title)
   if title then
     -- Diamond bullet + title
     local fs=card:CreateFontString(nil,"OVERLAY")
-    fs:SetFont("Fonts/FRIZQT__.TTF",9,"OUTLINE")
+    fs:SetFont(NS.FONT,9,"OUTLINE")
     fs:SetPoint("TOPLEFT",10,-7)
     fs:SetTextColor(ar,ag,ab,1)
     fs:SetText("> "..title:upper())
@@ -258,7 +258,7 @@ local function SetupAppearance(parent)
     btn:SetBackdropBorderColor(act and cr or 0.12,act and cg or 0.12,act and cb or 0.12,1)
     -- corner cut
     local cut=btn:CreateTexture(nil,"OVERLAY",nil,4); cut:SetSize(10,1); cut:SetPoint("TOPRIGHT",btn,"TOPRIGHT",0,-1); cut:SetColorTexture(ar,ag,ab,0.40)
-    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,""); fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.80,0.80,0.88); fs:SetText(lbl)
+    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont(NS.FONT,10,""); fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.80,0.80,0.88); fs:SetText(lbl)
     btn:SetScript("OnEnter",function() local cr2,cg2,cb2=NS.ChatGetAccentRGB(); btn:SetBackdropBorderColor(cr2,cg2,cb2,1) end)
     btn:SetScript("OnLeave",function() local a=isCustom==(key=="custom"); local cr2,cg2,cb2=NS.ChatGetAccentRGB(); btn:SetBackdropBorderColor(a and cr2 or 0.12,a and cg2 or 0.12,a and cb2 or 0.12,1) end)
     btn:SetPoint(anchorPt,btnRow,anchorPt,xOff,0)
@@ -557,7 +557,7 @@ local function SetupAdvanced(parent)
     local btn=CreateFrame("Button",nil,par,"BackdropTemplate"); btn:SetSize(88,22); btn:SetBackdrop(BD)
     btn:SetBackdropColor(0.04,0.04,0.07,1); btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
     local cut=btn:CreateTexture(nil,"OVERLAY",nil,4); cut:SetSize(8,1); cut:SetPoint("TOPRIGHT",btn,"TOPRIGHT",0,-1); cut:SetColorTexture(0,1,1,0.25)
-    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,""); fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.75,0.75,0.85); fs:SetText(txt)
+    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont(NS.FONT,10,""); fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.75,0.75,0.85); fs:SetText(txt)
     btn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); btn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
     btn:SetScript("OnLeave",function() btn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
     return btn
@@ -570,11 +570,11 @@ local function SetupAdvanced(parent)
   local function MakeIEButton(parent, text)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetHeight(22)
-    btn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    btn:SetBackdrop(NS.BACKDROP)
     btn:SetBackdropColor(0.08, 0.08, 0.08, 1)
     btn:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
     local lbl = btn:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 11, ""); lbl:SetPoint("CENTER")
+    lbl:SetFont(NS.FONT, 11, ""); lbl:SetPoint("CENTER")
     lbl:SetTextColor(1, 1, 1, 1); lbl:SetText(text)
     btn._label = lbl
     btn:SetScript("OnEnter", function() btn:SetBackdropBorderColor(NS.ChatGetAccentRGB()) end)
@@ -593,11 +593,11 @@ local function SetupAdvanced(parent)
   if profileDD.Arrow then profileDD.Arrow:SetAlpha(0) end
   local ddBd = CreateFrame("Frame", nil, profileDD, "BackdropTemplate")
   ddBd:SetAllPoints(); ddBd:SetFrameLevel(profileDD:GetFrameLevel())
-  ddBd:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  ddBd:SetBackdrop(NS.BACKDROP)
   ddBd:SetBackdropColor(0.08, 0.08, 0.08, 1); ddBd:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
   ddBd:EnableMouse(false)
   local ddArr = ddBd:CreateFontString(nil, "OVERLAY")
-  ddArr:SetFont("Fonts/FRIZQT__.TTF", 9, ""); ddArr:SetPoint("RIGHT", -5, 0)
+  ddArr:SetFont(NS.FONT, 9, ""); ddArr:SetPoint("RIGHT", -5, 0)
   local acR2, acG2, acB2 = NS.ChatGetAccentRGB()
   ddArr:SetTextColor(acR2, acG2, acB2, 1); ddArr:SetText("v")
   table.insert(NS.chatOptDropdownArrows, ddArr)
@@ -645,7 +645,7 @@ local function SetupAdvanced(parent)
       renameBtn:SetPoint("RIGHT", button, "RIGHT", -24, 0)
       renameBtn:SetFrameLevel(button:GetFrameLevel() + 5)
       local renTex = renameBtn:CreateFontString(nil, "OVERLAY")
-      renTex:SetFont("Fonts/FRIZQT__.TTF", 11, "OUTLINE")
+      renTex:SetFont(NS.FONT, 11, "OUTLINE")
       renTex:SetAllPoints(); renTex:SetText("R"); renTex:SetTextColor(0.6, 0.6, 0.6)
       renameBtn:SetScript("OnEnter", function()
         local ar, ag, ab = NS.ChatGetAccentRGB()
@@ -661,7 +661,7 @@ local function SetupAdvanced(parent)
       delBtn:SetPoint("RIGHT", button, "RIGHT", -6, 0)
       delBtn:SetFrameLevel(button:GetFrameLevel() + 5)
       local delTex = delBtn:CreateFontString(nil, "OVERLAY")
-      delTex:SetFont("Fonts/FRIZQT__.TTF", 11, "OUTLINE")
+      delTex:SetFont(NS.FONT, 11, "OUTLINE")
       delTex:SetAllPoints(); delTex:SetText("X"); delTex:SetTextColor(0.6, 0.6, 0.6)
       delBtn:SetScript("OnEnter", function()
         delTex:SetTextColor(1, 0.3, 0.3)
@@ -840,7 +840,7 @@ local function SetupAdvanced(parent)
     frame:SetScript("OnDragStart", function() frame:StartMoving() end)
     frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
     frame:EnableMouse(true)
-    frame:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    frame:SetBackdrop(NS.BACKDROP)
     frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95); frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     title:SetPoint("TOP", 0, -6); title:SetText(L["export_hint"])
@@ -869,13 +869,13 @@ local function SetupAdvanced(parent)
     frame:SetScript("OnDragStart", function() frame:StartMoving() end)
     frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
     frame:EnableMouse(true)
-    frame:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    frame:SetBackdrop(NS.BACKDROP)
     frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95); frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     title:SetPoint("TOP", 0, -6); title:SetText(L["import_hint"])
     local ar2,ag2,ab2 = NS.ChatGetAccentRGB(); title:SetTextColor(ar2, ag2, ab2)
     local status = frame:CreateFontString(nil, "OVERLAY")
-    status:SetFont("Fonts/FRIZQT__.TTF", 10, ""); status:SetPoint("TOPLEFT", 12, -22)
+    status:SetFont(NS.FONT, 10, ""); status:SetPoint("TOPLEFT", 12, -22)
     status:SetTextColor(0.6, 0.6, 0.6)
     local closeBtn2 = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     closeBtn2:SetPoint("TOPRIGHT", 2, 2)
@@ -883,12 +883,12 @@ local function SetupAdvanced(parent)
 
     -- Profile name input
     local nameLabel = frame:CreateFontString(nil, "OVERLAY")
-    nameLabel:SetFont("Fonts/FRIZQT__.TTF", 10, ""); nameLabel:SetPoint("TOPLEFT", 12, -36)
+    nameLabel:SetFont(NS.FONT, 10, ""); nameLabel:SetPoint("TOPLEFT", 12, -36)
     nameLabel:SetTextColor(0.7, 0.7, 0.7); nameLabel:SetText(L["Profile Name:"])
     local nameBox = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
     nameBox:SetSize(200, 22); nameBox:SetPoint("LEFT", nameLabel, "RIGHT", 6, 0)
     nameBox:SetFontObject(GameFontHighlight); nameBox:SetAutoFocus(false)
-    nameBox:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    nameBox:SetBackdrop(NS.BACKDROP)
     nameBox:SetBackdropColor(0.1, 0.1, 0.1, 1); nameBox:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
     nameBox:SetTextInsets(4, 4, 0, 0)
     nameBox:SetScript("OnEscapePressed", function() nameBox:ClearFocus() end)
@@ -1078,11 +1078,11 @@ local function SetupAdvanced(parent)
         row:SetHeight(ROW_H)
         -- Number label
         row._num = row:CreateFontString(nil,"OVERLAY")
-        row._num:SetFont("Fonts/FRIZQT__.TTF",11,""); row._num:SetPoint("LEFT",4,0)
+        row._num:SetFont(NS.FONT,11,""); row._num:SetPoint("LEFT",4,0)
         row._num:SetTextColor(0.5,0.5,0.5)
         -- Name label
         row._label = row:CreateFontString(nil,"OVERLAY")
-        row._label:SetFont("Fonts/FRIZQT__.TTF",11,""); row._label:SetPoint("LEFT",24,0)
+        row._label:SetFont(NS.FONT,11,""); row._label:SetPoint("LEFT",24,0)
         row._label:SetTextColor(0.9,0.9,0.9)
         -- Up button (green arrow rotated upward)
         row._up = CreateFrame("Button",nil,row)
@@ -1108,10 +1108,10 @@ local function SetupAdvanced(parent)
         local function MakeVisBtn(parent, text)
           local b = CreateFrame("Button",nil,parent,"BackdropTemplate")
           b:SetSize(38,16)
-          b:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+          b:SetBackdrop(NS.BACKDROP)
           b:SetBackdropColor(0.06,0.06,0.06,1)
           b._lbl = b:CreateFontString(nil,"OVERLAY")
-          b._lbl:SetFont("Fonts/FRIZQT__.TTF",9,""); b._lbl:SetPoint("CENTER"); b._lbl:SetText(text)
+          b._lbl:SetFont(NS.FONT,9,""); b._lbl:SetPoint("CENTER"); b._lbl:SetText(text)
           return b
         end
         row._showBtn = MakeVisBtn(row,"Show")
@@ -1192,7 +1192,7 @@ local function SetupAdvanced(parent)
 
   -- Collapse arrow indicator
   local orderArrow = cOrder:CreateFontString(nil,"OVERLAY")
-  orderArrow:SetFont("Fonts/FRIZQT__.TTF",10,"OUTLINE")
+  orderArrow:SetFont(NS.FONT,10,"OUTLINE")
   orderArrow:SetPoint("TOPRIGHT",cOrder,"TOPRIGHT",-18,-7)
   local oar,oag,oab = NS.ChatGetAccentRGB()
   orderArrow:SetTextColor(oar,oag,oab,0.6)
@@ -1325,11 +1325,11 @@ local function SetupMessageColors(parent)
 
       local rowF=CreateFrame("Frame",nil,card.inner); rowF:SetHeight(26)
       local rowHL=rowF:CreateTexture(nil,"BACKGROUND"); rowHL:SetAllPoints(); rowHL:SetColorTexture(1,1,1,0.04); rowHL:Hide()
-      local lbl=rowF:CreateFontString(nil,"OVERLAY"); lbl:SetFont("Fonts/FRIZQT__.TTF",11,""); lbl:SetPoint("LEFT",2,0); lbl:SetTextColor(c.r,c.g,c.b); lbl:SetText(label)
+      local lbl=rowF:CreateFontString(nil,"OVERLAY"); lbl:SetFont(NS.FONT,11,""); lbl:SetPoint("LEFT",2,0); lbl:SetTextColor(c.r,c.g,c.b); lbl:SetText(label)
       local sw=CreateFrame("Frame",nil,rowF,"BackdropTemplate"); sw:SetSize(16,16); sw:SetPoint("RIGHT",-44,0)
       sw:SetBackdrop(BD); sw:SetBackdropColor(c.r,c.g,c.b,1); sw:SetBackdropBorderColor(0.30,0.30,0.40,1)
       local resetBtn=CreateFrame("Button",nil,rowF); resetBtn:SetSize(38,16); resetBtn:SetPoint("LEFT",sw,"RIGHT",5,0)
-      local resetLbl=resetBtn:CreateFontString(nil,"OVERLAY"); resetLbl:SetFont("Fonts/FRIZQT__.TTF",9,""); resetLbl:SetAllPoints(); resetLbl:SetJustifyH("LEFT"); resetLbl:SetTextColor(0.45,0.45,0.55); resetLbl:SetText("reset")
+      local resetLbl=resetBtn:CreateFontString(nil,"OVERLAY"); resetLbl:SetFont(NS.FONT,9,""); resetLbl:SetAllPoints(); resetLbl:SetJustifyH("LEFT"); resetLbl:SetTextColor(0.45,0.45,0.55); resetLbl:SetText("reset")
       resetBtn:SetShown(colors[shortKey]~=nil)
       local hit=CreateFrame("Button",nil,rowF); hit:SetPoint("TOPLEFT"); hit:SetPoint("BOTTOMRIGHT",sw,"BOTTOMRIGHT",0,0); hit:SetFrameLevel(rowF:GetFrameLevel()+3)
       local capC,capSw,capKey=c,sw,shortKey
@@ -1374,7 +1374,7 @@ local function SetupMessageColors(parent)
     titleHit:SetFrameLevel(card:GetFrameLevel() + 5)
 
     local arrow = card:CreateFontString(nil, "OVERLAY")
-    arrow:SetFont("Fonts/FRIZQT__.TTF", 10, "OUTLINE")
+    arrow:SetFont(NS.FONT, 10, "OUTLINE")
     arrow:SetPoint("TOPRIGHT", card, "TOPRIGHT", -18, -7)
     local ar2, ag2, ab2 = NS.ChatGetAccentRGB()
     arrow:SetTextColor(ar2, ag2, ab2, 0.6)
@@ -1533,7 +1533,7 @@ local function SetupLoot(parent)
 
   -- Warning text when loottracker disabled
   local warnFS = cWin.inner:CreateFontString(nil, "OVERLAY")
-  warnFS:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  warnFS:SetFont(NS.FONT, 10, "")
   warnFS:SetTextColor(1, 0.82, 0, 0.9)
   warnFS:SetText("Requires LootTracker in own Window or Chat Tab")
   warnFS:Hide()
@@ -1658,7 +1658,7 @@ local function SetupLoot(parent)
     local qb=CreateFrame("Button",nil,qualRow,"BackdropTemplate")
     qb:SetHeight(24)
     qb:SetBackdrop(BD); qb:SetBackdropColor(0.05,0.05,0.08,1); qb:SetBackdropBorderColor(0.18,0.18,0.18,1)
-    local ql=qb:CreateFontString(nil,"OVERLAY"); ql:SetFont("Fonts/FRIZQT__.TTF",10,""); ql:SetPoint("CENTER"); ql:SetTextColor(qc[1],qc[2],qc[3],1); ql:SetText(qualNames[qi+1])
+    local ql=qb:CreateFontString(nil,"OVERLAY"); ql:SetFont(NS.FONT,10,""); ql:SetPoint("CENTER"); ql:SetTextColor(qc[1],qc[2],qc[3],1); ql:SetText(qualNames[qi+1])
     local cQ=qi
     qb:SetScript("OnEnter",function() qb:SetBackdropBorderColor(qc[1],qc[2],qc[3],1) end)
     qb:SetScript("OnLeave",function() RefreshQual() end)
@@ -1743,7 +1743,7 @@ local function SetupQoL(parent)
     -- corner cut
     local cut=btn:CreateTexture(nil,"OVERLAY",nil,4); cut:SetSize(8,1)
     cut:SetPoint("TOPRIGHT",btn,"TOPRIGHT",0,-1); cut:SetColorTexture(0,1,1,0.30)
-    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",10,"")
+    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont(NS.FONT,10,"")
     fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.75,0.75,0.85); fs:SetText(txt)
     btn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); btn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
     btn:SetScript("OnLeave",function() btn:SetBackdropBorderColor(0.14,0.14,0.22,1) end)
@@ -1757,7 +1757,7 @@ local function SetupQoL(parent)
   fpsBtn:SetPoint("LEFT",sysRow,"LEFT",0,0)
   local restoreBtn = SBtn(sysRow,"Restore",80)
   restoreBtn:SetPoint("LEFT",fpsBtn,"RIGHT",6,0)
-  local fpsFS=sysRow:CreateFontString(nil,"OVERLAY"); fpsFS:SetFont("Fonts/FRIZQT__.TTF",10,"")
+  local fpsFS=sysRow:CreateFontString(nil,"OVERLAY"); fpsFS:SetFont(NS.FONT,10,"")
   fpsFS:SetPoint("LEFT",restoreBtn,"RIGHT",10,0); fpsFS:SetTextColor(0.45,0.45,0.55)
   local mismatch={}
   local function UpdateFPSStatus()
@@ -1794,10 +1794,10 @@ local function SetupQoL(parent)
 
   -- ── Card: Mouse Ring ───────────────────────────────────────────────
   -- ── Inline text-input row helper ─────────────────────────────────────────
-  local BD2 = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD2 = NS.BACKDROP
   local function MakeTextRow(card, labelTxt, dbKey, defaultTxt)
     local holder = CreateFrame("Frame", nil, card.inner); holder:SetHeight(40)
-    local lbl = holder:CreateFontString(nil,"OVERLAY"); lbl:SetFont("Fonts/FRIZQT__.TTF",10,"")
+    local lbl = holder:CreateFontString(nil,"OVERLAY"); lbl:SetFont(NS.FONT,10,"")
     lbl:SetPoint("TOPLEFT",0,-2); lbl:SetTextColor(0.55,0.55,0.65); lbl:SetText(labelTxt)
     local eb = CreateFrame("EditBox",nil,holder,"BackdropTemplate")
     eb:SetHeight(22); eb:SetPoint("BOTTOMLEFT",0,0); eb:SetPoint("BOTTOMRIGHT",0,0)
@@ -1885,7 +1885,7 @@ local function SetupQoL(parent)
   end); tSz.option="qolTimerFontSize"
   -- Timer color label + swatch (inline next to label) + Unlock button — all one row
   do
-    local BD_tc = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+    local BD_tc = NS.BACKDROP
     local tcRow = CreateFrame("Frame",nil,cTimer.inner); tcRow:SetHeight(26)
     cTimer:Row(tcRow,26)
     tcRow:SetPoint("LEFT",cTimer.inner,"LEFT",0,0); tcRow:SetPoint("RIGHT",cTimer.inner,"RIGHT",0,0)
@@ -1911,7 +1911,7 @@ local function SetupQoL(parent)
 
     -- "Timer Color" label
     local tcLbl = tcRow:CreateFontString(nil,"OVERLAY")
-    tcLbl:SetFont("Fonts/FRIZQT__.TTF",11,"")
+    tcLbl:SetFont(NS.FONT,11,"")
     tcLbl:SetPoint("LEFT",tcRow,"LEFT",20,0)
     tcLbl:SetTextColor(1,1,1,1)
     tcLbl:SetText("Timer Color")
@@ -1988,7 +1988,7 @@ local function SetupQoL(parent)
     if NS.QoL.CombatAlert and NS.QoL.CombatAlert.RefreshSettings then NS.QoL.CombatAlert.RefreshSettings() end
   end); aSz.option="qolAlertFontSize"
   -- Enter + Leave side by side: [color swatch][textbox] | [color swatch][textbox]
-  local BD2a = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD2a = NS.BACKDROP
   local alertPairRow = CreateFrame("Frame",nil,cAlert.inner); alertPairRow:SetHeight(28)
   cAlert:Row(alertPairRow,28)
   alertPairRow:SetPoint("LEFT",cAlert.inner,"LEFT",0,0); alertPairRow:SetPoint("RIGHT",cAlert.inner,"RIGHT",0,0)
@@ -2559,7 +2559,7 @@ local function SetupLucidCDMTab(parent)
 
 
     local lbl = btn:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+    lbl:SetFont(NS.FONT, 11, "")
     lbl:SetPoint("CENTER"); lbl:SetTextColor(0.46, 0.46, 0.56)
     lbl:SetText(mod.name)
     btn._lbl = lbl
@@ -2794,18 +2794,18 @@ NS.BuildChatOptionsWindow = function()
   local thex = string.format("|cff%02x%02x%02x",ar*255,ag*255,ab*255)
 
   local titleFS = chatOptWin:CreateFontString(nil,"OVERLAY")
-  titleFS:SetFont("Fonts/FRIZQT__.TTF",14,"OUTLINE")
+  titleFS:SetFont(NS.FONT,14,"OUTLINE")
   titleFS:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT",14,-8)
   titleFS:SetText(thex.."LUCID|r|cffffffff".."UI|r")
   chatOptWin._ltTitleName = titleFS
 
   local settingsFS = chatOptWin:CreateFontString(nil,"OVERLAY")
-  settingsFS:SetFont("Fonts/FRIZQT__.TTF",14,"OUTLINE")
+  settingsFS:SetFont(NS.FONT,14,"OUTLINE")
   settingsFS:SetPoint("CENTER",chatOptWin,"TOP",0,-HEADER_H/2)
   settingsFS:SetTextColor(1,1,1,1); settingsFS:SetText("Settings")
 
   local verFS = chatOptWin:CreateFontString(nil,"OVERLAY")
-  verFS:SetFont("Fonts/FRIZQT__.TTF",8,"")
+  verFS:SetFont(NS.FONT,8,"")
   verFS:SetPoint("TOPLEFT",titleFS,"BOTTOMLEFT",0,-1)
   verFS:SetTextColor(0.33,0.33,0.42); verFS:SetText("v"..addonVersion)
 
@@ -2820,7 +2820,7 @@ NS.BuildChatOptionsWindow = function()
     local btn=CreateFrame("Button",nil,btnLayer,"BackdropTemplate")
     btn:SetHeight(22); btn:SetFrameLevel(btnLayer:GetFrameLevel())
     btn:SetBackdrop(BD); btn:SetBackdropColor(0.05,0.05,0.09,1); btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
-    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont("Fonts/FRIZQT__.TTF",9,"")
+    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont(NS.FONT,9,"")
     fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.44,0.44,0.52); fs:SetText(lbl)
     btn:SetWidth(fs:GetStringWidth()+16)
     btn:SetScript("OnEnter",function()
@@ -2837,7 +2837,7 @@ NS.BuildChatOptionsWindow = function()
   closeBtn:SetSize(22,22); closeBtn:SetPoint("RIGHT",btnLayer,"RIGHT",0,0); closeBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
   closeBtn:SetFrameLevel(btnLayer:GetFrameLevel())
   closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09,0.02,0.02,1); closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1)
-  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont("Fonts/FRIZQT__.TTF",11,""); cX:SetPoint("CENTER",0,0); cX:SetTextColor(0.60,0.18,0.18); cX:SetText("X")
+  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont(NS.FONT,11,""); cX:SetPoint("CENTER",0,0); cX:SetTextColor(0.60,0.18,0.18); cX:SetText("X")
   closeBtn:SetScript("OnEnter",function() closeBtn:SetBackdropBorderColor(0.82,0.16,0.16,1); cX:SetTextColor(1,0.30,0.30) end)
   closeBtn:SetScript("OnLeave",function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
   closeBtn:SetScript("OnClick",function() chatOptWin:Hide() end)
@@ -2906,11 +2906,11 @@ NS.BuildChatOptionsWindow = function()
       local btn=tabs[i]
       if btn then
         btn._selected=false
-        if btn._label   then btn._label:SetTextColor(0.56,0.56,0.66) end
+        if btn._label   then btn._label:SetTextColor(0.55,0.55,0.65) end
         if btn._selLine  then btn._selLine:Hide() end
         if btn._selLineR then btn._selLineR:Hide() end
         if btn._selBg and not btn:IsMouseOver() then btn._selBg:Hide() end
-        if btn._tabIcon  then btn._tabIcon:SetAlpha(0.55) end
+        if btn._tabIcon  then btn._tabIcon:SetAlpha(0.35) end
       end
     end
     containers[idx]:Show()
@@ -2963,8 +2963,8 @@ NS.BuildChatOptionsWindow = function()
       tabTick:SetPoint("TOPRIGHT",tabBtn,"TOPRIGHT",0,-3); tabTick:SetColorTexture(ar,ag,ab,0.40)
       table.insert(NS.chatOptAccentTextures,{tex=tabTick,alpha=0.40})
 
-      local label=tabBtn:CreateFontString(nil,"OVERLAY"); label:SetFont("Fonts/FRIZQT__.TTF",11,"")
-      label:SetPoint("LEFT",14,0); label:SetTextColor(0.36,0.36,0.46); label:SetText(setup.name)
+      local label=tabBtn:CreateFontString(nil,"OVERLAY"); label:SetFont(NS.FONT,11,"")
+      label:SetPoint("LEFT",14,0); label:SetTextColor(0.55,0.55,0.65); label:SetText(setup.name)
       tabBtn._label=label
 
       -- Tab icon (right side)
@@ -2981,14 +2981,13 @@ NS.BuildChatOptionsWindow = function()
 
       tabBtn:SetScript("OnEnter",function()
         if not tabBtn._selected then
-          local cr,cg,cb=NS.ChatGetAccentRGB()
-          label:SetTextColor(cr*0.70,cg*0.70,cb*0.70); selBg:Show()
+          label:SetTextColor(0.75,0.75,0.85); selBg:Show()
           if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.55) end
         end
       end)
       tabBtn:SetScript("OnLeave",function()
         if not tabBtn._selected then
-          label:SetTextColor(0.36,0.36,0.46); selBg:Hide()
+          label:SetTextColor(0.55,0.55,0.65); selBg:Hide()
           if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.35) end
         end
       end)

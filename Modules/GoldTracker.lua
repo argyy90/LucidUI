@@ -314,7 +314,7 @@ local function MakeWinBtn(par, txt, BD)
   cut:SetSize(8, 1); cut:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, -1)
   do local _ar,_ag,_ab=NS.ChatGetAccentRGB(); cut:SetColorTexture(_ar,_ag,_ab,0.22); RegAccentGT(cut,0.22) end
   local fs = btn:CreateFontString(nil, "OVERLAY")
-  fs:SetFont("Fonts/FRIZQT__.TTF", 10, ""); fs:SetPoint("CENTER", 0, 0)
+  fs:SetFont(NS.FONT, 10, ""); fs:SetPoint("CENTER", 0, 0)
   fs:SetTextColor(0.75, 0.75, 0.85); fs:SetText(txt)
   btn._label = fs
   btn:SetScript("OnEnter", function()
@@ -350,7 +350,7 @@ local function BuildHistoryWindow()
   if histWin then return end
   wipe(GT._accentTextures)
 
-  local BD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD = NS.BACKDROP
   local ar, ag, ab = NS.ChatGetAccentRGB()
   local HEADER_H = 38
   local WIN_W, WIN_H = 520, 560
@@ -409,7 +409,7 @@ local function BuildHistoryWindow()
   -- Title
   local hex = string.format("%02x%02x%02x", ar*255, ag*255, ab*255)
   local titleFS = histWin:CreateFontString(nil, "OVERLAY")
-  titleFS:SetFont("Fonts/FRIZQT__.TTF", 13, "OUTLINE")
+  titleFS:SetFont(NS.FONT, 13, "OUTLINE")
   titleFS:SetPoint("TOPLEFT", histWin, "TOPLEFT", 14, -8)
   titleFS:SetText("|cff"..hex.."GOLD|r |cffffffffTRACKER|r")
   histWin._titleFS = titleFS
@@ -420,7 +420,7 @@ local function BuildHistoryWindow()
   closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09, 0.02, 0.02, 1)
   closeBtn:SetBackdropBorderColor(0.34, 0.09, 0.09, 1)
   local cX = closeBtn:CreateFontString(nil, "OVERLAY")
-  cX:SetFont("Fonts/FRIZQT__.TTF", 11, ""); cX:SetPoint("CENTER"); cX:SetTextColor(0.60, 0.18, 0.18); cX:SetText("X")
+  cX:SetFont(NS.FONT, 11, ""); cX:SetPoint("CENTER"); cX:SetTextColor(0.60, 0.18, 0.18); cX:SetText("X")
   closeBtn:SetScript("OnEnter", function() closeBtn:SetBackdropBorderColor(0.82,0.16,0.16,1); cX:SetTextColor(1,0.30,0.30) end)
   closeBtn:SetScript("OnLeave", function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
   closeBtn:SetScript("OnClick", function() histWin:Hide() end)
@@ -462,7 +462,7 @@ local function BuildHistoryWindow()
     f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart",function(s) s:StartMoving() end)
     f:SetScript("OnDragStop",function(s) s:StopMovingOrSizing() end)
-    local hdr=f:CreateFontString(nil,"OVERLAY"); hdr:SetFont("Fonts/FRIZQT__.TTF",10,"OUTLINE")
+    local hdr=f:CreateFontString(nil,"OVERLAY"); hdr:SetFont(NS.FONT,10,"OUTLINE")
     hdr:SetPoint("TOP",0,-6); hdr:SetText("Gold Tracker — CSV Export"); hdr:SetTextColor(ar,ag,ab)
     local cbtn=CreateFrame("Button",nil,f,"UIPanelCloseButton"); cbtn:SetPoint("TOPRIGHT",2,2); cbtn:SetScript("OnClick",function() f:Hide() end)
     local sf2=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
@@ -496,7 +496,7 @@ local function BuildHistoryWindow()
     btn:SetBackdrop(BD); btn:SetBackdropColor(0.02, 0.02, 0.04, 1)
     btn:SetBackdropBorderColor(0.10, 0.10, 0.16, 1)
     local lbl = btn:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 10, ""); lbl:SetPoint("CENTER")
+    lbl:SetFont(NS.FONT, 10, ""); lbl:SetPoint("CENTER")
     lbl:SetTextColor(0.55, 0.55, 0.65); lbl:SetText(label); btn._lbl = lbl
     local selLine = btn:CreateTexture(nil, "OVERLAY", nil, 5); selLine:SetHeight(2)
     selLine:SetPoint("BOTTOMLEFT"); selLine:SetPoint("BOTTOMRIGHT")
@@ -517,12 +517,12 @@ local function BuildHistoryWindow()
     local bw = info.label == "All" and 28 or 26
     btn:SetSize(bw, 16); btn:SetPoint("RIGHT", tabBar, "RIGHT", xR, 0)
     xR = xR - bw - 2
-    btn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    btn:SetBackdrop(NS.BACKDROP)
     btn:SetBackdropColor(0.04,0.04,0.07,1)
     btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
     btn:SetFrameLevel(tabBar:GetFrameLevel() + 3)
     local fs = btn:CreateFontString(nil,"OVERLAY")
-    fs:SetFont("Fonts/FRIZQT__.TTF",8,""); fs:SetPoint("CENTER")
+    fs:SetFont(NS.FONT,8,""); fs:SetPoint("CENTER")
     fs:SetTextColor(0.55,0.55,0.65); fs:SetText(info.label)
     btn._lbl = fs; btn._days = info.days
     btn:SetScript("OnEnter",function()
@@ -688,7 +688,7 @@ function GT.RenderGraph()
     local val = math.floor(maxVal * yFrac / 10000)
     if val > 0 then
       local yLabel = panel:CreateFontString(nil, "OVERLAY")
-      yLabel:SetFont("Fonts/FRIZQT__.TTF", 8, "")
+      yLabel:SetFont(NS.FONT, 8, "")
       yLabel:SetPoint("RIGHT", panel, "TOPLEFT", PAD_L - 2, -yFromTop)
       yLabel:SetTextColor(0.45, 0.45, 0.55); yLabel:SetText(val.."g")
     end
@@ -725,7 +725,7 @@ function GT.RenderGraph()
 
     if col % labelEvery == 0 then
       local dateLabel = panel:CreateFontString(nil, "OVERLAY")
-      dateLabel:SetFont("Fonts/FRIZQT__.TTF", 8, "")
+      dateLabel:SetFont(NS.FONT, 8, "")
       dateLabel:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", xBase, PAD_B - 14)
       dateLabel:SetTextColor(0.40, 0.40, 0.50); dateLabel:SetText(d.label)
       dateLabel:SetJustifyH("LEFT")
@@ -763,7 +763,7 @@ function GT.RenderGraph()
     dot:SetPoint("TOPLEFT", panel, "TOPLEFT", x, -8)
     dot:SetColorTexture(unpack(color))
     local lbl = panel:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+    lbl:SetFont(NS.FONT, 9, "")
     lbl:SetPoint("LEFT", panel, "TOPLEFT", x + 14, -8)
     lbl:SetTextColor(0.65, 0.65, 0.75); lbl:SetText(label)
   end
@@ -776,7 +776,7 @@ function GT.RenderGraph()
   for _, d in ipairs(days) do if d.gave > 0 or d.received > 0 then hasAny = true; break end end
   if not hasAny then
     local empty = panel:CreateFontString(nil, "OVERLAY")
-    empty:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+    empty:SetFont(NS.FONT, 11, "")
     empty:SetPoint("CENTER", panel, "CENTER", 0, 0)
     empty:SetTextColor(0.35, 0.35, 0.45)
     empty:SetText("No gold trades in this period")
@@ -807,7 +807,7 @@ function GT.RefreshWindow()
     emptyHolder:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -10)
     content:SetHeight(80)
     local fs = emptyHolder:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+    fs:SetFont(NS.FONT, 11, "")
     fs:SetPoint("CENTER", emptyHolder, "CENTER", 0, 0)
     fs:SetTextColor(0.40, 0.40, 0.50)
     fs:SetText("No trades recorded yet.")
@@ -829,7 +829,7 @@ function GT.RefreshWindow()
     local net = totalGot - totalGave
     local nr, ng, nb = net >= 0 and 0.2 or 0.9, net >= 0 and 0.9 or 0.2, 0.2
     local banFS = banner:CreateFontString(nil, "OVERLAY")
-    banFS:SetFont("Fonts/FRIZQT__.TTF", 10, "OUTLINE")
+    banFS:SetFont(NS.FONT, 10, "OUTLINE")
     banFS:SetPoint("CENTER"); banFS:SetTextColor(nr, ng, nb)
     local netStr = MoneyStr(math.abs(net)) or "0c"
     banFS:SetText(string.format("%d trades  •  Net: %s%s",
@@ -879,12 +879,12 @@ function GT.RefreshWindow()
     -- Header: date + partner
     local timeStr = date("%d.%m.%y  %H:%M", entry.time)
     local hdrDate = card:CreateFontString(nil, "OVERLAY")
-    hdrDate:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
+    hdrDate:SetFont(NS.FONT, 9, "OUTLINE")
     hdrDate:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -cy)
     hdrDate:SetTextColor(ar, ag, ab, 0.9); hdrDate:SetText("> "..timeStr)
 
     local hdrPart = card:CreateFontString(nil, "OVERLAY")
-    hdrPart:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    hdrPart:SetFont(NS.FONT, 10, "")
     hdrPart:SetPoint("TOPLEFT", hdrDate, "TOPRIGHT", 8, 0)
     hdrPart:SetPoint("TOPRIGHT", card, "TOPRIGHT", -14, -cy)
     hdrPart:SetJustifyH("LEFT")
@@ -907,12 +907,12 @@ function GT.RefreshWindow()
 
     -- Column labels
     local lblGave = card:CreateFontString(nil, "OVERLAY")
-    lblGave:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
+    lblGave:SetFont(NS.FONT, 9, "OUTLINE")
     lblGave:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -cy)
     lblGave:SetTextColor(0.90, 0.32, 0.32, 1); lblGave:SetText("YOU GAVE")
 
     local lblGot = card:CreateFontString(nil, "OVERLAY")
-    lblGot:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
+    lblGot:SetFont(NS.FONT, 9, "OUTLINE")
     lblGot:SetPoint("TOP", card, "TOP", 115, -cy)
     lblGot:SetJustifyH("LEFT")
     card:HookScript("OnShow", function(self) lblGot:SetWidth(math.floor(self:GetWidth()/2) - 18) end)
@@ -926,7 +926,7 @@ function GT.RefreshWindow()
       local rl = rightLines[li]
       if ll then
         local fs = card:CreateFontString(nil, "OVERLAY")
-        fs:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+        fs:SetFont(NS.FONT, 10, "")
         fs:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -cy)
         fs:SetJustifyH("LEFT"); fs:SetWordWrap(false)
         -- Width set via OnShow so we always get the live card width
@@ -943,7 +943,7 @@ function GT.RefreshWindow()
       end
       if rl then
         local fs = card:CreateFontString(nil, "OVERLAY")
-        fs:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+        fs:SetFont(NS.FONT, 10, "")
         fs:SetPoint("TOPLEFT", card, "TOP", 8, -cy)
         fs:SetJustifyH("LEFT"); fs:SetWordWrap(false)
         card:HookScript("OnShow", function(self) fs:SetWidth(math.floor(self:GetWidth()/2) - 18) end)
@@ -967,7 +967,7 @@ function GT.RefreshWindow()
       local netTxt, nr2, ng2, nb2 = NetStr(pgold, tgold)
       if netTxt then
         local netLabel = card:CreateFontString(nil, "OVERLAY")
-        netLabel:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
+        netLabel:SetFont(NS.FONT, 9, "OUTLINE")
         netLabel:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -10, CARD_PAD_BOT)
         netLabel:SetTextColor(nr2, ng2, nb2, 1)
         netLabel:SetText("Net: " .. netTxt)
@@ -1066,7 +1066,7 @@ function GT.SetupSettings(parent)
   local oCut = openBtn:CreateTexture(nil,"OVERLAY",nil,4); oCut:SetSize(10,1)
   oCut:SetPoint("TOPRIGHT",openBtn,"TOPRIGHT",0,-1)
   do local _ar,_ag,_ab=NS.ChatGetAccentRGB(); oCut:SetColorTexture(_ar,_ag,_ab,0.22); RegAccentGT(oCut,0.22) end
-  local oFS = openBtn:CreateFontString(nil,"OVERLAY"); oFS:SetFont("Fonts/FRIZQT__.TTF",11,"")
+  local oFS = openBtn:CreateFontString(nil,"OVERLAY"); oFS:SetFont(NS.FONT,11,"")
   oFS:SetPoint("CENTER",0,0); oFS:SetTextColor(0.75,0.75,0.85); oFS:SetText("Open Trade History")
   openBtn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); openBtn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
   openBtn:SetScript("OnLeave",function() openBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
@@ -1085,11 +1085,11 @@ function GT.SetupSettings(parent)
     holder:SetPoint("LEFT", cStats.inner, "LEFT", 0, 0)
     holder:SetPoint("RIGHT", cStats.inner, "RIGHT", 0, 0)
     local lFS = holder:CreateFontString(nil, "OVERLAY")
-    lFS:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    lFS:SetFont(NS.FONT, 10, "")
     lFS:SetPoint("LEFT", holder, "LEFT", 20, 0)
     lFS:SetTextColor(0.50, 0.50, 0.60); lFS:SetText(lbl)
     local vFS = holder:CreateFontString(nil, "OVERLAY")
-    vFS:SetFont("Fonts/FRIZQT__.TTF", 10, "OUTLINE")
+    vFS:SetFont(NS.FONT, 10, "OUTLINE")
     vFS:SetPoint("RIGHT", holder, "RIGHT", -20, 0)
     vFS:SetJustifyH("RIGHT"); vFS:SetTextColor(0.85, 0.85, 0.92)
     statsLines[#statsLines+1] = vFS
@@ -1104,7 +1104,7 @@ function GT.SetupSettings(parent)
   local graphDays = 14   -- current selected range, shared with RenderInlineGraph
 
   local daysLabel = cGraph:CreateFontString(nil, "OVERLAY")
-  daysLabel:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
+  daysLabel:SetFont(NS.FONT, 9, "OUTLINE")
   daysLabel:SetPoint("TOPLEFT", cGraph, "TOPLEFT", 86, -7)
   daysLabel:SetTextColor(0.55, 0.55, 0.65)
   daysLabel:SetText("— LAST 14 DAYS")
@@ -1113,12 +1113,12 @@ function GT.SetupSettings(parent)
     local btn = CreateFrame("Button", nil, cGraph, "BackdropTemplate")
     btn:SetSize(26, 13)
     btn:SetPoint("TOPRIGHT", cGraph, "TOPRIGHT", xRight, -7)
-    local BD2 = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+    local BD2 = NS.BACKDROP
     btn:SetBackdrop(BD2)
     btn:SetBackdropColor(0.04,0.04,0.07,1)
     btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
     local fs = btn:CreateFontString(nil,"OVERLAY")
-    fs:SetFont("Fonts/FRIZQT__.TTF",7,""); fs:SetPoint("CENTER")
+    fs:SetFont(NS.FONT,7,""); fs:SetPoint("CENTER")
     fs:SetTextColor(0.55,0.55,0.65); fs:SetText(label)
     btn._lbl = fs; btn._days = days
     btn:SetScript("OnEnter",function()
@@ -1213,7 +1213,7 @@ function GT.SetupSettings(parent)
 
     if not hasAny then
       local fs = graphHolder:CreateFontString(nil, "OVERLAY")
-      fs:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+      fs:SetFont(NS.FONT, 10, "")
       fs:SetPoint("CENTER"); fs:SetTextColor(0.35, 0.35, 0.45)
       fs:SetText("No gold trades in this period")
       return
@@ -1255,7 +1255,7 @@ function GT.SetupSettings(parent)
       dot:SetPoint("TOPLEFT", graphHolder, "TOPLEFT", xOff, -4)
       dot:SetColorTexture(r,g,b,1)
       local fs = graphHolder:CreateFontString(nil, "OVERLAY")
-      fs:SetFont("Fonts/FRIZQT__.TTF", 8, "")
+      fs:SetFont(NS.FONT, 8, "")
       fs:SetPoint("LEFT", graphHolder, "TOPLEFT", xOff+11, -4)
       fs:SetTextColor(0.60,0.60,0.70); fs:SetText(lbl)
     end
@@ -1298,7 +1298,7 @@ function GT.SetupSettings(parent)
       local lblEvery = NUM_DAYS <= 7 and 1 or NUM_DAYS <= 14 and 2 or NUM_DAYS <= 30 and 4 or NUM_DAYS <= 180 and 14 or 30
       if (col % lblEvery == 0) then
         local fs = graphHolder:CreateFontString(nil, "OVERLAY")
-        fs:SetFont("Fonts/FRIZQT__.TTF", 7, "")
+        fs:SetFont(NS.FONT, 7, "")
         fs:SetPoint("BOTTOMLEFT", graphHolder, "BOTTOMLEFT", xB, PB - 12)
         fs:SetTextColor(0.38,0.38,0.48); fs:SetText(d.label)
       end

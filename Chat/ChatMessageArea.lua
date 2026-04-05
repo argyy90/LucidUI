@@ -12,7 +12,7 @@ function NS.CreateChatMessageArea(parent, name)
     frame:SetHyperlinkPropagateToParent(true)
   end
 
-  local FACE    = "Fonts/FRIZQT__.TTF"
+  local FACE    = NS.FONT
   local SIZE    = 14
   local OUTLINE = ""
   local LINE_H  = 20
@@ -142,7 +142,7 @@ function NS.CreateChatMessageArea(parent, name)
   scrollBar:SetValue(0)
   scrollBar:SetValueStep(1)
   scrollBar:SetObeyStepOnDrag(true)
-  scrollBar:SetThumbTexture("Interface/Buttons/WHITE8X8")
+  scrollBar:SetThumbTexture(NS.TEX_WHITE)
   thumbTex = scrollBar:GetThumbTexture()
   if thumbTex then
     thumbTex:SetSize(SB_W - 4, 20)

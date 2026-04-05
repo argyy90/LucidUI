@@ -73,11 +73,7 @@ local function BuildTimer()
 
   timerFrame = CreateFrame("Frame", "LucidUICombatTimer", UIParent, "BackdropTemplate")
   timerFrame:SetSize(88, 26)
-  timerFrame:SetBackdrop({
-    bgFile   = "Interface/Buttons/WHITE8X8",
-    edgeFile = "Interface/Buttons/WHITE8X8",
-    edgeSize = 1,
-  })
+  timerFrame:SetBackdrop(NS.BACKDROP)
   timerFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.85)
   timerFrame:SetBackdropBorderColor(0.15, 0.15, 0.15, 1)
   timerFrame:SetFrameStrata("HIGH")
@@ -101,13 +97,13 @@ local function BuildTimer()
   end
 
   local icon = timerFrame:CreateFontString(nil, "OVERLAY")
-  icon:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  icon:SetFont(NS.FONT, 11, "")
   icon:SetPoint("LEFT", 6, 0)
   icon:SetText(L["COMBAT"])
   timerFrame._icon = icon
 
   local label = timerFrame:CreateFontString(nil, "OVERLAY")
-  label:SetFont("Fonts/FRIZQT__.TTF", 12, "OUTLINE")
+  label:SetFont(NS.FONT, 12, "OUTLINE")
   label:SetPoint("LEFT", icon, "RIGHT", 4, 0)
   label:SetText("0:00")
   timerFrame._label = label

@@ -6,8 +6,8 @@
 local NS = LucidUINS
 NS.Debug = NS.Debug or {}
 
-local BD = {bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1}
-local FONT = "Fonts/FRIZQT__.TTF"
+local BD = NS.BACKDROP
+local FONT = NS.FONT
 local MAX_LOG = 200
 
 -- ── Passive ring-buffer (always active, no tickers) ────────────────────
@@ -88,7 +88,7 @@ NS.BuildDebugWindow = function()
   local function CreateSMFWithScrollbar(parent, fontSize)
     local container = CreateFrame("Frame", nil, parent)
     container:SetAllPoints()
-    local SB_W = 14
+    local SB_W = NS.SB_W
     local smfInner = CreateFrame("ScrollingMessageFrame", nil, container)
     smfInner:SetPoint("TOPLEFT"); smfInner:SetPoint("BOTTOMRIGHT", -SB_W, 0)
     smfInner:SetFont(FONT, fontSize or 10, ""); smfInner:SetJustifyH("LEFT")
@@ -103,7 +103,7 @@ NS.BuildDebugWindow = function()
     sb:SetOrientation("VERTICAL"); sb:SetWidth(SB_W - 4)
     sb:SetPoint("TOPRIGHT", -2, -2); sb:SetPoint("BOTTOMRIGHT", -2, 2)
     sb:SetMinMaxValues(0, 1); sb:SetValue(1); sb:SetValueStep(1); sb:SetObeyStepOnDrag(true)
-    sb:SetThumbTexture("Interface/Buttons/WHITE8X8")
+    sb:SetThumbTexture(NS.TEX_WHITE)
     local thumb = sb:GetThumbTexture()
     if thumb then thumb:SetSize(SB_W - 4, 30); thumb:SetColorTexture(0.4, 0.4, 0.5, 0.7) end
 

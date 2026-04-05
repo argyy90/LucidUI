@@ -35,7 +35,7 @@ local function BuildAlert()
     alertFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
   end
   local lbl = alertFrame:CreateFontString(nil, "OVERLAY")
-  lbl:SetFont("Fonts/FRIZQT__.TTF", 22, "OUTLINE")
+  lbl:SetFont(NS.FONT, 22, "OUTLINE")
   lbl:SetAllPoints(); lbl:SetJustifyH("CENTER")
   alertFrame._lbl = lbl
   ApplySettings()
@@ -85,7 +85,7 @@ function NS.QoL.CombatAlert.SetUnlocked(state)
     local b = NS.DB("qolAlertEnterB") or 0.2
     ApplySettings()
     -- Show background when unlocked so user can see/drag
-    alertFrame:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    alertFrame:SetBackdrop(NS.BACKDROP)
     alertFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.85)
     alertFrame:SetBackdropBorderColor(NS.CYAN[1], NS.CYAN[2], NS.CYAN[3], 0.6)
     alertFrame._lbl:SetText(NS.DB("qolCombatEnterText") or "++ COMBAT ++")

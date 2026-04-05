@@ -97,15 +97,7 @@ local QUALITY_COLORS = {
   [3]={0,0.44,0.87},    [4]={0.64,0.21,0.93},  [5]={1,0.5,0},
 }
 
-local CLASS_COLORS = {
-  WARRIOR={0.78,0.61,0.43}, PALADIN={0.96,0.55,0.73},
-  HUNTER={0.67,0.83,0.45},  ROGUE={1,0.96,0.41},
-  PRIEST={1,1,1},            DEATHKNIGHT={0.77,0.12,0.23},
-  SHAMAN={0,0.44,0.87},      MAGE={0.41,0.80,0.94},
-  WARLOCK={0.58,0.51,0.79},  MONK={0,1,0.59},
-  DRUID={1,0.49,0.04},       DEMONHUNTER={0.64,0.19,0.79},
-  EVOKER={0.20,0.58,0.50},
-}
+local CLASS_COLORS = NS.CLASS_COLORS
 
 local ROLL_ICONS = {
   need        = "Interface/Buttons/UI-GroupLoot-Dice-Up",
@@ -297,7 +289,7 @@ local function BuildItemRow(parent, session, yOffset)
   local t = GetWinTheme()
   local pw = parent:GetWidth() - 2
 
-  local BD2={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD2={bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1}
   local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
   row:SetSize(pw, ROW_H)
   row:SetPoint("TOPLEFT", 1, yOffset)
@@ -330,7 +322,7 @@ local function BuildItemRow(parent, session, yOffset)
 
   -- Item name
   local nameLbl = row:CreateFontString(nil, "OVERLAY")
-  nameLbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  nameLbl:SetFont(NS.FONT, 10, "")
   nameLbl:SetPoint("TOPLEFT", ICON_SZ + 10, -5)
   nameLbl:SetPoint("TOPRIGHT", -4, -5)
   nameLbl:SetJustifyH("LEFT")
@@ -373,7 +365,7 @@ local function BuildItemRow(parent, session, yOffset)
 
   -- "Passed" indicator (bottom right, shown when local player passed)
   local passedLbl = row:CreateFontString(nil, "OVERLAY")
-  passedLbl:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  passedLbl:SetFont(NS.FONT, 9, "")
   passedLbl:SetPoint("BOTTOMRIGHT", -6, 5)
   passedLbl:SetTextColor(0.45, 0.45, 0.45)
   passedLbl:SetText("Passed")
@@ -381,7 +373,7 @@ local function BuildItemRow(parent, session, yOffset)
 
   -- "Rolled" indicator (bottom right, shown when local player rolled need/greed/transmog)
   local rolledLbl = row:CreateFontString(nil, "OVERLAY")
-  rolledLbl:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  rolledLbl:SetFont(NS.FONT, 9, "")
   rolledLbl:SetPoint("BOTTOMRIGHT", -6, 5)
   rolledLbl:SetTextColor(1, 0.82, 0, 1)
   rolledLbl:SetText("Rolled")
@@ -389,7 +381,7 @@ local function BuildItemRow(parent, session, yOffset)
 
   -- Status line (winner or animated dots)
   local statusLbl = row:CreateFontString(nil, "OVERLAY")
-  statusLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  statusLbl:SetFont(NS.FONT, 11, "")
   statusLbl:SetPoint("BOTTOMLEFT", ICON_SZ + 10, 5)
   statusLbl:SetPoint("BOTTOMRIGHT", -70, 5)
   statusLbl:SetJustifyH("LEFT")
@@ -535,7 +527,7 @@ local function BuildEncounterHeader(parent, name, yOffset)
   local hdr = CreateFrame("Frame", nil, parent, "BackdropTemplate")
   hdr:SetSize(pw, HEADER_H)
   hdr:SetPoint("TOPLEFT", 1, yOffset)
-  hdr:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  hdr:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
   hdr:SetBackdropColor(
     t.titleBg[1] + 0.04, t.titleBg[2] + 0.04, t.titleBg[3] + 0.04, 1)
   hdr:SetBackdropBorderColor(tid[1]*0.35, tid[2]*0.35, tid[3]*0.35, 1)
@@ -553,7 +545,7 @@ local function BuildEncounterHeader(parent, name, yOffset)
   end
 
   local lbl = hdr:CreateFontString(nil, "OVERLAY")
-  lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "OUTLINE")
+  lbl:SetFont(NS.FONT, 10, "OUTLINE")
   lbl:SetPoint("LEFT", 8, 0)
   lbl:SetTextColor(1, 1, 1, 1)
   if NS.DB("showBrackets") ~= false then
@@ -604,7 +596,7 @@ local function BuildRollWindow()
   if NS.rollWin then return end
   local t = GetWinTheme()
 
-  local BD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD = NS.BACKDROP
   local ar,ag,ab = NS.CYAN[1],NS.CYAN[2],NS.CYAN[3]
   local HEADER_H_WIN = 34
 
@@ -660,7 +652,7 @@ local function BuildRollWindow()
   -- Title text
   local hex=string.format("%02x%02x%02x",math.floor(ar*255),math.floor(ag*255),math.floor(ab*255))
   local titleTxt=titleBar:CreateFontString(nil,"OVERLAY")
-  titleTxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
+  titleTxt:SetFont(NS.FONT,13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
   titleTxt:SetTextColor(1,1,1,1)
   local lrFirst, lrRest = L["LOOT ROLLS"]:match("^(%S+)%s*(.*)")
   titleTxt:SetText("|cff"..hex..(lrFirst or L["LOOT ROLLS"]).."|r"..(lrRest and lrRest ~= "" and (" |cffffffff"..lrRest.."|r") or ""))
@@ -672,7 +664,7 @@ local function BuildRollWindow()
   closeBtn:SetFrameLevel(titleBar:GetFrameLevel()+5)
   closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09,0.02,0.02,1)
   closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1)
-  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont("Fonts/FRIZQT__.TTF",11,""); cX:SetPoint("CENTER")
+  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont(NS.FONT,11,""); cX:SetPoint("CENTER")
   cX:SetTextColor(0.60,0.18,0.18); cX:SetText("X")
   closeBtn:SetScript("OnEnter",function() closeBtn:SetBackdropBorderColor(0.82,0.16,0.16,1); cX:SetTextColor(1,0.30,0.30) end)
   closeBtn:SetScript("OnLeave",function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
@@ -687,14 +679,14 @@ local function BuildRollWindow()
   filterBtn:SetBackdropColor(0.04,0.04,0.07,1)
   filterBtn:SetBackdropBorderColor(0.12,0.12,0.20,1)
   local filterLbl = filterBtn:CreateFontString(nil, "OVERLAY")
-  filterLbl:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  filterLbl:SetFont(NS.FONT, 9, "")
   filterLbl:SetPoint("LEFT", 4, 0)
   filterLbl:SetPoint("RIGHT", -14, 0)
   filterLbl:SetJustifyH("LEFT")
   filterLbl:SetTextColor(0.85, 0.85, 0.85, 1)
   filterLbl:SetText(L["All Bosses"])
   local filterArrow = filterBtn:CreateFontString(nil, "OVERLAY")
-  filterArrow:SetFont("Fonts/FRIZQT__.TTF", 8, "")
+  filterArrow:SetFont(NS.FONT, 8, "")
   filterArrow:SetPoint("RIGHT", -3, 0)
   filterArrow:SetTextColor(ar, ag, ab, 1)
   filterArrow:SetText("v")
@@ -767,7 +759,7 @@ local function BuildRollWindow()
     local cut2=btn:CreateTexture(nil,"OVERLAY",nil,4); cut2:SetSize(7,1)
     cut2:SetPoint("TOPRIGHT",btn,"TOPRIGHT",0,-1); cut2:SetColorTexture(ar,ag,ab,0.22)
     local lbl = btn:CreateFontString(nil,"OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF",10,""); lbl:SetPoint("CENTER")
+    lbl:SetFont(NS.FONT,10,""); lbl:SetPoint("CENTER")
     lbl:SetTextColor(0.72,0.72,0.82,1); lbl:SetText(label)
     btn:SetScript("OnEnter", function() btn:SetBackdropBorderColor(NS.CYAN[1],NS.CYAN[2],NS.CYAN[3],0.9) end)
     btn:SetScript("OnLeave", function() btn:SetBackdropBorderColor(0.22,0.22,0.22,1) end)
@@ -841,7 +833,7 @@ function NS.RollWindowRedraw()
   if count == 0 then
     if not NS.rollWin._emptyLbl then
       local lbl = sc:CreateFontString(nil,"OVERLAY")
-      lbl:SetFont("Fonts/FRIZQT__.TTF",11,"")
+      lbl:SetFont(NS.FONT,11,"")
       lbl:SetPoint("TOP", sc, "TOP", 0, -40)
       lbl:SetTextColor(0.32,0.32,0.32,1)
       lbl:SetText(L["No active rolls"])

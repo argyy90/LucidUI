@@ -34,15 +34,7 @@ local DEFAULTS = {
   hideIconMask = true,
 }
 
-local function Opt(key)
-  local db = LucidUIDB
-  if db and db["cdv_" .. key] ~= nil then return db["cdv_" .. key] end
-  return DEFAULTS[key]
-end
-local function OptSet(key, val)
-  if not LucidUIDB then return end
-  LucidUIDB["cdv_" .. key] = val
-end
+local Opt, OptSet = NS.MakeOpt("cdv_", DEFAULTS)
 
 -- ── State ───────────────────────────────────────────────────────────────
 local containers = {}
@@ -53,6 +45,7 @@ local hookedPools = {}
 local hookedLayouts = {}
 local combatDirty = {}
 local initialized = false
+local evFrame  -- forward declaration; created at bottom of file
 
 -- ── Raw SetPoint/ClearAllPoints from clean proxy frame ─────────────────
 local _anchorProxy = CreateFrame("Frame")
@@ -188,7 +181,7 @@ end
 -- ── Border textures (from LibSharedMedia + WoW defaults) ────────────────
 local function GetBorderList()
   local names = {"1 Pixel"}
-  local paths = {["1 Pixel"] = "Interface/Buttons/WHITE8X8"}
+  local paths = {["1 Pixel"] = NS.TEX_WHITE}
   local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
   if LSM then
     for _, name in ipairs(LSM:List("border")) do
@@ -203,7 +196,7 @@ end
 local BORDER_NAMES, BORDER_PATHS = GetBorderList()
 
 local function GetBorderPath(key)
-  return BORDER_PATHS[key] or "Interface/Buttons/WHITE8X8"
+  return BORDER_PATHS[key] or NS.TEX_WHITE
 end
 
 -- ── Style a single CD frame ─────────────────────────────────────────────
@@ -256,7 +249,7 @@ local function StyleFrame(frame, w, h)
   local showBorder = Opt("showBorder") ~= false
   local borderPath = GetBorderPath(Opt("borderTexture"))
   local bc = Opt("borderColor") or {1, 0, 0, 1}
-  local borderSize = (borderPath == "Interface/Buttons/WHITE8X8") and 1 or 2
+  local borderSize = (borderPath == NS.TEX_WHITE) and 1 or 2
   if not fd.border then
     fd.border = {}
     local function MkB(p1, p2, bw, bh)
@@ -509,10 +502,19 @@ function CD.Enable()
     end)
   end
   SetupGlowHooks()
+  -- Register runtime events (only when module is active)
+  evFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+  evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+  evFrame:RegisterEvent("SPELLS_CHANGED")
 end
 
 function CD.Disable()
   if updateTicker then updateTicker:Cancel(); updateTicker = nil end
+  evFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+  evFrame:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  evFrame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+  evFrame:UnregisterEvent("SPELLS_CHANGED")
   for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
     local viewer = _G[viewerName]
     if viewer and viewer.itemFramePool then
@@ -567,14 +569,11 @@ local function OnSpecChange()
   end)
 end
 
-local evFrame = CreateFrame("Frame")
+evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
 evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 evFrame:RegisterEvent("PLAYER_LOGOUT")
-evFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
-evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-evFrame:RegisterEvent("SPELLS_CHANGED")
+-- PLAYER_REGEN_ENABLED, spec/spell events registered in CD.Enable() to avoid waste when disabled
 evFrame:SetScript("OnEvent", function(_, event, ...)
   if event == "PLAYER_LOGIN" then
     if not NS.IsCDMEnabled() then return end
@@ -643,7 +642,7 @@ function CD.SetupSettings(parent)
   local MakeCard = NS._SMakeCard
   local MakePage = NS._SMakePage
   local R = NS._SR
-  local SBD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local SBD = NS.BACKDROP
   local sc, Append = MakePage(container)
 
   local function Slider(card, label, key, mn, mx, fmt, default)

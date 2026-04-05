@@ -109,15 +109,7 @@ local DEFAULTS = {
   pipSpacing = 1,
 }
 
-local function Opt(key)
-  local db = LucidUIDB
-  if db and db["res_" .. key] ~= nil then return db["res_" .. key] end
-  return DEFAULTS[key]
-end
-local function OptSet(key, val)
-  if not LucidUIDB then return end
-  LucidUIDB["res_" .. key] = val
-end
+local Opt, OptSet = NS.MakeOpt("res_", DEFAULTS)
 
 -- Check if user has explicitly set showMana (vs auto-detect)
 local function GetShowMana()
@@ -147,7 +139,7 @@ local function CreateBarFrame(name, parent)
   f.bg:SetVertexColor(bgc[1], bgc[2], bgc[3], bgc[4] or 0.85)
 
   -- Border
-  f:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  f:SetBackdrop({edgeFile=NS.TEX_WHITE, edgeSize=1})
   f:SetBackdropBorderColor(0, 0, 0, 1); f:SetBackdropColor(0, 0, 0, 0)
 
   -- Continuous bar fill
@@ -444,9 +436,16 @@ local function DetectResources()
     secondaryType = entry[2] or nil
     secondarySegmented = secondaryType and (SEGMENTED_TYPES[secondaryType] or false) or false
   else
-    -- Mana-only spec (no entry = healer/caster with just mana)
-    primaryType = nil
-    primarySegmented = false
+    -- Unknown spec (new expansion spec or mana-only healer/caster)
+    -- Try to detect primary power type from the unit directly
+    local unitPower = UnitPowerType("player")
+    if unitPower and unitPower ~= Enum.PowerType.Mana then
+      primaryType = unitPower
+      primarySegmented = SEGMENTED_TYPES[primaryType] or false
+    else
+      primaryType = nil
+      primarySegmented = false
+    end
     secondaryType = nil
     secondarySegmented = false
   end
@@ -575,7 +574,7 @@ function RES.SetupSettings(parent)
   local MakeCard = NS._SMakeCard
   local MakePage = NS._SMakePage
   local R = NS._SR
-  local SBD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local SBD = NS.BACKDROP
   local sc, Append = MakePage(container)
 
   local function Slider(card, label, key, mn, mx, fmt, default, scale)

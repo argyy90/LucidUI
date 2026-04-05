@@ -569,7 +569,7 @@ end
 local function BuildWindow()
   if MP.win then return end
   wipe(MP._accentTextures)  -- clear in case window is rebuilt
-  local BD={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD={bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1}
   local ar,ag,ab=NS.ChatGetAccentRGB()
 
   MP.win=CreateFrame("Frame","LucidUIMPv2Win",UIParent,"BackdropTemplate")
@@ -690,7 +690,7 @@ local function BuildWindow()
   -- Card-style backgrounds for each pane
   local function PaneCard(xOff, yOff, w, h)
     local card=CreateFrame("Frame",nil,MP.win,"BackdropTemplate")
-    card:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    card:SetBackdrop({bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1})
     card:SetBackdropColor(0.024,0.024,0.040,0.6)
     card:SetBackdropBorderColor(0.08,0.08,0.13,1)
     card:SetPoint("TOPLEFT",MP.win,"TOPLEFT",xOff,-yOff)
@@ -771,7 +771,7 @@ local function BuildWindow()
   tutBtn:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",8,5)
   local tutBorder=CreateFrame("Frame",nil,tutBtn,"BackdropTemplate")
   tutBorder:SetAllPoints(); tutBorder:SetFrameLevel(tutBtn:GetFrameLevel()-1)
-  tutBorder:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8",edgeSize=2})
+  tutBorder:SetBackdrop({edgeFile=NS.TEX_WHITE,edgeSize=2})
   tutBorder:SetBackdropBorderColor(ar,ag,ab,1); tutBorder:Hide()
 
   -- Coach marks
@@ -830,7 +830,7 @@ local function BuildWindow()
     f:SetSize(260,100)
     f:SetFrameStrata("FULLSCREEN_DIALOG")
     f:SetFrameLevel(200)
-    f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=2})
+    f:SetBackdrop({bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=2})
     f:SetBackdropColor(0.08,0.08,0.12,0.97)
     f:SetBackdropBorderColor(ar,ag,ab,1)
     f:SetClampedToScreen(true)
@@ -871,7 +871,7 @@ local function BuildWindow()
       local gotIt=CreateFrame("Button",nil,f,"BackdropTemplate")
       gotIt:SetSize(80,20)
       gotIt:SetPoint("BOTTOM",f,"BOTTOM",0,10)
-      gotIt:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+      gotIt:SetBackdrop({bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1})
       gotIt:SetBackdropColor(0.04,0.04,0.07,1)
       gotIt:SetBackdropBorderColor(ar,ag,ab,0.6)
       local gFS=gotIt:CreateFontString(nil,"OVERLAY")
@@ -1092,7 +1092,7 @@ local function DrawTiles(seasonData,runs)
       tile.highlight:SetAllPoints(); tile.highlight:SetColorTexture(1,0.82,0,0.3); tile.highlight:Hide()
 
       tile.border=CreateFrame("Frame",nil,tile,"BackdropTemplate"); tile.border:SetAllPoints()
-      tile.border:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8",edgeSize=2})
+      tile.border:SetBackdrop({edgeFile=NS.TEX_WHITE,edgeSize=2})
       tile.border:SetBackdropBorderColor(1,0.82,0,1); tile.border:Hide()
 
       tile.abbrFS=tile:CreateFontString(nil,"OVERLAY"); tile.abbrFS:SetFont(STANDARD_TEXT_FONT,18,"OUTLINE")
@@ -1366,7 +1366,7 @@ local function DrawDetails(run)
     return function()
       local h=yOff-startY+PAD
       local card=CreateFrame("Frame",nil,sc,"BackdropTemplate")
-      card:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+      card:SetBackdrop({bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1})
       card:SetBackdropColor(0.028,0.028,0.046,0.8)
       card:SetBackdropBorderColor(0.08,0.08,0.13,1)
       card:SetPoint("TOPLEFT",sc,"TOPLEFT",0,-startY)

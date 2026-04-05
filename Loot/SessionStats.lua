@@ -458,7 +458,7 @@ NS.BuildStatsWindow = function()
   end)
   NS.statsWin:SetClampedToScreen(true)
   -- Not in UISpecialFrames so ESC doesn't close it
-  local BD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD = NS.BACKDROP
   local ar,ag,ab = CYAN[1],CYAN[2],CYAN[3]
 
   NS.statsWin:SetBackdrop(BD)
@@ -508,7 +508,7 @@ NS.BuildStatsWindow = function()
 
   local hex = string.format("%02x%02x%02x",math.floor(ar*255),math.floor(ag*255),math.floor(ab*255))
   local titleTxt = titleBar:CreateFontString(nil, "OVERLAY")
-  titleTxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
+  titleTxt:SetFont(NS.FONT,13,"OUTLINE"); titleTxt:SetPoint("LEFT",8,-1)
   titleTxt:SetTextColor(1,1,1,1)
   local ssFirst, ssRest = L["Session Stats"]:match("^(%S+)%s*(.*)")
   titleTxt:SetText("|cff"..hex..(ssFirst or L["Session Stats"]).."|r"..(ssRest and ssRest ~= "" and (" |cffffffff"..ssRest.."|r") or ""))
@@ -568,7 +568,7 @@ NS.BuildStatsWindow = function()
   closeBtn:SetFrameLevel(titleBar:GetFrameLevel()+10)
   closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09,0.02,0.02,1)
   closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1)
-  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont("Fonts/FRIZQT__.TTF",11,""); cX:SetPoint("CENTER")
+  local cX=closeBtn:CreateFontString(nil,"OVERLAY"); cX:SetFont(NS.FONT,11,""); cX:SetPoint("CENTER")
   cX:SetTextColor(0.60,0.18,0.18); cX:SetText("X")
   closeBtn:SetScript("OnEnter",function() closeBtn:SetBackdropBorderColor(0.82,0.16,0.16,1); cX:SetTextColor(1,0.30,0.30) end)
   closeBtn:SetScript("OnLeave",function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
@@ -581,7 +581,7 @@ NS.BuildStatsWindow = function()
   local rCut=resetBtn:CreateTexture(nil,"OVERLAY",nil,4); rCut:SetSize(7,1)
   rCut:SetPoint("TOPRIGHT",resetBtn,"TOPRIGHT",0,-1); rCut:SetColorTexture(ar,ag,ab,0.22)
   local resetLbl = resetBtn:CreateFontString(nil, "OVERLAY")
-  resetLbl:SetFont("Fonts/FRIZQT__.TTF",10,""); resetLbl:SetPoint("CENTER")
+  resetLbl:SetFont(NS.FONT,10,""); resetLbl:SetPoint("CENTER")
   resetLbl:SetTextColor(0.72,0.72,0.82,1); resetLbl:SetText(L["stat_reset"])
   resetBtn:SetScript("OnEnter",function() resetBtn:SetBackdropBorderColor(CYAN[1],CYAN[2],CYAN[3],0.9) end)
   resetBtn:SetScript("OnLeave",function() resetBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
@@ -596,7 +596,7 @@ NS.BuildStatsWindow = function()
   local editBox = CreateFrame("EditBox", nil, scrollFrame)
   editBox:SetMultiLine(true)
   editBox:SetAutoFocus(false)
-  editBox:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  editBox:SetFont(NS.FONT, 11, "")
   editBox:SetTextColor(1, 1, 1, 1)
   editBox:SetWidth(WIN_W - 28)
   editBox:EnableMouse(false)
@@ -646,7 +646,7 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
     local p, _, rp, x, y = self:GetPoint()
     LucidUIDB[posKey] = {p, rp, math.floor(x), math.floor(y)}
   end)
-  local BD3={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD3={bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1}
   local ar3,ag3,ab3=CYAN[1],CYAN[2],CYAN[3]
 
   win:SetBackdrop(BD3)
@@ -693,7 +693,7 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
   end)
 
   local ttxt = tb:CreateFontString(nil, "OVERLAY")
-  ttxt:SetFont("Fonts/FRIZQT__.TTF",13,"OUTLINE"); ttxt:SetPoint("LEFT",6,-1)
+  ttxt:SetFont(NS.FONT,13,"OUTLINE"); ttxt:SetPoint("LEFT",6,-1)
   ttxt:SetTextColor(1,1,1,1)
   local firstWord, rest = titleText:match("^(%S+)%s*(.*)")
   if firstWord then
@@ -709,7 +709,7 @@ local function MakeDarkWindow(name, width, height, titleText, posKey)
   cb:SetSize(22,22); cb:SetPoint("TOPRIGHT",-3,-6)
   cb:SetFrameLevel(tb:GetFrameLevel()+10)
   cb:SetBackdrop(BD3); cb:SetBackdropColor(0.09,0.02,0.02,1); cb:SetBackdropBorderColor(0.34,0.09,0.09,1)
-  local cX3=cb:CreateFontString(nil,"OVERLAY"); cX3:SetFont("Fonts/FRIZQT__.TTF",11,""); cX3:SetPoint("CENTER")
+  local cX3=cb:CreateFontString(nil,"OVERLAY"); cX3:SetFont(NS.FONT,11,""); cX3:SetPoint("CENTER")
   cX3:SetTextColor(0.60,0.18,0.18); cX3:SetText("X")
   cb:SetScript("OnEnter",function() cb:SetBackdropBorderColor(0.82,0.16,0.16,1); cX3:SetTextColor(1,0.30,0.30) end)
   cb:SetScript("OnLeave",function() cb:SetBackdropBorderColor(0.34,0.09,0.09,1); cX3:SetTextColor(0.60,0.18,0.18) end)
@@ -733,14 +733,14 @@ NS.BuildSessionHistoryWindow = function()
   local win, tb, TH = MakeDarkWindow("LUISessionHistoryWindow", HW, HH, L["Session History"], "histWinPos")
 
   -- Clear button in title bar
-  local BD4={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local BD4={bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1}
   local clearBtn = CreateFrame("Button", nil, tb, "BackdropTemplate")
   clearBtn:SetSize(56,20); clearBtn:SetPoint("RIGHT",-30,0)
   clearBtn:SetBackdrop(BD4); clearBtn:SetBackdropColor(0.04,0.04,0.07,1); clearBtn:SetBackdropBorderColor(0.12,0.12,0.20,1)
   local cCut=clearBtn:CreateTexture(nil,"OVERLAY",nil,4); cCut:SetSize(7,1)
   cCut:SetPoint("TOPRIGHT",clearBtn,"TOPRIGHT",0,-1); cCut:SetColorTexture(CYAN[1],CYAN[2],CYAN[3],0.22)
   local clbl = clearBtn:CreateFontString(nil, "OVERLAY")
-  clbl:SetFont("Fonts/FRIZQT__.TTF",10,""); clbl:SetPoint("CENTER")
+  clbl:SetFont(NS.FONT,10,""); clbl:SetPoint("CENTER")
   clbl:SetTextColor(0.72,0.72,0.82,1); clbl:SetText(L["Clear"])
   clearBtn:SetScript("OnEnter", function() clearBtn:SetBackdropBorderColor(CYAN[1],CYAN[2],CYAN[3],0.9) end)
   clearBtn:SetScript("OnLeave", function() clearBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
@@ -806,7 +806,7 @@ NS.RefreshSessionHistory = function()
     emptyRow:SetSize(1, 30)
     emptyRow:SetPoint("TOPLEFT")
     local emptyLabel = emptyRow:CreateFontString(nil, "OVERLAY")
-    emptyLabel:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+    emptyLabel:SetFont(NS.FONT, 11, "")
     emptyLabel:SetPoint("TOPLEFT", 8, -10)
     emptyLabel:SetTextColor(0.4, 0.4, 0.4)
     emptyLabel:SetText(L["No history yet"])
@@ -828,10 +828,10 @@ NS.RefreshSessionHistory = function()
   sumRow:SetHeight(30)
   sumRow:SetPoint("TOPLEFT", sc, "TOPLEFT", 0, yOff)
   sumRow:SetPoint("RIGHT", sc, "RIGHT", 0, 0)
-  sumRow:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
+  sumRow:SetBackdrop({bgFile=NS.TEX_WHITE})
   sumRow:SetBackdropColor(0.04, 0.04, 0.04, 1)
   local sumLabel = sumRow:CreateFontString(nil, "OVERLAY")
-  sumLabel:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  sumLabel:SetFont(NS.FONT, 11, "")
   sumLabel:SetPoint("LEFT", 8, 0)
   local sumStr = "|cff"..hex..">|r |cff909090Total:|r  "..FormatGold(totalGold)
   if totalDuration > 60 and totalGold > 0 then
@@ -850,7 +850,7 @@ NS.RefreshSessionHistory = function()
     local e = history[i]
     local idx = i
 
-    local BD6={bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+    local BD6={bgFile=NS.TEX_WHITE,edgeFile=NS.TEX_WHITE,edgeSize=1}
     local ar5,ag5,ab5=CYAN[1],CYAN[2],CYAN[3]
     local row = CreateFrame("Button", nil, sc, "BackdropTemplate")
     row:SetHeight(ROW_H)
@@ -884,7 +884,7 @@ NS.RefreshSessionHistory = function()
 
     -- Zone name + date
     local zoneTxt = row:CreateFontString(nil, "OVERLAY")
-    zoneTxt:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+    zoneTxt:SetFont(NS.FONT, 11, "")
     zoneTxt:SetPoint("TOPLEFT", 8, -4)
     zoneTxt:SetTextColor(1, 1, 1)
     local zoneStr = e.zone or "?"
@@ -899,7 +899,7 @@ NS.RefreshSessionHistory = function()
     zoneTxt:SetText("|cff"..hex..">|r |cffffffff"..zoneStr)
 
     local dateTxt = row:CreateFontString(nil, "OVERLAY")
-    dateTxt:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+    dateTxt:SetFont(NS.FONT, 9, "")
     dateTxt:SetPoint("TOPRIGHT", -8, -5)
     dateTxt:SetTextColor(0.5, 0.5, 0.5)
     local dur = ""
@@ -918,14 +918,14 @@ NS.RefreshSessionHistory = function()
     if e.lootCount and e.lootCount > 0 then table.insert(statParts, "|cff00ff00"..e.lootCount.." Items|r") end
 
     local statTxt = row:CreateFontString(nil, "OVERLAY")
-    statTxt:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    statTxt:SetFont(NS.FONT, 10, "")
     statTxt:SetPoint("TOPLEFT", 20, -18)
     statTxt:SetTextColor(0.7, 0.7, 0.7)
     statTxt:SetText(table.concat(statParts, "  "))
 
     -- Gold line with gold/hr
     local goldTxt = row:CreateFontString(nil, "OVERLAY")
-    goldTxt:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    goldTxt:SetFont(NS.FONT, 10, "")
     goldTxt:SetPoint("TOPLEFT", 20, -32)
     if e.gold and e.gold > 0 then
       local goldStr = FormatGold(e.gold)
@@ -941,11 +941,11 @@ NS.RefreshSessionHistory = function()
     -- Delete button (bottom right)
     local delBtn = CreateFrame("Button", nil, row, "BackdropTemplate")
     delBtn:SetSize(40, 14); delBtn:SetPoint("BOTTOMRIGHT", -4, 4)
-    delBtn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    delBtn:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
     delBtn:SetBackdropColor(0.08, 0.08, 0.08, 1); delBtn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
     delBtn:SetFrameLevel(row:GetFrameLevel() + 5)
     local delLbl = delBtn:CreateFontString(nil, "OVERLAY")
-    delLbl:SetFont("Fonts/FRIZQT__.TTF", 8, ""); delLbl:SetPoint("CENTER")
+    delLbl:SetFont(NS.FONT, 8, ""); delLbl:SetPoint("CENTER")
     delLbl:SetTextColor(0.5, 0.5, 0.5); delLbl:SetText(L["Delete"])
     delBtn:SetScript("OnEnter", function()
       delBtn:SetBackdropBorderColor(1, 0.3, 0.3, 1); delLbl:SetTextColor(1, 0.3, 0.3)
@@ -1003,7 +1003,7 @@ NS.ShowSessionDetail = function(historyIndex)
 
   local eb = CreateFrame("EditBox", nil, sf)
   eb:SetMultiLine(true); eb:SetAutoFocus(false)
-  eb:SetFont("Fonts/FRIZQT__.TTF", 11, ""); eb:SetTextColor(1, 1, 1, 1)
+  eb:SetFont(NS.FONT, 11, ""); eb:SetTextColor(1, 1, 1, 1)
   eb:SetWidth(DW - 30); eb:EnableMouse(true); eb:SetHyperlinksEnabled(true)
   eb:SetScript("OnEscapePressed", function() win:Hide() end)
   eb:EnableKeyboard(false)

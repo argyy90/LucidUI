@@ -1550,11 +1550,7 @@ local function SetupEditBox(bg)
   cont:SetHeight(26)
   cont:SetFrameStrata("HIGH")
   cont:SetFrameLevel(bg:GetFrameLevel() + 2)
-  cont:SetBackdrop({
-    bgFile   = "Interface/Buttons/WHITE8X8",
-    edgeFile = "Interface/Buttons/WHITE8X8",
-    edgeSize = 1,
-  })
+  cont:SetBackdrop(NS.BACKDROP)
   cont:SetBackdropColor(0, 0, 0, ba)
   cont:SetBackdropBorderColor(ar, ag, ab, 0.5)
   cont:SetClampedToScreen(true)
@@ -1740,7 +1736,7 @@ NS.ChatShowCopyWindow = function()
   local text = table.concat(lines, "\n")
 
   local ar, ag, ab = GetAccentColor()
-  local BD = {bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1}
+  local BD = NS.BACKDROP
 
   local frame = CreateFrame("Frame", "LTChatCopyFrame", UIParent, "BackdropTemplate")
   frame:SetSize(500, 400)
@@ -1769,7 +1765,7 @@ NS.ChatShowCopyWindow = function()
 
   -- Title
   local title = frame:CreateFontString(nil, "OVERLAY")
-  title:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  title:SetFont(NS.FONT, 11, "")
   title:SetPoint("LEFT", headerBg, "LEFT", 10, 0)
   title:SetTextColor(ar, ag, ab)
   title:SetText(L["Copy Chat"])
@@ -1780,7 +1776,7 @@ NS.ChatShowCopyWindow = function()
   closeBtn:SetBackdrop(BD); closeBtn:SetBackdropColor(0.09, 0.02, 0.02, 1)
   closeBtn:SetBackdropBorderColor(0.34, 0.09, 0.09, 1)
   local cX = closeBtn:CreateFontString(nil, "OVERLAY")
-  cX:SetFont("Fonts/FRIZQT__.TTF", 10, ""); cX:SetPoint("CENTER"); cX:SetTextColor(0.60, 0.18, 0.18); cX:SetText("X")
+  cX:SetFont(NS.FONT, 10, ""); cX:SetPoint("CENTER"); cX:SetTextColor(0.60, 0.18, 0.18); cX:SetText("X")
   closeBtn:SetScript("OnClick", function() frame:Hide(); copyFrame = nil end)
   closeBtn:SetScript("OnEnter", function() closeBtn:SetBackdropBorderColor(0.60, 0.12, 0.12, 1); cX:SetTextColor(1, 0.3, 0.3) end)
   closeBtn:SetScript("OnLeave", function() closeBtn:SetBackdropBorderColor(0.34, 0.09, 0.09, 1); cX:SetTextColor(0.60, 0.18, 0.18) end)
@@ -1864,7 +1860,7 @@ local function CreateMainDisplay()
   bg:SetClampedToScreen(true)
   bg:SetResizeBounds(200, 100)
   bg:SetBackdrop({
-    bgFile = "Interface/Buttons/WHITE8X8",
+    bgFile = NS.TEX_WHITE,
     insets = {left=0, right=0, top=TAB_H, bottom=0},
   })
   bg:SetBackdropColor(0, 0, 0, ba)

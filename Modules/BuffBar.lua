@@ -36,15 +36,7 @@ local DEFAULTS = {
   showStackCount = true,
 }
 
-local function Opt(key)
-  local db = LucidUIDB
-  if db and db["bb_" .. key] ~= nil then return db["bb_" .. key] end
-  return DEFAULTS[key]
-end
-local function OptSet(key, val)
-  if not LucidUIDB then return end
-  LucidUIDB["bb_" .. key] = val
-end
+local Opt, OptSet = NS.MakeOpt("bb_", DEFAULTS)
 
 -- ── State ───────────────────────────────────────────────────────────────
 local containers = {}
@@ -53,6 +45,7 @@ local hookedFrames = {}
 local hookedViewers = {}
 local hookedLayouts = {}
 local initialized = false
+local evFrame  -- forward declaration; created at bottom of file
 
 -- ── Raw SetPoint/ClearAllPoints from clean proxy frame ─────────────────
 local _anchorProxy = CreateFrame("Frame")
@@ -111,7 +104,7 @@ end
 -- ── Border textures (from LibSharedMedia + WoW defaults) ────────────────
 local function GetBorderList()
   local names = {"1 Pixel"}
-  local paths = {["1 Pixel"] = "Interface/Buttons/WHITE8X8"}
+  local paths = {["1 Pixel"] = NS.TEX_WHITE}
   local LSM = LibStub and LibStub:GetLibrary("LibSharedMedia-3.0", true)
   if LSM then
     for _, name in ipairs(LSM:List("border")) do
@@ -124,7 +117,7 @@ local function GetBorderList()
   return names, paths
 end
 local BORDER_NAMES, BORDER_PATHS = GetBorderList()
-local function GetBorderPath(key) return BORDER_PATHS[key] or "Interface/Buttons/WHITE8X8" end
+local function GetBorderPath(key) return BORDER_PATHS[key] or NS.TEX_WHITE end
 
 -- ── Style buff icon frame ───────────────────────────────────────────────
 local function StyleIconFrame(frame, size)
@@ -161,7 +154,7 @@ local function StyleIconFrame(frame, size)
   local fd = GetFD(frame)
   local borderPath = GetBorderPath(Opt("borderTexture"))
   local bc = Opt("borderColor") or {1, 0, 0, 1}
-  local borderSize = (borderPath == "Interface/Buttons/WHITE8X8") and 1 or 2
+  local borderSize = (borderPath == NS.TEX_WHITE) and 1 or 2
   if not fd.border then
     fd.border = {}
     local function MkB(p1, p2, bw, bh)
@@ -484,10 +477,17 @@ function BB:Enable()
       LayoutBuffBars()
     end)
   end
+  -- Register runtime events (only when module is active)
+  evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+  evFrame:RegisterEvent("SPELLS_CHANGED")
 end
 
 function BB:Disable()
   if BB._ticker then BB._ticker:Cancel(); BB._ticker = nil end
+  evFrame:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  evFrame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+  evFrame:UnregisterEvent("SPELLS_CHANGED")
   for _, viewerName in ipairs({VIEWER_BUFF_ICON, VIEWER_BUFF_BAR}) do
     local viewer = _G[viewerName]
     local c = containers[viewerName]
@@ -530,13 +530,11 @@ local function OnSpecChange()
 end
 
 -- ── Init ────────────────────────────────────────────────────────────────
-local evFrame = CreateFrame("Frame")
+evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
 evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 evFrame:RegisterEvent("PLAYER_LOGOUT")
-evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
-evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-evFrame:RegisterEvent("SPELLS_CHANGED")
+-- Spec/spell events registered in BB:Enable() to avoid waste when disabled
 evFrame:SetScript("OnEvent", function(_, event, arg1)
   if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
     if event == "PLAYER_ENTERING_WORLD" then
@@ -573,7 +571,7 @@ function BB.SetupSettings(parent)
   local MakeCard = NS._SMakeCard
   local MakePage = NS._SMakePage
   local R = NS._SR
-  local SBD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local SBD = NS.BACKDROP
   local sc, Append = MakePage(container)
 
   local function Toggle(card, label, key, tip)
@@ -628,7 +626,7 @@ function BB.SetupSettings(parent)
   -- Reset button
   local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
   resetBtn:SetScript("OnClick", function()
     OptSet("buffIconPos", nil); OptSet("buffBarPos", nil)
     local iconC = containers["BuffIconCooldownViewer"]
@@ -641,7 +639,7 @@ function BB.SetupSettings(parent)
   -- Unlock button
   local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
   lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
   local unlocked = false
   lockBtn:SetScript("OnClick", function()
     unlocked = not unlocked; BB._unlocked = unlocked
@@ -675,7 +673,7 @@ function BB.SetupSettings(parent)
         -- Preview label
         if not c._label then
           c._label = c:CreateFontString(nil, "OVERLAY")
-          c._label:SetFont("Fonts/FRIZQT__.TTF", 10, "OUTLINE"); c._label:SetPoint("CENTER")
+          c._label:SetFont(NS.FONT, 10, "OUTLINE"); c._label:SetPoint("CENTER")
         end
         c._label:SetText(label); c._label:SetTextColor(r, g, b); c._label:Show()
         -- Show all pool frames as preview (even inactive ones)
@@ -785,7 +783,7 @@ function BB.SetupSettings(parent)
   -- Border Color
   local function ColorRow(card, label, key)
     local row = CreateFrame("Frame", nil, card.inner); row:SetHeight(24)
-    local lbl = row:CreateFontString(nil, "OVERLAY"); lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    local lbl = row:CreateFontString(nil, "OVERLAY"); lbl:SetFont(NS.FONT, 10, "")
     lbl:SetPoint("LEFT", 4, 0); lbl:SetTextColor(0.6, 0.6, 0.7); lbl:SetText(label)
     local cur = Opt(key) or {1,0,0}
     local sw = CreateFrame("Frame", nil, row, "BackdropTemplate"); sw:SetSize(20, 16); sw:SetPoint("LEFT", 110, 0)

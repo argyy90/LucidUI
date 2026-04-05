@@ -233,7 +233,7 @@ local function CreateSlot(parent, index)
   if icon then icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
 
   local ilvl = slot:CreateFontString(nil, "OVERLAY")
-  ilvl:SetFont("Fonts/FRIZQT__.TTF", 10, "OUTLINE")
+  ilvl:SetFont(NS.FONT, 10, "OUTLINE")
   ilvl:SetTextColor(1, 1, 0.6)
   ilvl:Hide()
   slot._ilvl = ilvl
@@ -261,7 +261,7 @@ local function CreateSlot(parent, index)
   slot._upgradeIcon = upgradeIcon
 
   local bindText = slot:CreateFontString(nil, "OVERLAY")
-  bindText:SetFont("Fonts/FRIZQT__.TTF", 12, "OUTLINE")
+  bindText:SetFont(NS.FONT, 12, "OUTLINE")
   bindText:SetPoint("TOP", bg, "TOP", -4, -1)
   bindText:SetTextColor(1, 1, 1, 0.9)
   bindText:Hide()
@@ -320,13 +320,13 @@ local function ApplySlotAnchors(slot)
   slot._ilvl:ClearAllPoints()
   local ia = ANCHOR_OFFSETS[ilvlPos] or ANCHOR_OFFSETS.BOTTOMLEFT
   slot._ilvl:SetPoint(ia[1], slot._bg, ia[1], ia[2], ia[3])
-  slot._ilvl:SetFont("Fonts/FRIZQT__.TTF", ilvlSize, "OUTLINE")
+  slot._ilvl:SetFont(NS.FONT, ilvlSize, "OUTLINE")
 
   if slot.Count then
     slot.Count:ClearAllPoints()
     local ca = ANCHOR_OFFSETS[countPos] or ANCHOR_OFFSETS.BOTTOMRIGHT
     slot.Count:SetPoint(ca[1], slot._bg, ca[1], ca[2], ca[3])
-    slot.Count:SetFont("Fonts/FRIZQT__.TTF", countSize, "OUTLINE")
+    slot.Count:SetFont(NS.FONT, countSize, "OUTLINE")
   end
 
   slot._bgAlpha = transparent and (bgAlpha * 0.3) or bgAlpha
@@ -596,7 +596,7 @@ local function LayoutBags()
 
   if not bagFrame._reagentWin then
     local rw = CreateFrame("Frame", "LucidUIReagentBag", UIParent, "BackdropTemplate")
-    rw:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    rw:SetBackdrop(NS.BACKDROP)
     rw:SetBackdropColor(0.06, 0.06, 0.06, 0.92)
     rw:SetBackdropBorderColor(0, 0, 0, 1)
     rw:SetFrameStrata("MEDIUM"); rw:SetToplevel(true); rw:EnableMouse(true); rw:Hide()
@@ -605,7 +605,7 @@ local function LayoutBags()
     raccentLine:SetColorTexture(CYAN[1], CYAN[2], CYAN[3], 1)
     rw._accentLine = raccentLine
     local rtitle = rw:CreateFontString(nil, "OVERLAY")
-    rtitle:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    rtitle:SetFont(NS.FONT, 10, "")
     rtitle:SetPoint("TOPLEFT", 6, -4)
     rtitle:SetTextColor(CYAN[1], CYAN[2], CYAN[3]); rtitle:SetText("Reagents")
     rw._title = rtitle
@@ -693,7 +693,7 @@ local function LayoutBags()
     local testFS = bagFrame._currencyLines[1]
     if not testFS then
       testFS = bagFrame._currencyBg:CreateFontString(nil, "OVERLAY")
-      testFS:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+      testFS:SetFont(NS.FONT, 11, "")
       testFS:SetTextColor(0.7, 0.7, 0.7)
       bagFrame._currencyLines[1] = testFS
     end
@@ -717,7 +717,7 @@ local function LayoutBags()
       local fs = bagFrame._currencyLines[li]
       if not fs then
         fs = bagFrame._currencyBg:CreateFontString(nil, "OVERLAY")
-        fs:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+        fs:SetFont(NS.FONT, 11, "")
         fs:SetTextColor(0.7, 0.7, 0.7)
         bagFrame._currencyLines[li] = fs
       end
@@ -762,7 +762,7 @@ local function BuildBagFrame()
     local point, _, relPoint, x, y = self:GetPoint()
     DBSet("bagWinPos", {point, relPoint, x, y})
   end)
-  bagFrame:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  bagFrame:SetBackdrop(NS.BACKDROP)
   bagFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.92)
   bagFrame:SetBackdropBorderColor(0, 0, 0, 1)
   bagFrame:Hide()
@@ -781,7 +781,7 @@ local function BuildBagFrame()
   titleBg:SetColorTexture(0.04, 0.04, 0.04, 1)
 
   local title = bagFrame:CreateFontString(nil, "OVERLAY")
-  title:SetFont("Fonts/FRIZQT__.TTF", 12, "")
+  title:SetFont(NS.FONT, 12, "")
   title:SetPoint("LEFT", titleBg, "LEFT", 8, 0)
   title:SetTextColor(cr, cg, cb); title:SetText("Bags")
   bagFrame._title = title
@@ -843,7 +843,7 @@ local function BuildBagFrame()
   local barW = numBagBtns * (BAG_BAR_SIZE + BAG_BAR_SPACING) - BAG_BAR_SPACING + 12
   bagBar:SetSize(barW, BAG_BAR_SIZE + 12)
   bagBar:SetPoint("BOTTOMLEFT", bagFrame, "TOPLEFT", 0, 1)
-  bagBar:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  bagBar:SetBackdrop(NS.BACKDROP)
   bagBar:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
   bagBar:SetBackdropBorderColor(0.15, 0.15, 0.15, 1)
   bagBar:SetFrameStrata("MEDIUM"); bagBar:Hide()
@@ -932,7 +932,7 @@ local function BuildBagFrame()
   searchBox:SetSize(10, 20)
   searchBox:SetPoint("TOPLEFT", bagFrame, "TOPLEFT", 8, -(titleH + 2))
   searchBox:SetPoint("TOPRIGHT", bagFrame, "TOPRIGHT", -8, -(titleH + 2))
-  searchBox:SetAutoFocus(false); searchBox:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  searchBox:SetAutoFocus(false); searchBox:SetFont(NS.FONT, 11, "")
   searchBox:SetTextColor(1, 1, 1)
   local searchBg = searchBox:CreateTexture(nil, "BACKGROUND")
   searchBg:SetAllPoints(); searchBg:SetColorTexture(0.05, 0.05, 0.05, 1)
@@ -979,7 +979,7 @@ local function BuildBagFrame()
   bagFrame._content = content
 
   local moneyText = bagFrame:CreateFontString(nil, "OVERLAY")
-  moneyText:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  moneyText:SetFont(NS.FONT, 10, "")
   moneyText:SetPoint("LEFT", title, "RIGHT", 8, 0)
   moneyText:SetTextColor(1, 1, 1)
   bagFrame._moneyText = moneyText

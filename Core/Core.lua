@@ -5,6 +5,40 @@
 LucidUINS = LucidUINS or {}
 local NS = LucidUINS
 
+-- ── Shared Constants ────────────────────────────────────────────────────────────
+NS.TEX_WHITE = "Interface/Buttons/WHITE8X8"
+NS.FONT      = "Fonts/FRIZQT__.TTF"
+NS.BACKDROP  = {bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1}
+
+-- Color palette (reuse across all modules for consistency)
+NS.COLOR_BG_DARK    = {0.025, 0.025, 0.038, 0.97}  -- window backgrounds
+NS.COLOR_BG_PANEL   = {0.04, 0.04, 0.06, 0.95}      -- panels, popups
+NS.COLOR_BG_ELEMENT = {0.06, 0.06, 0.10, 0.85}      -- bars, icons bg
+NS.COLOR_BG_TRACK   = {0.03, 0.03, 0.05, 0.85}      -- scrollbar tracks, subtle bg
+NS.COLOR_BORDER     = {0, 0, 0, 1}                   -- default black border
+NS.COLOR_TEXT_DIM   = {0.45, 0.45, 0.45}             -- muted text (timestamps etc.)
+
+-- Font size scale (reference values for consistent sizing)
+NS.FONT_TITLE = 13   -- window titles, section headers
+NS.FONT_BODY  = 11   -- default body text, labels
+NS.FONT_SMALL = 9    -- captions, hints, secondary info
+
+-- Layout spacing (reference values for consistent padding)
+NS.PAD       = 10    -- standard inner padding
+NS.PAD_TITLE = 26    -- title bar height / top padding
+NS.SB_W      = 16    -- scrollbar width
+
+-- Class colors (shared across LucidMeter, LootRolls, etc.)
+NS.CLASS_COLORS = {
+  WARRIOR     = {0.78, 0.61, 0.43}, PALADIN      = {0.96, 0.55, 0.73},
+  HUNTER      = {0.67, 0.83, 0.45}, ROGUE        = {1.00, 0.96, 0.41},
+  PRIEST      = {1.00, 1.00, 1.00}, DEATHKNIGHT  = {0.77, 0.12, 0.23},
+  SHAMAN      = {0.00, 0.44, 0.87}, MAGE         = {0.41, 0.80, 0.94},
+  WARLOCK     = {0.58, 0.51, 0.79}, MONK         = {0.00, 1.00, 0.59},
+  DRUID       = {1.00, 0.49, 0.04}, DEMONHUNTER  = {0.64, 0.19, 0.79},
+  EVOKER      = {0.20, 0.58, 0.50},
+}
+
 -- ── Shared mutable frame references (set by BuildWindow) ─────────────────────
 NS.win              = nil
 NS.titleBar         = nil
@@ -78,6 +112,22 @@ function NS.SafeCall(fn, moduleName)
   end
 end
 
+-- ── DB Accessor Factory ─────────────────────────────────────────────────────
+-- Creates Opt(key)/OptSet(key,val) functions for a module with a given DB prefix and defaults table.
+-- Usage: local Opt, OptSet = NS.MakeOpt("cb_", DEFAULTS)
+function NS.MakeOpt(prefix, defaults)
+  local function Opt(key)
+    local db = LucidUIDB
+    if db and db[prefix .. key] ~= nil then return db[prefix .. key] end
+    return defaults[key]
+  end
+  local function OptSet(key, val)
+    if not LucidUIDB then return end
+    LucidUIDB[prefix .. key] = val
+  end
+  return Opt, OptSet
+end
+
 -- ── Anchor Chain Helper ──────────────────────────────────────────────────────
 -- Stack order (bottom to top): Cooldowns → Resources → CastBar → BuffIcons → BuffBars
 -- Each module anchors ABOVE the one below it.
@@ -149,7 +199,7 @@ local moverFrames = {} -- all currently unlocked frames
 local function BuildMoverPopup()
   if moverPopup then return end
   local ar, ag, ab = NS.ChatGetAccentRGB()
-  local SBD = {bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1}
+  local SBD = NS.BACKDROP
 
   local f = CreateFrame("Frame", "LucidUIMoverPopup", UIParent, "BackdropTemplate")
   f:SetSize(220, 100); f:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -163,12 +213,12 @@ local function BuildMoverPopup()
 
   -- Title
   f._title = f:CreateFontString(nil, "OVERLAY")
-  f._title:SetFont("Fonts/FRIZQT__.TTF", 10, ""); f._title:SetPoint("TOP", 0, -6)
+  f._title:SetFont(NS.FONT, 10, ""); f._title:SetPoint("TOP", 0, -6)
   f._title:SetTextColor(0.8, 0.8, 0.9)
 
   -- X EditBox
   local xLbl = f:CreateFontString(nil, "OVERLAY")
-  xLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "OUTLINE"); xLbl:SetPoint("TOPLEFT", 12, -26)
+  xLbl:SetFont(NS.FONT, 11, "OUTLINE"); xLbl:SetPoint("TOPLEFT", 12, -26)
   xLbl:SetTextColor(ar, ag, ab); xLbl:SetText("X:")
   local xEB = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
   xEB:SetSize(60, 18); xEB:SetPoint("LEFT", xLbl, "RIGHT", 4, 0)
@@ -177,7 +227,7 @@ local function BuildMoverPopup()
 
   -- Y EditBox
   local yLbl = f:CreateFontString(nil, "OVERLAY")
-  yLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "OUTLINE"); yLbl:SetPoint("LEFT", xEB, "RIGHT", 12, 0)
+  yLbl:SetFont(NS.FONT, 11, "OUTLINE"); yLbl:SetPoint("LEFT", xEB, "RIGHT", 12, 0)
   yLbl:SetTextColor(ar, ag, ab); yLbl:SetText("Y:")
   local yEB = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
   yEB:SetSize(60, 18); yEB:SetPoint("LEFT", yLbl, "RIGHT", 4, 0)
@@ -203,7 +253,7 @@ local function BuildMoverPopup()
   local resetBtn = CreateFrame("Button", nil, f, "BackdropTemplate")
   resetBtn:SetSize(50, 18); resetBtn:SetPoint("TOP", 0, -50)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.06, 0.06, 0.1, 1); resetBtn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1)
-  local rfs = resetBtn:CreateFontString(nil, "OVERLAY"); rfs:SetFont("Fonts/FRIZQT__.TTF", 9, ""); rfs:SetPoint("CENTER"); rfs:SetTextColor(0.7, 0.7, 0.8); rfs:SetText("Reset")
+  local rfs = resetBtn:CreateFontString(nil, "OVERLAY"); rfs:SetFont(NS.FONT, 9, ""); rfs:SetPoint("CENTER"); rfs:SetTextColor(0.7, 0.7, 0.8); rfs:SetText("Reset")
   resetBtn:SetScript("OnEnter", function() resetBtn:SetBackdropBorderColor(ar, ag, ab, 0.8) end)
   resetBtn:SetScript("OnLeave", function() resetBtn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1) end)
   f._resetBtn = resetBtn
@@ -223,7 +273,7 @@ local function BuildMoverPopup()
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(20, 18); btn:SetPoint(anchor, offX, offY)
     btn:SetBackdrop(SBD); btn:SetBackdropColor(0.06, 0.06, 0.1, 1); btn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1)
-    local bfs = btn:CreateFontString(nil, "OVERLAY"); bfs:SetFont("Fonts/FRIZQT__.TTF", 10, ""); bfs:SetPoint("CENTER"); bfs:SetTextColor(0.6, 0.6, 0.7); bfs:SetText(text)
+    local bfs = btn:CreateFontString(nil, "OVERLAY"); bfs:SetFont(NS.FONT, 10, ""); bfs:SetPoint("CENTER"); bfs:SetTextColor(0.6, 0.6, 0.7); bfs:SetText(text)
     btn:SetScript("OnEnter", function() btn:SetBackdropBorderColor(ar, ag, ab, 0.8) end)
     btn:SetScript("OnLeave", function() btn:SetBackdropBorderColor(0.2, 0.2, 0.3, 1) end)
     btn:SetScript("OnClick", function() Nudge(px, py) end)
@@ -261,7 +311,7 @@ function NS.ShowMoverPopup(frame, label, onSave, onReset)
   -- Label
   if not frame._moverLabel then
     local fs = frame._moverBorder:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts/FRIZQT__.TTF", 9, "OUTLINE")
+    fs:SetFont(NS.FONT, 9, "OUTLINE")
     fs:SetPoint("TOP", frame, "TOP", 0, 12)
     frame._moverLabel = fs
   end
@@ -1014,9 +1064,9 @@ NS.GetBarTexturePath = function(key)
 end
 
 NS.GetFontPath = function(key)
-  if not key or key == "default" then return "Fonts/FRIZQT__.TTF" end
+  if not key or key == "default" then return NS.FONT end
   if not _lsmFontMap then BuildFontCache() end
-  return _lsmFontMap[key] or "Fonts/FRIZQT__.TTF"
+  return _lsmFontMap[key] or NS.FONT
 end
 
 NS.ApplyFontSize = function()

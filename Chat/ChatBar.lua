@@ -108,7 +108,7 @@ NS.BuildChatBar = function()
   if isInside then
     chatBar:SetBackdrop(nil)
   else
-    chatBar:SetBackdrop({bgFile = "Interface/Buttons/WHITE8X8"})
+    chatBar:SetBackdrop({bgFile = NS.TEX_WHITE})
     chatBar:SetBackdropColor(0, 0, 0, GetChatBgAlpha())
   end
 
@@ -131,7 +131,7 @@ NS.BuildChatBar = function()
   table.insert(entries, socialsBtn)
 
   local friendsBadge = socialsBtn:CreateFontString(nil, "OVERLAY")
-  friendsBadge:SetFont("Fonts/FRIZQT__.TTF", 12, "OUTLINE")
+  friendsBadge:SetFont(NS.FONT, 12, "OUTLINE")
   friendsBadge:SetPoint("BOTTOM", socialsBtn, "BOTTOM", 0, -2)
   friendsBadge:SetTextColor(1, 1, 1, 1)
   friendsBadge:SetText("")
@@ -386,7 +386,7 @@ NS.RepositionChatBar = function()
   if isInside then
     chatBar:SetBackdrop(nil)
   else
-    chatBar:SetBackdrop({bgFile = "Interface/Buttons/WHITE8X8"})
+    chatBar:SetBackdrop({bgFile = NS.TEX_WHITE})
     local a = NS.DB("chatBgAlpha") or 0.5
     chatBar:SetBackdropColor(0, 0, 0, 1 - a)
   end

@@ -26,15 +26,7 @@ local DEFAULTS = {
   textYOffset = 5,
 }
 
-local function Opt(key)
-  local db = LucidUIDB
-  if db and db["cb_" .. key] ~= nil then return db["cb_" .. key] end
-  return DEFAULTS[key]
-end
-local function OptSet(key, val)
-  if not LucidUIDB then return end
-  LucidUIDB["cb_" .. key] = val
-end
+local Opt, OptSet = NS.MakeOpt("cb_", DEFAULTS)
 
 -- ── Build Cast Bar Frame ────────────────────────────────────────────────
 local bar = nil
@@ -68,7 +60,7 @@ local function CreateBar()
   f.bg:SetVertexColor(bgc[1], bgc[2], bgc[3], bgc[4] or 0.85)
 
   -- Border (1px)
-  f:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  f:SetBackdrop({edgeFile=NS.TEX_WHITE, edgeSize=1})
   local bc = Opt("borderColor")
   f:SetBackdropBorderColor(bc[1], bc[2], bc[3], bc[4] or 1)
   f:SetBackdropColor(0, 0, 0, 0)
@@ -404,7 +396,7 @@ function CB.SetupSettings(parent)
   local MakeCard = NS._SMakeCard
   local MakePage = NS._SMakePage
   local R = NS._SR
-  local SBD = {bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1}
+  local SBD = NS.BACKDROP
   local sc, Append = MakePage(container)
 
   local function Toggle(card, label, key, tip)
@@ -444,7 +436,7 @@ function CB.SetupSettings(parent)
   -- Reset position button
   local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
   resetBtn:SetScript("OnClick", function()
     OptSet("pos", nil)
     if bar then NS.AnchorToChain(bar, "CastBar") end
@@ -454,7 +446,7 @@ function CB.SetupSettings(parent)
   -- Unlock button
   local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
   lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
   local unlocked = false
   lockBtn:SetScript("OnClick", function()
     unlocked = not unlocked
@@ -539,14 +531,14 @@ function CB.SetupSettings(parent)
   local function ColorPair(card, lbl1, key1, lbl2, key2, alpha1, alpha2)
     local pr = CreateFrame("Frame", nil, card.inner); pr:SetHeight(24)
     -- Left color
-    local lfs1 = pr:CreateFontString(nil, "OVERLAY"); lfs1:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+    local lfs1 = pr:CreateFontString(nil, "OVERLAY"); lfs1:SetFont(NS.FONT, 10, "")
     lfs1:SetPoint("LEFT", 20, 0); lfs1:SetTextColor(0.6, 0.6, 0.7); lfs1:SetText(lbl1)
     local cur1 = Opt(key1) or {1,1,1,1}
     local sw1 = CreateFrame("Frame", nil, pr, "BackdropTemplate"); sw1:SetSize(20, 16); sw1:SetPoint("LEFT", 110, 0)
     sw1:SetBackdrop(SBD); sw1:SetBackdropColor(cur1[1], cur1[2], cur1[3], cur1[4] or 1); sw1:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
     local hit1 = CreateFrame("Button", nil, pr, "BackdropTemplate")
     hit1:SetPoint("TOPLEFT", pr, "TOPLEFT", 0, 0); hit1:SetPoint("BOTTOMRIGHT", pr, "BOTTOM", -2, 0)
-    hit1:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
+    hit1:SetBackdrop({bgFile=NS.TEX_WHITE})
     hit1:SetBackdropColor(1, 1, 1, 0)
     hit1:SetScript("OnEnter", function() hit1:SetBackdropColor(1, 1, 1, 0.06) end)
     hit1:SetScript("OnLeave", function() hit1:SetBackdropColor(1, 1, 1, 0) end)
@@ -567,14 +559,14 @@ function CB.SetupSettings(parent)
     end)
     -- Right color (optional)
     if key2 then
-      local lfs2 = pr:CreateFontString(nil, "OVERLAY"); lfs2:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+      local lfs2 = pr:CreateFontString(nil, "OVERLAY"); lfs2:SetFont(NS.FONT, 10, "")
       lfs2:SetPoint("LEFT", pr, "CENTER", 20, 0); lfs2:SetTextColor(0.6, 0.6, 0.7); lfs2:SetText(lbl2)
       local cur2 = Opt(key2) or {1,1,1,1}
       local sw2 = CreateFrame("Frame", nil, pr, "BackdropTemplate"); sw2:SetSize(20, 16); sw2:SetPoint("LEFT", lfs2, "LEFT", 90, 0)
       sw2:SetBackdrop(SBD); sw2:SetBackdropColor(cur2[1], cur2[2], cur2[3], cur2[4] or 1); sw2:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
       local hit2 = CreateFrame("Button", nil, pr, "BackdropTemplate")
       hit2:SetPoint("TOPLEFT", pr, "TOP", 2, 0); hit2:SetPoint("BOTTOMRIGHT", pr, "BOTTOMRIGHT", 0, 0)
-      hit2:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8"})
+      hit2:SetBackdrop({bgFile=NS.TEX_WHITE})
       hit2:SetBackdropColor(1, 1, 1, 0)
       hit2:SetScript("OnEnter", function() hit2:SetBackdropColor(1, 1, 1, 0.06) end)
       hit2:SetScript("OnLeave", function() hit2:SetBackdropColor(1, 1, 1, 0) end)

@@ -52,8 +52,8 @@ local ADDON_STEPS = {
 }
 
 -- ── Style ──────────────────────────────────────────────────────────────
-local SBD = {bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1}
-local FONT = "Fonts/FRIZQT__.TTF"
+local SBD = NS.BACKDROP
+local FONT = NS.FONT
 local W, H = 680, 480
 local SIDEBAR_W = 150
 

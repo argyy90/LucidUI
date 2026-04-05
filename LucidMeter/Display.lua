@@ -47,15 +47,7 @@ local isSecret = issecretvalue or function() return false end
 
 DM.windows = {}
 
-local CLASS_COLORS = {
-  WARRIOR     = {0.78, 0.61, 0.43}, PALADIN      = {0.96, 0.55, 0.73},
-  HUNTER      = {0.67, 0.83, 0.45}, ROGUE        = {1.00, 0.96, 0.41},
-  PRIEST      = {1.00, 1.00, 1.00}, DEATHKNIGHT  = {0.77, 0.12, 0.23},
-  SHAMAN      = {0.00, 0.44, 0.87}, MAGE         = {0.41, 0.80, 0.94},
-  WARLOCK     = {0.58, 0.51, 0.79}, MONK         = {0.00, 1.00, 0.59},
-  DRUID       = {1.00, 0.49, 0.04}, DEMONHUNTER  = {0.64, 0.19, 0.79},
-  EVOKER      = {0.20, 0.58, 0.50},
-}
+local CLASS_COLORS = NS.CLASS_COLORS
 
 local function GetClassColor(class)
   local c = CLASS_COLORS[class and class:upper()]
@@ -462,8 +454,8 @@ local function CreateWindow(windowID, config)
   local frame = CreateFrame("Frame", frameName, UIParent, "BackdropTemplate")
   frame:SetSize(winW, winH)
   frame:SetBackdrop({
-    bgFile = "Interface/Buttons/WHITE8X8",
-    edgeFile = "Interface/Buttons/WHITE8X8",
+    bgFile = NS.TEX_WHITE,
+    edgeFile = NS.TEX_WHITE,
     edgeSize = 1,
   })
   frame:SetBackdropColor(0, 0, 0, 0)
@@ -572,7 +564,7 @@ local function CreateWindow(windowID, config)
     if popupCloseTicker then popupCloseTicker:Cancel(); popupCloseTicker = nil end
     if popupMenu then popupMenu:Hide() end
     popupMenu = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    popupMenu:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    popupMenu:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
     popupMenu:SetBackdropColor(0.06, 0.06, 0.06, 0.97)
     popupMenu:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
     popupMenu:SetFrameStrata("TOOLTIP")
@@ -594,7 +586,7 @@ local function CreateWindow(windowID, config)
         totalH = totalH + 9
       elseif item.title then
         local lbl = popupMenu:CreateFontString(nil, "OVERLAY")
-        lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+        lbl:SetFont(NS.FONT, 10, "")
         lbl:SetPoint("BOTTOMLEFT", 8, totalH + 2)
         lbl:SetText(item.text)
         lbl:SetTextColor(0.5, 0.5, 0.5)
@@ -609,7 +601,7 @@ local function CreateWindow(windowID, config)
         btn:SetScript("OnEnter", function() hl:Show() end)
         btn:SetScript("OnLeave", function() hl:Hide() end)
         local lbl = btn:CreateFontString(nil, "OVERLAY")
-        lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+        lbl:SetFont(NS.FONT, 10, "")
         lbl:SetPoint("LEFT", 8, 0)
         lbl:SetText(item.text)
         lbl:SetTextColor(0.85, 0.85, 0.85)
@@ -1265,7 +1257,7 @@ function DM.UpdateWindowDisplay(w)
 
         if not bar._hlBorder then
           local hlB = CreateFrame("Frame", nil, bar, "BackdropTemplate")
-          hlB:SetAllPoints(); hlB:SetBackdrop({edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+          hlB:SetAllPoints(); hlB:SetBackdrop({edgeFile=NS.TEX_WHITE, edgeSize=1})
           hlB:SetFrameLevel(bar:GetFrameLevel() + 2); hlB:Hide()
           bar._hlBorder = hlB
         end
@@ -1784,7 +1776,7 @@ function DM.OpenReportWindow(w)
   reportWin = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
   reportWin:SetSize(WIN_W, 200)
   reportWin:SetPoint("CENTER")
-  reportWin:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  reportWin:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
   reportWin:SetBackdropColor(0.05, 0.05, 0.05, 0.97)
   reportWin:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
   reportWin:SetFrameStrata("DIALOG")
@@ -1805,7 +1797,7 @@ function DM.OpenReportWindow(w)
   titleLine:SetHeight(1); titleLine:SetPoint("BOTTOMLEFT"); titleLine:SetPoint("BOTTOMRIGHT")
   titleLine:SetColorTexture(ar, ag, ab, 0.5)
   local title = titleBar:CreateFontString(nil, "OVERLAY")
-  title:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  title:SetFont(NS.FONT, 10, "")
   title:SetPoint("LEFT", 8, 0)
   title:SetText("|cff" .. aHex .. ">|r Report Results")
   title:SetTextColor(0.85, 0.85, 0.85)
@@ -1813,7 +1805,7 @@ function DM.OpenReportWindow(w)
   local closeBtn = CreateFrame("Button", nil, titleBar)
   closeBtn:SetSize(16, 16); closeBtn:SetPoint("RIGHT", -4, 0)
   local closeTex = closeBtn:CreateFontString(nil, "OVERLAY")
-  closeTex:SetFont("Fonts/FRIZQT__.TTF", 11, ""); closeTex:SetPoint("CENTER")
+  closeTex:SetFont(NS.FONT, 11, ""); closeTex:SetPoint("CENTER")
   closeTex:SetText("x"); closeTex:SetTextColor(0.4, 0.4, 0.4)
   closeBtn:SetScript("OnEnter", function() closeTex:SetTextColor(1, 0.3, 0.3) end)
   closeBtn:SetScript("OnLeave", function() closeTex:SetTextColor(0.4, 0.4, 0.4) end)
@@ -1837,7 +1829,7 @@ function DM.OpenReportWindow(w)
   elseif IsInInstance() then selectedChannel = "INSTANCE_CHAT" end
 
   local chanLabel = reportWin:CreateFontString(nil, "OVERLAY")
-  chanLabel:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  chanLabel:SetFont(NS.FONT, 10, "")
   chanLabel:SetPoint("TOPLEFT", PAD, yOff)
   chanLabel:SetText("|cff808080Channel|r")
 
@@ -1845,15 +1837,15 @@ function DM.OpenReportWindow(w)
   local chanBtn = CreateFrame("Button", nil, reportWin, "BackdropTemplate")
   chanBtn:SetSize(WIN_W - PAD * 2, 24)
   chanBtn:SetPoint("TOPLEFT", PAD, yOff)
-  chanBtn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  chanBtn:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
   chanBtn:SetBackdropColor(0.08, 0.08, 0.08, 1)
   chanBtn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
   local chanBtnText = chanBtn:CreateFontString(nil, "OVERLAY")
-  chanBtnText:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  chanBtnText:SetFont(NS.FONT, 10, "")
   chanBtnText:SetPoint("LEFT", 8, 0)
   chanBtnText:SetTextColor(0.9, 0.9, 0.9)
   local chanArrow = chanBtn:CreateFontString(nil, "OVERLAY")
-  chanArrow:SetFont("Fonts/FRIZQT__.TTF", 9, "")
+  chanArrow:SetFont(NS.FONT, 9, "")
   chanArrow:SetPoint("RIGHT", -6, 0)
   chanArrow:SetTextColor(ar, ag, ab); chanArrow:SetText("v")
 
@@ -1871,7 +1863,7 @@ function DM.OpenReportWindow(w)
   chanBtn:SetScript("OnClick", function(self)
     if chanPopup then chanPopup:Hide(); chanPopup = nil; return end
     chanPopup = CreateFrame("Frame", nil, self, "BackdropTemplate")
-    chanPopup:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    chanPopup:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
     chanPopup:SetBackdropColor(0.06, 0.06, 0.06, 0.97)
     chanPopup:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
     chanPopup:SetFrameStrata("TOOLTIP")
@@ -1883,7 +1875,7 @@ function DM.OpenReportWindow(w)
       local hl = item:CreateTexture(nil, "BACKGROUND")
       hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.06); hl:Hide()
       local lbl = item:CreateFontString(nil, "OVERLAY")
-      lbl:SetFont("Fonts/FRIZQT__.TTF", 10, ""); lbl:SetPoint("LEFT", 8, 0)
+      lbl:SetFont(NS.FONT, 10, ""); lbl:SetPoint("LEFT", 8, 0)
       lbl:SetText((ch.ch == selectedChannel) and ("|cff" .. aHex .. ch.label .. "|r") or ch.label)
       lbl:SetTextColor(0.85, 0.85, 0.85)
       item:SetScript("OnEnter", function() hl:Show() end)
@@ -1904,7 +1896,7 @@ function DM.OpenReportWindow(w)
   yOff = yOff - 30
 
   local whisperLabel = reportWin:CreateFontString(nil, "OVERLAY")
-  whisperLabel:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  whisperLabel:SetFont(NS.FONT, 10, "")
   whisperLabel:SetPoint("TOPLEFT", PAD, yOff)
   whisperLabel:SetText("|cff808080Whisper Target|r")
 
@@ -1912,10 +1904,10 @@ function DM.OpenReportWindow(w)
   local whisperBox = CreateFrame("EditBox", nil, reportWin, "BackdropTemplate")
   whisperBox:SetSize(WIN_W - PAD * 2, 22)
   whisperBox:SetPoint("TOPLEFT", PAD, yOff)
-  whisperBox:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  whisperBox:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
   whisperBox:SetBackdropColor(0.08, 0.08, 0.08, 1)
   whisperBox:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
-  whisperBox:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  whisperBox:SetFont(NS.FONT, 10, "")
   whisperBox:SetTextColor(0.9, 0.9, 0.9)
   whisperBox:SetTextInsets(8, 8, 0, 0)
   whisperBox:SetAutoFocus(false)
@@ -1934,12 +1926,12 @@ function DM.OpenReportWindow(w)
   linesRow:SetPoint("TOPLEFT", PAD, yOff)
 
   local linesLabel2 = linesRow:CreateFontString(nil, "OVERLAY")
-  linesLabel2:SetFont("Fonts/FRIZQT__.TTF", 10, "")
+  linesLabel2:SetFont(NS.FONT, 10, "")
   linesLabel2:SetPoint("LEFT", 0, 0)
   linesLabel2:SetText("|cff808080Lines:|r")
 
   local linesNumText = linesRow:CreateFontString(nil, "OVERLAY")
-  linesNumText:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  linesNumText:SetFont(NS.FONT, 11, "")
   linesNumText:SetPoint("CENTER")
   linesNumText:SetText(linesVal)
   linesNumText:SetTextColor(0.9, 0.9, 0.9)
@@ -1952,11 +1944,11 @@ function DM.OpenReportWindow(w)
     local btn = CreateFrame("Button", nil, linesRow, "BackdropTemplate")
     btn:SetSize(22, 22)
     btn:SetPoint(point, offsetX, 0)
-    btn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+    btn:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
     btn:SetBackdropColor(0.08, 0.08, 0.08, 1)
     btn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
     local lbl = btn:CreateFontString(nil, "OVERLAY")
-    lbl:SetFont("Fonts/FRIZQT__.TTF", 12, ""); lbl:SetPoint("CENTER"); lbl:SetText(text)
+    lbl:SetFont(NS.FONT, 12, ""); lbl:SetPoint("CENTER"); lbl:SetText(text)
     lbl:SetTextColor(0.6, 0.6, 0.6)
     btn:SetScript("OnEnter", function() btn:SetBackdropBorderColor(ar, ag, ab, 1); lbl:SetTextColor(1, 1, 1) end)
     btn:SetScript("OnLeave", function() btn:SetBackdropBorderColor(0.25, 0.25, 0.25, 1); lbl:SetTextColor(0.6, 0.6, 0.6) end)
@@ -1979,11 +1971,11 @@ function DM.OpenReportWindow(w)
   local sendBtn = CreateFrame("Button", nil, reportWin, "BackdropTemplate")
   sendBtn:SetSize(WIN_W - PAD * 2, 26)
   sendBtn:SetPoint("TOPLEFT", PAD, yOff)
-  sendBtn:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Buttons/WHITE8X8", edgeSize=1})
+  sendBtn:SetBackdrop({bgFile=NS.TEX_WHITE, edgeFile=NS.TEX_WHITE, edgeSize=1})
   sendBtn:SetBackdropColor(ar * 0.25, ag * 0.25, ab * 0.25, 1)
   sendBtn:SetBackdropBorderColor(ar, ag, ab, 1)
   local sendLbl = sendBtn:CreateFontString(nil, "OVERLAY")
-  sendLbl:SetFont("Fonts/FRIZQT__.TTF", 11, "")
+  sendLbl:SetFont(NS.FONT, 11, "")
   sendLbl:SetPoint("CENTER"); sendLbl:SetText("Send"); sendLbl:SetTextColor(1, 1, 1)
   sendBtn:SetScript("OnEnter", function() sendBtn:SetBackdropColor(ar * 0.4, ag * 0.4, ab * 0.4, 1) end)
   sendBtn:SetScript("OnLeave", function() sendBtn:SetBackdropColor(ar * 0.25, ag * 0.25, ab * 0.25, 1) end)
