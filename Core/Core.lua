@@ -177,15 +177,29 @@ function NS.RefreshAnchorChain()
   local db = LucidUIDB or {}
   -- Re-anchor ManaBar above Essential (it has no saved position)
   local mana = NS.Resources and NS.Resources._manaBar
-  if mana and mana:IsShown() then NS.AnchorToChain(mana, "ManaBar") end
+  if mana and mana:IsShown() then pcall(NS.AnchorToChain, mana, "ManaBar") end
   local res = NS.Resources and NS.Resources._mainBar
-  if res and not db["res_pos"] then NS.AnchorToChain(res, "Resources") end
+  if res and not db["res_pos"] then pcall(NS.AnchorToChain, res, "Resources") end
   local cb = NS.CastBar and NS.CastBar._bar
-  if cb and not db["cb_pos"] then NS.AnchorToChain(cb, "CastBar") end
+  if cb and not db["cb_pos"] then pcall(NS.AnchorToChain, cb, "CastBar") end
   local iconC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffIconCooldownViewer"]
-  if iconC and not db["bb_buffIconPos"] then NS.AnchorToChain(iconC, "BuffIcons") end
+  if iconC and not db["bb_buffIconPos"] then pcall(NS.AnchorToChain, iconC, "BuffIcons") end
   local barC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffBarCooldownViewer"]
-  if barC and not db["bb_buffBarPos"] then NS.AnchorToChain(barC, "BuffBars") end
+  if barC and not db["bb_buffBarPos"] then pcall(NS.AnchorToChain, barC, "BuffBars") end
+end
+
+-- Re-anchor chain after combat ends (protected ops may have failed during combat init)
+do
+  local anchorEvFrame = CreateFrame("Frame")
+  anchorEvFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+  anchorEvFrame:SetScript("OnEvent", function()
+    if not NS.IsCDMEnabled or not NS.IsCDMEnabled() then return end
+    -- Short delay so all modules have finished their REGEN_ENABLED handlers first
+    C_Timer.After(0.3, function()
+      NS.RefreshAnchorChain()
+      -- ElvUI_Anchor plugin handles UF re-anchoring on REGEN_ENABLED automatically
+    end)
+  end)
 end
 
 -- ── Mover/Nudge Window ──────────────────────────────────────────────────────

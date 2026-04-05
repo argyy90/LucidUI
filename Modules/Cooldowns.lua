@@ -157,6 +157,21 @@ local function GetContainer(viewerName)
   f:SetClampedToScreen(true); f:SetMovable(true); f:EnableMouse(false)
   -- Do NOT use SetPreventSecretValues — it taints item frame fields (allowAvailableAlert etc.)
 
+  -- Set estimated size immediately so addons anchoring to us (ElvUI) have a valid frame
+  local isEss = viewerName == VIEWERS.ESSENTIAL
+  local estW = Snap(isEss and Opt("essWidth") or Opt("utilWidth"))
+  local estH = Snap(isEss and Opt("essHeight") or Opt("utilHeight"))
+  local estSpacing = Snap(isEss and Opt("essSpacing") or Opt("utilSpacing"))
+  local estPerRow = isEss and Opt("essPerRow") or Opt("utilPerRow")
+  -- Assume ~8 icons for Essential, ~6 for Utility as reasonable defaults
+  local estCount = isEss and 8 or 6
+  local estCols = math.min(estCount, estPerRow)
+  local estRows = math.ceil(estCount / estPerRow)
+  f:SetSize(
+    math.max(1, estCols * (estW + estSpacing) - estSpacing),
+    math.max(1, estRows * (estH + estSpacing) - estSpacing)
+  )
+
   local posKey = viewerName == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
   local pos = Opt(posKey)
   if pos and pos.p then
@@ -568,6 +583,10 @@ local function OnSpecChange()
     C_Timer.After(1.0, function() CD.Refresh() end)
   end)
 end
+
+-- Pre-create containers at file load so other addons (ElvUI) can anchor to them immediately
+GetContainer(VIEWERS.ESSENTIAL)
+GetContainer(VIEWERS.UTILITY)
 
 evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
