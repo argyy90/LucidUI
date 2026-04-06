@@ -39,6 +39,7 @@ Core\Profiles\Bigwigs.lua
 Core\Profiles\BlizziInterrupts.lua
 Core\Profiles\Details.lua
 Core\Profiles\Elvui.lua
+Core\Profiles\MiniCC.lua
 Core\Profiles\Naowhqol.lua
 Core\Profiles\Plater.lua
 Core\Profiles\WarpDeplete.lua
