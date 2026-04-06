@@ -6,24 +6,54 @@ local NS = LucidUINS
 -- ── Resolution presets (LucidUI internal sizes) ────────────────────────
 local PRESETS = {
   ["1440p"] = {
-    cdv_essWidth = 46, cdv_essHeight = 40, cdv_essSpacing = 2, cdv_essPerRow = 8,
-    cdv_utilWidth = 46, cdv_utilHeight = 40, cdv_utilSpacing = 2, cdv_utilPerRow = 8,
-    cdv_fontSize = 14,
-    cb_width = 350, cb_height = 10, cb_fontSize = 12, cb_textYOffset = 5,
+    -- CDM
+    cdv_essWidth = 56, cdv_essHeight = 52, cdv_essSpacing = 2, cdv_essPerRow = 9,
+    cdv_utilWidth = 44, cdv_utilHeight = 40, cdv_utilSpacing = 2, cdv_utilPerRow = 8,
+    cdv_fontSize = 16,
+    -- CastBar
+    cb_width = 350, cb_height = 16, cb_fontSize = 14, cb_textYOffset = 5,
+    cb_bgTexture = "Melli",
+    -- Resources
     res_width = 350, res_height = 14, res_secHeight = 14, res_pipSpacing = 1,
-    bb_buffIconSize = 36, bb_buffIconSpacing = 2, bb_buffIconsPerRow = 12,
-    bb_buffBarWidth = 200, bb_buffBarHeight = 20,
-    bagIconSize = 37, bagSpacing = 4, bagColumns = 10,
+    res_fontSize = 16, res_bgTexture = "Melli",
+    -- BuffBar
+    bb_buffIconSize = 40, bb_buffIconSpacing = 2, bb_buffIconsPerRow = 12,
+    bb_buffBarWidth = 200, bb_buffBarHeight = 20, bb_buffBarSpacing = 2,
+    bb_buffBarFontSize = 14,
+    bb_buffBarTexture = "Flat", bb_buffBarBgTexture = "Melli",
+    -- Bags
+    bagIconSize = 38, bagSpacing = 4, bagColumns = 15,
+    bagCountSize = 12, bagCountPos = "BOTTOMRIGHT",
+    bagSlotBgAlpha = 0.8, bagAutoAH = true,
+    -- Chat
+    chatFontSize = 16, fontSize = 14, fontOutline = "",
+    -- LucidMeter
+    dmFontSize = 14, dmBarHeight = 26,
   },
   ["1080p"] = {
-    cdv_essWidth = 36, cdv_essHeight = 32, cdv_essSpacing = 2, cdv_essPerRow = 8,
+    -- CDM
+    cdv_essWidth = 46, cdv_essHeight = 42, cdv_essSpacing = 2, cdv_essPerRow = 9,
     cdv_utilWidth = 36, cdv_utilHeight = 32, cdv_utilSpacing = 2, cdv_utilPerRow = 8,
-    cdv_fontSize = 11,
-    cb_width = 280, cb_height = 8, cb_fontSize = 10, cb_textYOffset = 4,
+    cdv_fontSize = 14,
+    -- CastBar
+    cb_width = 280, cb_height = 14, cb_fontSize = 12, cb_textYOffset = 4,
+    cb_bgTexture = "Melli",
+    -- Resources
     res_width = 280, res_height = 12, res_secHeight = 12, res_pipSpacing = 1,
-    bb_buffIconSize = 28, bb_buffIconSpacing = 2, bb_buffIconsPerRow = 12,
-    bb_buffBarWidth = 160, bb_buffBarHeight = 16,
-    bagIconSize = 32, bagSpacing = 3, bagColumns = 10,
+    res_fontSize = 14, res_bgTexture = "Melli",
+    -- BuffBar
+    bb_buffIconSize = 33, bb_buffIconSpacing = 2, bb_buffIconsPerRow = 12,
+    bb_buffBarWidth = 160, bb_buffBarHeight = 16, bb_buffBarSpacing = 2,
+    bb_buffBarFontSize = 12,
+    bb_buffBarTexture = "Flat", bb_buffBarBgTexture = "Melli",
+    -- Bags
+    bagIconSize = 32, bagSpacing = 3, bagColumns = 15,
+    bagCountSize = 10, bagCountPos = "BOTTOMRIGHT",
+    bagSlotBgAlpha = 0.8, bagAutoAH = true,
+    -- Chat
+    chatFontSize = 14, fontSize = 12, fontOutline = "",
+    -- LucidMeter
+    dmFontSize = 12, dmBarHeight = 22,
   },
 }
 
@@ -63,7 +93,8 @@ local currentStep = 1
 local selectedRes = "1440p"
 local moduleStates = {}
 for _, m in ipairs(MODULES) do moduleStates[m.key] = false end
-local applyClassLayout = true
+local applyClassLayout = false
+local luiProfileApplied = false
 
 -- Per-addon: nil = skip, "1440p" or "1080p" = apply with resolution
 local addonChoices = {}
@@ -72,8 +103,26 @@ local addonChoices = {}
 local steps = {}  -- rebuilt each time wizard opens
 
 local function IsAddonLoaded(name)
-  if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
-  if _G.IsAddOnLoaded then return _G.IsAddOnLoaded(name) end
+  -- Try C_AddOns.IsAddOnLoaded (may return secret boolean in Midnight)
+  if C_AddOns and C_AddOns.IsAddOnLoaded then
+    local ok, loaded = pcall(C_AddOns.IsAddOnLoaded, name)
+    if ok and loaded then return true end
+  end
+  -- Fallback: check if addon's global table or key addon object exists
+  -- This works reliably regardless of API quirks
+  if _G[name] then return true end
+  -- Some addons use different global names
+  local globalChecks = {
+    ElvUI = _G.ElvUI,
+    Ayije_CDM = _G.Ayije_CDM,
+    Plater = _G.Plater,
+    BigWigs = _G.BigWigs,
+    Details = _G.Details,
+    NaowhQOL = _G.NaowhQOL,
+    WarpDeplete = _G.WarpDeplete,
+    BliZzi_Interrupts = _G.BliZzi_Interrupts or _G.BIT,
+  }
+  if globalChecks[name] then return true end
   return false
 end
 
@@ -328,6 +377,18 @@ local function UpdateSidebar()
     elseif step.id == "addon" and step.addon and i < currentStep then
       btn._label:SetTextColor(0.5, 0.3, 0.3)
       btn._status:SetText("|cffaa5555skip|r")
+    elseif step.id == "modules" and i < currentStep then
+      if luiProfileApplied then
+        btn._label:SetTextColor(0.3, 0.75, 0.3); btn._status:SetText("|cff4dcc4d" .. selectedRes .. "|r")
+      else
+        btn._label:SetTextColor(0.5, 0.3, 0.3); btn._status:SetText("|cffaa5555skip|r")
+      end
+    elseif step.id == "classLayout" and i < currentStep then
+      if applyClassLayout then
+        btn._label:SetTextColor(0.3, 0.75, 0.3); btn._status:SetText("")
+      else
+        btn._label:SetTextColor(0.5, 0.3, 0.3); btn._status:SetText("|cffaa5555skip|r")
+      end
     elseif i < currentStep then
       btn._label:SetTextColor(0.3, 0.75, 0.3)
       btn._status:SetText("")
@@ -404,113 +465,201 @@ local function ShowWelcome()
   )
 end
 
--- ── Step: Modules ──────────────────────────────────────────────────────
+-- ── Step: LucidUI Profile Import ──────────────────────────────────────
+
+-- Deserialize a LUI_EXPORT value string (reused from Settings.lua import logic)
+local function Deserialize(s)
+  if s == "true" then return true end
+  if s == "false" then return false end
+  if s == "nil" then return nil end
+  if tonumber(s) then return tonumber(s) end
+  if s:match('^".*"$') then return s:sub(2, -2):gsub('\\"', '"') end
+  if s:match("^{.*}$") then
+    local result = {}
+    local inner = s:sub(2, -2)
+    local i, arrIdx = 1, 1
+    while i <= #inner do
+      local _, eSkip = inner:find("^[%s,]*", i); i = (eSkip or i - 1) + 1
+      if i > #inner then break end
+      local k, rest = inner:match("^([%w_]+)=(.+)", i)
+      if k then
+        local depth = 0
+        local valStr = rest
+        for ci = 1, #rest do
+          local ch = rest:sub(ci, ci)
+          if ch == "{" then depth = depth + 1 elseif ch == "}" then depth = depth - 1
+          elseif ch == "," and depth == 0 then valStr = rest:sub(1, ci - 1); i = i + #k + 1 + ci; break end
+          if ci == #rest then i = i + #k + 1 + #rest + 1 end
+        end
+        local nk = tonumber(k); if nk then result[nk] = Deserialize(strtrim(valStr)) else result[k] = Deserialize(strtrim(valStr)) end
+      else
+        local depth2 = 0
+        for ci = i, #inner do
+          local ch = inner:sub(ci, ci)
+          if ch == "{" then depth2 = depth2 + 1 elseif ch == "}" then depth2 = depth2 - 1
+          elseif ch == "," and depth2 == 0 then result[arrIdx] = Deserialize(strtrim(inner:sub(i, ci - 1))); arrIdx = arrIdx + 1; i = ci + 1; break end
+          if ci == #inner then result[arrIdx] = Deserialize(strtrim(inner:sub(i, ci))); arrIdx = arrIdx + 1; i = ci + 1 end
+        end
+      end
+    end
+    return result
+  end
+  return s
+end
+
+local function ParseExportString(raw)
+  local data = {}
+  local skipKeys = {_profiles=true, _activeProfile=true}
+  for line in raw:gmatch("[^\n]+") do
+    local k, v = line:match("^([^=]+)=(.+)$")
+    if k and v and not k:match("^LUI_EXPORT") and not skipKeys[k] then
+      data[k] = Deserialize(v)
+    end
+  end
+  return data
+end
+
+local function ApplyLucidUIProfile(resolution)
+  if not LucidUIDB then LucidUIDB = {} end
+  local P = NS.Profiles and NS.Profiles.LucidUI
+  if not P then print("|cff3BD2ED[LucidUI]|r Recommended profile data not found"); return end
+
+  -- Parse the export string (supports both !LUI1! encoded and legacy LUI_EXPORT: format)
+  local encoded = type(P) == "table" and P[1] or P
+  if not encoded or type(encoded) ~= "string" then print("|cff3BD2ED[LucidUI]|r Invalid profile string"); return end
+  local raw = NS.DecodeProfileString(encoded)
+  if not raw then print("|cff3BD2ED[LucidUI]|r Failed to decode profile string"); return end
+  local baseData = ParseExportString(raw)
+
+  -- Create both resolution profiles from the base data
+  local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, history=true, chatHistory=true, debugHistory=true, _sessionData=true, _rollData=true, _rollEncounter=true}
+  LucidUIDB._profiles = LucidUIDB._profiles or {}
+
+  local hasAyije = IsAddonLoaded("Ayije_CDM")
+  local hasDetails = IsAddonLoaded("Details")
+
+  for _, res in ipairs({"1440p", "1080p"}) do
+    local profName = "R-LucidUI" .. (res == "1440p" and "1440" or "1080")
+    local snapshot = {}
+    -- Start with parsed base data
+    for k, v in pairs(baseData) do snapshot[k] = v end
+    -- Override with resolution preset
+    local preset = PRESETS[res]
+    if preset then for k, v in pairs(preset) do snapshot[k] = v end end
+    snapshot._resolution = res
+    -- Enable all modules (disable conflicting ones)
+    for _, m in ipairs(MODULES) do
+      local enable = true
+      if m.key == "cdvEnabled" and hasAyije then enable = false end
+      if m.key == "dmEnabled" and hasDetails then enable = false end
+      snapshot[m.key] = enable
+    end
+    snapshot["lootOwnWindow"] = true
+    LucidUIDB._profiles[profName] = snapshot
+  end
+
+  -- Activate the selected resolution profile
+  local profileName = "R-LucidUI" .. (resolution == "1440p" and "1440" or "1080")
+  local activeSnap = LucidUIDB._profiles[profileName]
+  for k, v in pairs(activeSnap) do
+    if not skip[k] then LucidUIDB[k] = v end
+  end
+  LucidUIDB._activeProfile = profileName
+  selectedRes = resolution
+  for _, m in ipairs(MODULES) do moduleStates[m.key] = activeSnap[m.key] or false end
+
+  luiProfileApplied = true
+  print("|cff3BD2ED[LucidUI]|r Recommended profiles created: R-LucidUI1440 & R-LucidUI1080 (active: " .. profileName .. ")")
+end
+
 local function ShowModules()
   ShowContent("modules")
   local c = GetContentFrame("modules")
   local ar, ag, ab = NS.ChatGetAccentRGB()
+  local hex = NS.RGBToHex(ar, ag, ab)
 
   if not c._built then
     c._built = true
     local header = c:CreateFontString(nil, "OVERLAY")
     header:SetFont(FONT, 12, ""); header:SetTextColor(0.75, 0.75, 0.8)
     header:SetWidth(W - SIDEBAR_W - 60); header:SetJustifyH("CENTER")
-    header:SetPoint("TOP", c, "TOP", 0, -8)
-    header:SetText("Select LucidUI resolution and modules.")
+    header:SetPoint("TOP", c, "TOP", 0, -20)
+    header:SetText("Click the resolution to import the |cff" .. hex .. "Recommended Profile|r")
 
-    -- Resolution buttons
     local resLabel = c:CreateFontString(nil, "OVERLAY")
     resLabel:SetFont(FONT, 10, ""); resLabel:SetTextColor(0.5, 0.5, 0.6)
-    resLabel:SetPoint("TOP", header, "BOTTOM", 0, -10); resLabel:SetText("LucidUI Resolution")
+    resLabel:SetPoint("TOP", header, "BOTTOM", 0, -14); resLabel:SetText("Both profiles (R-LucidUI1440 & R-LucidUI1080) will be created.")
 
-    local btn1440 = MakeButton(c, "1440p", 120, 26)
-    btn1440:SetPoint("TOP", resLabel, "BOTTOM", -68, -6)
-    local btn1080 = MakeButton(c, "1080p", 120, 26)
-    btn1080:SetPoint("TOP", resLabel, "BOTTOM", 68, -6)
+    local btn1440 = MakeButton(c, "1440p", 160, 36)
+    btn1440:SetPoint("TOP", resLabel, "BOTTOM", -90, -16)
+    local btn1080 = MakeButton(c, "1080p", 160, 36)
+    btn1080:SetPoint("TOP", resLabel, "BOTTOM", 90, -16)
 
-    local function UpdateRes()
-      local r, g, b = NS.ChatGetAccentRGB()
-      if selectedRes == "1440p" then
-        btn1440:SetBackdropBorderColor(r, g, b, 0.8); btn1440._fs:SetTextColor(r, g, b)
+    local statusFs = c:CreateFontString(nil, "OVERLAY")
+    statusFs:SetFont(FONT, 10, ""); statusFs:SetPoint("TOP", btn1440, "BOTTOM", 90, -16)
+    statusFs:SetTextColor(0.4, 0.7, 0.4)
+    c._statusFs = statusFs
+
+    local function UpdateBtns()
+      if selectedRes == "1440p" and luiProfileApplied then
+        btn1440:SetBackdropBorderColor(ar, ag, ab, 0.8); btn1440._fs:SetTextColor(ar, ag, ab)
         btn1080:SetBackdropBorderColor(0.25, 0.25, 0.35, 1); btn1080._fs:SetTextColor(0.9, 0.9, 0.9)
-      else
-        btn1080:SetBackdropBorderColor(r, g, b, 0.8); btn1080._fs:SetTextColor(r, g, b)
+        statusFs:SetText("Active: R-LucidUI1440")
+      elseif selectedRes == "1080p" and luiProfileApplied then
+        btn1080:SetBackdropBorderColor(ar, ag, ab, 0.8); btn1080._fs:SetTextColor(ar, ag, ab)
         btn1440:SetBackdropBorderColor(0.25, 0.25, 0.35, 1); btn1440._fs:SetTextColor(0.9, 0.9, 0.9)
+        statusFs:SetText("Active: R-LucidUI1080")
+      else
+        btn1440:SetBackdropBorderColor(0.25, 0.25, 0.35, 1); btn1440._fs:SetTextColor(0.9, 0.9, 0.9)
+        btn1080:SetBackdropBorderColor(0.25, 0.25, 0.35, 1); btn1080._fs:SetTextColor(0.9, 0.9, 0.9)
+        statusFs:SetText("Skip — no profile will be imported")
       end
     end
-    btn1440:SetScript("OnClick", function() selectedRes = "1440p"; UpdateRes() end)
-    btn1080:SetScript("OnClick", function() selectedRes = "1080p"; UpdateRes() end)
-    btn1440:SetScript("OnLeave", UpdateRes); btn1080:SetScript("OnLeave", UpdateRes)
-    UpdateRes()
 
-    -- Enable All button
-    local enableAll = MakeButton(c, "Enable All", 90, 22)
-    enableAll:SetPoint("TOPRIGHT", c, "TOPRIGHT", -10, -70)
-    enableAll:SetScript("OnClick", function()
-      for _, m in ipairs(MODULES) do moduleStates[m.key] = true end
-      for _, row in ipairs(c._rows) do if row._cb then row._cb:SetChecked(true) end end
+    btn1440:SetScript("OnClick", function()
+      ApplyLucidUIProfile("1440p"); UpdateBtns()
     end)
+    btn1080:SetScript("OnClick", function()
+      ApplyLucidUIProfile("1080p"); UpdateBtns()
+    end)
+    btn1440:SetScript("OnLeave", UpdateBtns); btn1080:SetScript("OnLeave", UpdateBtns)
+    UpdateBtns()
 
-    c._rows = {}
-    local yOff = -94
-    for i, m in ipairs(MODULES) do
-      local row = CreateFrame("Button", nil, c)
-      row:SetHeight(30)
-      local hoverBg = row:CreateTexture(nil, "BACKGROUND")
-      hoverBg:SetAllPoints(); hoverBg:SetColorTexture(1, 1, 1, 0); row._hoverBg = hoverBg
+    -- Module list + conflict warnings
+    local moduleInfo = c:CreateFontString(nil, "OVERLAY")
+    moduleInfo:SetFont(FONT, 10, ""); moduleInfo:SetWidth(W - SIDEBAR_W - 60)
+    moduleInfo:SetJustifyH("CENTER"); moduleInfo:SetSpacing(4)
+    moduleInfo:SetPoint("TOP", statusFs, "BOTTOM", 0, -24)
+    moduleInfo:SetTextColor(0.45, 0.45, 0.55)
+    c._moduleInfo = moduleInfo
 
-      local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-      cb:SetSize(22, 22); cb:SetPoint("LEFT", 20, 0)
-      cb:SetScript("OnClick", function(self) moduleStates[m.key] = self:GetChecked() end)
-      row._cb = cb
-
-      local lbl = row:CreateFontString(nil, "OVERLAY")
-      lbl:SetFont(FONT, 12, ""); lbl:SetPoint("LEFT", cb, "RIGHT", 6, 0)
-      lbl:SetTextColor(ar, ag, ab); lbl:SetText(m.label)
-
-      local desc = row:CreateFontString(nil, "OVERLAY")
-      desc:SetFont(FONT, 10, ""); desc:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
-      desc:SetTextColor(0.45, 0.45, 0.55); desc:SetText("— " .. m.desc)
-
-      row:SetScript("OnClick", function() cb:SetChecked(not cb:GetChecked()); moduleStates[m.key] = cb:GetChecked() end)
-      row:SetScript("OnEnter", function() hoverBg:SetColorTexture(ar, ag, ab, 0.06) end)
-      row:SetScript("OnLeave", function() hoverBg:SetColorTexture(1, 1, 1, 0) end)
-
-      row:SetPoint("TOPLEFT", c, "TOPLEFT", 0, yOff)
-      row:SetPoint("RIGHT", c, "RIGHT", 0, 0)
-      c._rows[i] = row
-      yOff = yOff - 34
-    end
-
-    -- Recommendations & conflict warnings
-    local infoFs = c:CreateFontString(nil, "OVERLAY")
-    infoFs:SetFont(FONT, 9, ""); infoFs:SetWidth(W - SIDEBAR_W - 40)
-    infoFs:SetJustifyH("LEFT"); infoFs:SetPoint("TOPLEFT", c, "TOPLEFT", 20, yOff - 8)
-    infoFs:SetSpacing(3)
-    c._infoFs = infoFs
+    local conflictInfo = c:CreateFontString(nil, "OVERLAY")
+    conflictInfo:SetFont(FONT, 10, ""); conflictInfo:SetWidth(W - SIDEBAR_W - 60)
+    conflictInfo:SetJustifyH("CENTER"); conflictInfo:SetSpacing(3)
+    conflictInfo:SetPoint("TOP", moduleInfo, "BOTTOM", 0, -12)
+    conflictInfo:SetTextColor(0.7, 0.4, 0.2)
+    c._conflictInfo = conflictInfo
   end
 
-  -- Refresh checkbox states
-  for i, m in ipairs(MODULES) do
-    if c._rows[i] and c._rows[i]._cb then c._rows[i]._cb:SetChecked(moduleStates[m.key]) end
-  end
-
-  -- Update conflict info based on which addons were imported
-  if c._infoFs then
-    local ar, ag, ab = NS.ChatGetAccentRGB()
-    local hex = NS.RGBToHex(ar, ag, ab)
-    local lines = {}
-    lines[#lines+1] = "|cff" .. hex .. "Recommended:|r LucidCDM, LucidChat, LucidBags"
-
-    local hasAyije = addonChoices["Ayije_CDM"]
-    local hasDetails = addonChoices["Details"]
-    if hasAyije or hasDetails then
-      local conflicts = {}
-      if hasAyije then conflicts[#conflicts+1] = "Ayije CDM" end
-      if hasDetails then conflicts[#conflicts+1] = "Details" end
-      lines[#lines+1] = "|cffcc4444Conflict:|r " .. table.concat(conflicts, " & ") .. " active — disable |cff" .. hex .. "LucidMeter|r and |cff" .. hex .. "LucidCDM|r to avoid issues"
+  -- Refresh module list (updates on every show to reflect current addon state)
+  if c._moduleInfo then
+    local hasAyije = IsAddonLoaded("Ayije_CDM")
+    local hasDetails = IsAddonLoaded("Details")
+    local mList = {}
+    for _, m in ipairs(MODULES) do
+      local disabled = (m.key == "cdvEnabled" and hasAyije) or (m.key == "dmEnabled" and hasDetails)
+      if disabled then
+        mList[#mList+1] = "|cff666666" .. m.label .. "|r — |cffaa5555disabled (conflict)|r"
+      else
+        mList[#mList+1] = "|cff" .. hex .. m.label .. "|r — " .. m.desc
+      end
     end
-    c._infoFs:SetText(table.concat(lines, "\n"))
+    c._moduleInfo:SetText("Included modules:\n" .. table.concat(mList, "\n"))
+
+    local warnings = {}
+    if hasAyije then warnings[#warnings+1] = "|cffcc6633LucidCDM|r disabled — |cffffd100Ayije CDM|r is active" end
+    if hasDetails then warnings[#warnings+1] = "|cffcc6633LucidMeter|r disabled — |cffffd100Details|r is active" end
+    c._conflictInfo:SetText(table.concat(warnings, "\n"))
   end
 end
 
@@ -519,36 +668,56 @@ local PROFILE_NAME = "LucidUI"
 
 local function ApplyAddonProfile(addonKey, resolution)
   local P = NS.Profiles
-  if not P then return end
+  if not P then print("|cff3BD2ED[LucidUI]|r Profile data not loaded"); return end
 
   if addonKey == "ElvUI" then
     local E = _G.ElvUI and _G.ElvUI[1]
-    if E and E.Distributor then
-      local DI = E.Distributor
-      local profile = resolution == "1080p" and P.ElvUI1080p or P.ElvUI
-      if profile then
-        local str = profile[1]
-        local scale = profile[2]
+    if not E then print("|cff3BD2ED[LucidUI]|r ElvUI not found"); return end
+    if not E.Distributor then print("|cff3BD2ED[LucidUI]|r ElvUI Distributor not found"); return end
+    local DI = E.Distributor
+    local profile = resolution == "1080p" and P.ElvUI1080p or P.ElvUI
+    if not profile then print("|cff3BD2ED[LucidUI]|r ElvUI profile data missing for " .. resolution); return end
+    -- ElvUI exports 4 strings: Profile, Private, Global, Aura Filters + scale as last entry
+    local imported = 0
+    for i, str in ipairs(profile) do
+      if type(str) == "string" then
         local ok, profileType, _, data = pcall(DI.Decode, DI, str)
         if ok and profileType and data and type(data) == "table" then
-          pcall(DI.SetImportedProfile, DI, profileType, PROFILE_NAME, data, true)
-          if E.data then pcall(E.data.SetProfile, E.data, PROFILE_NAME) end
-        end
-        if scale and E.data and E.data.global and E.data.global.general then
-          E.data.global.general.UIScale = scale
+          local ok2, err2 = pcall(DI.SetImportedProfile, DI, profileType, PROFILE_NAME, data, true)
+          if ok2 then
+            imported = imported + 1
+          else
+            print("|cff3BD2ED[LucidUI]|r ElvUI import " .. i .. " failed: " .. tostring(err2))
+          end
+        else
+          print("|cff3BD2ED[LucidUI]|r ElvUI decode " .. i .. " failed: " .. tostring(profileType))
         end
       end
+    end
+    if imported > 0 then
+      if E.data then pcall(E.data.SetProfile, E.data, PROFILE_NAME) end
+      print("|cff3BD2ED[LucidUI]|r ElvUI imported " .. imported .. " sections")
+    end
+    -- Scale is last numeric entry in the table
+    local scale = profile[#profile]
+    if type(scale) == "number" and E.data and E.data.global and E.data.global.general then
+      E.data.global.general.UIScale = scale
+      if E.global and E.global.general then E.global.general.UIScale = scale end
+      if E.UIScale then pcall(E.UIScale, E) end
     end
 
   elseif addonKey == "Plater" then
     local Pltr = _G.Plater
-    if Pltr and Pltr.DecompressData then
-      local str = resolution == "1080p" and P.Plater1080p or P.Plater
-      if str then
-        local ok, data = pcall(Pltr.DecompressData, str, "print")
-        if ok and data then pcall(Pltr.ImportAndSwitchProfile, PROFILE_NAME, data, false, false, true) end
-      end
-    end
+    if not Pltr then print("|cff3BD2ED[LucidUI]|r Plater not found"); return end
+    if not Pltr.DecompressData then print("|cff3BD2ED[LucidUI]|r Plater.DecompressData not found"); return end
+    local str = resolution == "1080p" and P.Plater1080p or P.Plater
+    if not str then print("|cff3BD2ED[LucidUI]|r Plater profile data missing for " .. resolution); return end
+    local ok, data = pcall(Pltr.DecompressData, str, "print")
+    if not ok then print("|cff3BD2ED[LucidUI]|r Plater DecompressData failed: " .. tostring(data)); return end
+    if not data then print("|cff3BD2ED[LucidUI]|r Plater DecompressData returned nil"); return end
+    local ok2, err2 = pcall(Pltr.ImportAndSwitchProfile, PROFILE_NAME, data, false, false, true)
+    if not ok2 then print("|cff3BD2ED[LucidUI]|r Plater ImportAndSwitchProfile failed: " .. tostring(err2)); return end
+    print("|cff3BD2ED[LucidUI]|r Plater profile imported successfully")
 
   elseif addonKey == "BigWigs" then
     local BWAPI = _G.BigWigsAPI
@@ -945,83 +1114,8 @@ end
 function NS._WizardFinish()
   if not LucidUIDB then LucidUIDB = {} end
 
-  -- Apply LucidUI resolution preset
-  local preset = PRESETS[selectedRes]
-  if preset then for k, v in pairs(preset) do LucidUIDB[k] = v end end
-  LucidUIDB._resolution = selectedRes
-
-  -- Apply module toggles
-  for _, m in ipairs(MODULES) do LucidUIDB[m.key] = moduleStates[m.key] end
-  if moduleStates["ltEnabled"] then LucidUIDB["lootOwnWindow"] = true end
-
-  -- Addon profiles were already applied immediately on button click
-
-  -- ── Apply class cooldown layout ──────────────────────────────────────
-  if applyClassLayout then
-    local _, className = UnitClass("player")
-    local classKey = className and strlower(className)
-    local classData = NS.ClassLayouts and classKey and NS.ClassLayouts[classKey]
-    if classData and CooldownViewerSettings then
-      local layoutManager = CooldownViewerSettings:GetLayoutManager()
-      if layoutManager then
-        local classDisplay = LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[className] or className
-        local prefix = "LucidUI - " .. classDisplay
-        if layoutManager.layouts then
-          local toRemove = {}
-          for layoutID, layout in pairs(layoutManager.layouts) do
-            local name = layout and (layout.layoutName or layout.name)
-            if name and name:find(prefix, 1, true) == 1 then toRemove[#toRemove+1] = layoutID end
-          end
-          if #toRemove > 0 then
-            table.sort(toRemove, function(a, b) return a > b end)
-            for _, id in ipairs(toRemove) do layoutManager.layouts[id] = nil end
-            local newLayouts = {}
-            for _, layout in pairs(layoutManager.layouts) do
-              if layout then newLayouts[#newLayouts+1] = layout; layout.layoutID = #newLayouts end
-            end
-            for k in pairs(layoutManager.layouts) do layoutManager.layouts[k] = nil end
-            for i, layout in ipairs(newLayouts) do layoutManager.layouts[i] = layout end
-          end
-        end
-        -- Support both single string and table of strings (multiple specs)
-        local allLayoutIDs = {}
-        local dataList = type(classData) == "table" and classData or {classData}
-        for _, data in ipairs(dataList) do
-          local ok2, ids = pcall(layoutManager.CreateLayoutsFromSerializedData, layoutManager, data)
-          if ok2 and ids then
-            for _, id in ipairs(ids) do allLayoutIDs[#allLayoutIDs + 1] = id end
-          end
-        end
-        if #allLayoutIDs > 0 then
-          -- Class Layout import
-          for _, layoutID in ipairs(allLayoutIDs) do
-            local layout = layoutManager.layouts and layoutManager.layouts[layoutID]
-            if layout then
-              if layout.name then layout.name = layout.name:gsub("^.- %- ", "LucidUI - ") end
-              if layout.layoutName then layout.layoutName = layout.layoutName:gsub("^.- %- ", "LucidUI - ") end
-            end
-          end
-          -- Activate matching spec layout
-          local specIndex = GetSpecialization()
-          local activeLayoutID = allLayoutIDs[1]
-          if specIndex then
-            local _, specName = GetSpecializationInfo(specIndex)
-            if specName and layoutManager.layouts then
-              for _, layoutID in ipairs(allLayoutIDs) do
-                local layout = layoutManager.layouts[layoutID]
-                if layout and layout.name and layout.name:find(specName) then activeLayoutID = layoutID; break end
-              end
-            end
-          end
-          layoutManager:SetActiveLayoutByID(activeLayoutID)
-          layoutManager:SaveLayouts()
-        end
-      end
-    end
-  end
-
-  -- Free profile strings from memory (they're no longer needed after install)
-  NS.Profiles = nil
+  -- All profiles (LucidUI, addons, class layout) were applied on button click
+  -- Finish only marks install complete and reloads
 
   LucidUIDB._installComplete = true
   ReloadUI()
@@ -1032,7 +1126,8 @@ function NS.ShowInstallWizard()
   CreateWizard()
   currentStep = 1
   selectedRes = "1440p"
-  applyClassLayout = true
+  applyClassLayout = false
+  luiProfileApplied = false
   for _, m in ipairs(MODULES) do moduleStates[m.key] = false end
   addonChoices = {}
   -- Wipe cached content frames so they rebuild with fresh state
@@ -1048,8 +1143,6 @@ initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:SetScript("OnEvent", function()
   C_Timer.After(1, function()
     if LucidUIDB and LucidUIDB._installComplete then
-      -- Install already done — free profile strings (~350KB)
-      NS.Profiles = nil
       return
     end
     if not LucidUIDB then LucidUIDB = {} end

@@ -28,6 +28,99 @@ NS.PAD       = 10    -- standard inner padding
 NS.PAD_TITLE = 26    -- title bar height / top padding
 NS.SB_W      = 16    -- scrollbar width
 
+-- Pixel perfect snap system (like Ayije's Pixel.lua)
+do
+  local pixelSize = 1
+  function NS.PixelUpdate()
+    local _, physH = GetPhysicalScreenSize()
+    local scale = UIParent and UIParent:GetEffectiveScale() or 1
+    if physH and physH > 0 and scale > 0 then
+      pixelSize = 768 / (physH * scale)
+    end
+  end
+  function NS.PixelSnap(value)
+    if pixelSize <= 0 then return math.floor(value + 0.5) end
+    return math.floor(value / pixelSize + 0.5) * pixelSize
+  end
+  function NS.PixelSize() return pixelSize end
+  -- Init on first call; also updated on scale change events
+  local pxFrame = CreateFrame("Frame")
+  pxFrame:RegisterEvent("UI_SCALE_CHANGED")
+  pxFrame:RegisterEvent("DISPLAY_SIZE_CHANGED")
+  pxFrame:SetScript("OnEvent", function() NS.PixelUpdate() end)
+  C_Timer.After(0, NS.PixelUpdate) -- defer to after UIParent exists
+end
+
+-- Spell base ID normalization (resolves talent variants to base spells, like Ayije)
+do
+  local baseCache = {}
+  local baseCacheSize = 0
+  local MAX_CACHE = 2048
+  function NS.NormalizeToBase(id)
+    if not id or id <= 0 then return id end
+    local cached = baseCache[id]
+    if cached ~= nil then return cached end
+    local base = C_Spell and C_Spell.GetBaseSpell and C_Spell.GetBaseSpell(id)
+    local result = (base and base > 0 and base ~= id) and base or id
+    if baseCacheSize >= MAX_CACHE then wipe(baseCache); baseCacheSize = 0 end
+    baseCache[id] = result; baseCacheSize = baseCacheSize + 1
+    return result
+  end
+  function NS.ClearSpellBaseCache() wipe(baseCache); baseCacheSize = 0 end
+end
+
+-- ── Profile Export/Import Encoding ──────────────────────────────────────────
+-- Format: !LUI1!<base64_encoded_key=value_text>
+-- Uses simple Base64 (no external libs needed)
+do
+  -- Base64 alphabet
+  local b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  local function Base64Encode(data)
+    return ((data:gsub(".", function(x)
+      local r, b = "", x:byte()
+      for i = 8, 1, -1 do r = r .. (b % 2^i - b % 2^(i-1) > 0 and "1" or "0") end
+      return r
+    end) .. "0000"):gsub("%d%d%d?%d?%d?%d?", function(x)
+      if #x < 6 then return "" end
+      local c = 0
+      for i = 1, 6 do c = c + (x:sub(i, i) == "1" and 2^(6-i) or 0) end
+      return b64:sub(c+1, c+1)
+    end) .. ({"", "==", "="})[#data % 3 + 1])
+  end
+
+  local function Base64Decode(data)
+    data = data:gsub("[^" .. b64 .. "=]", "")
+    return (data:gsub(".", function(x)
+      if x == "=" then return "" end
+      local r, f = "", (b64:find(x) - 1)
+      for i = 6, 1, -1 do r = r .. (f % 2^i - f % 2^(i-1) > 0 and "1" or "0") end
+      return r
+    end):gsub("%d%d%d?%d?%d?%d?%d?%d?", function(x)
+      if #x ~= 8 then return "" end
+      local c = 0
+      for i = 1, 8 do c = c + (x:sub(i, i) == "1" and 2^(8-i) or 0) end
+      return string.char(c)
+    end))
+  end
+
+  function NS.EncodeProfileString(rawText)
+    return "!LUI1!" .. Base64Encode(rawText)
+  end
+
+  function NS.DecodeProfileString(encoded)
+    if not encoded or type(encoded) ~= "string" then return nil end
+    if not encoded:match("^!LUI1!") then return nil end
+    return Base64Decode(encoded:sub(7))
+  end
+end
+
+-- Override spell detection (AzortharionUI pattern — resolves talent-transformed spells)
+function NS.GetOverrideSpell(spellID)
+  if not spellID or not C_Spell or not C_Spell.GetOverrideSpell then return spellID end
+  local override = C_Spell.GetOverrideSpell(spellID)
+  return (override and override > 0 and override ~= spellID) and override or spellID
+end
+
 -- Class colors (shared across LucidMeter, LootRolls, etc.)
 NS.CLASS_COLORS = {
   WARRIOR     = {0.78, 0.61, 0.43}, PALADIN      = {0.96, 0.55, 0.73},
@@ -200,6 +293,27 @@ do
       -- ElvUI_Anchor plugin handles UF re-anchoring on REGEN_ENABLED automatically
     end)
   end)
+end
+
+-- ── AfterCombat Queue (AzortharionUI pattern) ──────────────────────────────
+-- Queue functions to execute after combat ends. Safe for protected operations.
+do
+  local queue = {}
+  local acFrame = CreateFrame("Frame")
+  acFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+  acFrame:SetScript("OnEvent", function()
+    for i = 1, #queue do
+      local fn = queue[i]; queue[i] = nil
+      pcall(fn)
+    end
+  end)
+  function NS.AfterCombat(fn)
+    if not InCombatLockdown() then
+      pcall(fn)
+    else
+      queue[#queue + 1] = fn
+    end
+  end
 end
 
 -- ── Mover/Nudge Window ──────────────────────────────────────────────────────

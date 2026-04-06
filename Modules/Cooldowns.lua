@@ -44,6 +44,7 @@ local hookedViewers = {}
 local hookedPools = {}
 local hookedLayouts = {}
 local combatDirty = {}
+local layoutDirty = {}  -- viewerName → true when layout needs refresh
 local initialized = false
 local evFrame  -- forward declaration; created at bottom of file
 
@@ -53,13 +54,24 @@ local rawSetPoint = _anchorProxy.SetPoint
 local rawClearAllPoints = _anchorProxy.ClearAllPoints
 
 
+-- ── Scale Lock (prevent Blizzard from scaling CDM frames) ──────────────
+local function InstallScaleLockHook(frame)
+  local fd = frameData[frame]
+  if not fd then fd = {}; frameData[frame] = fd end
+  if fd.scaleLockHooked then return end
+  fd.scaleLockHooked = true
+  hooksecurefunc(frame, "SetScale", function(self, scale)
+    if scale ~= 1 then self:SetScale(1) end
+  end)
+end
+
 -- ── Frame data (weak-key) ───────────────────────────────────────────────
 local function GetFD(frame)
   if not frameData[frame] then frameData[frame] = {} end
   return frameData[frame]
 end
 
--- ── Ready Glow (LibCustomGlow) ─────────────────────────────────────────
+-- ── Ready Glow (LibCustomGlow) — v1.23 proven implementation ──────────
 local LCG = LibStub and LibStub("LibCustomGlow-1.0", true)
 
 local GLOW_KEY = "LucidUIReadyGlow"
@@ -96,49 +108,134 @@ local function ShowReadyGlow(frame)
   end)
 end
 
--- Hook Blizzard's spell alert system to detect "spell ready" transitions
--- All CooldownViewer frame properties are secret-tainted, so we can't poll them.
--- Instead we hook the alert callbacks that Blizzard fires when spells become available.
+-- ── Glow Tracking (Vigil-style: snapshot + cast prediction + restriction handling) ──
 local glowHooksSetup = false
-local glowTrackedCDs = {} -- spellID → wasOnCD
+local glowTrackedCDs = {}    -- spellID → wasOnCD (bool)
+local frameSpellMap = setmetatable({}, {__mode = "k"})  -- frame → spellID (persists through restrictions)
+local castPredictions = {}   -- spellID → castTime
+local restrictionActive = false
 
--- Safe number check (like Ayije's IsSafeNumber)
 local function IsSafeNumber(v)
   return v ~= nil and type(v) == "number" and not (issecretvalue and issecretvalue(v))
+end
+
+local function IsSafeValue(v)
+  return v ~= nil and not (issecretvalue and issecretvalue(v))
+end
+
+-- Read spellID from frame, falling back to snapshot when secret
+local function GetFrameSpellID(frame)
+  local ok, info = pcall(function() return frame.cooldownInfo end)
+  if ok and info then
+    local id = info.overrideSpellID or info.spellID
+    if IsSafeNumber(id) and id > 0 then
+      frameSpellMap[frame] = id  -- keep map fresh while readable
+      return id
+    end
+  end
+  -- Fallback: last known spellID from before restrictions
+  return frameSpellMap[frame]
+end
+
+-- Snapshot all CDM frame states while values are still readable
+local function SnapshotCooldownStates()
+  for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+    local viewer = _G[viewerName]
+    if viewer and viewer.itemFramePool then
+      for frame in viewer.itemFramePool:EnumerateActive() do
+        local spellID = GetFrameSpellID(frame)
+        if spellID then
+          local okCD, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
+          if okCD and cdInfo then
+            local onCD = false
+            if IsSafeValue(cdInfo.isActive) then
+              onCD = cdInfo.isActive and not cdInfo.isOnGCD
+              if onCD and IsSafeNumber(cdInfo.duration) and cdInfo.duration <= 1.5 then
+                onCD = false
+              end
+            end
+            glowTrackedCDs[spellID] = onCD
+          end
+        end
+      end
+    end
+  end
+end
+
+-- Check glow transitions on all CDM frames (called from events)
+local function CheckGlowTransitions()
+  if not Opt("readyGlow") then return end
+  for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+    local viewer = _G[viewerName]
+    if viewer and viewer.itemFramePool then
+      for frame in viewer.itemFramePool:EnumerateActive() do
+        local spellID = GetFrameSpellID(frame)
+        if spellID then
+          local onCD = nil
+
+          -- Try reading cooldown state directly
+          local okCD, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
+          if okCD and cdInfo and IsSafeValue(cdInfo.isActive) then
+            onCD = cdInfo.isActive and not cdInfo.isOnGCD
+            if onCD and IsSafeNumber(cdInfo.duration) and cdInfo.duration <= 1.5 then
+              onCD = false
+            end
+          end
+
+          -- Fallback: if values are secret, use cast prediction
+          if onCD == nil and castPredictions[spellID] then
+            onCD = true  -- conservatively assume still on CD
+          end
+
+          if onCD ~= nil then
+            local wasOnCD = glowTrackedCDs[spellID]
+            glowTrackedCDs[spellID] = onCD
+            if wasOnCD and not onCD and frame:IsShown() then
+              ShowReadyGlow(frame)
+            end
+          end
+        end
+      end
+    end
+  end
 end
 
 local function SetupGlowHooks()
   if glowHooksSetup then return end
   glowHooksSetup = true
 
-  -- Read spellID from frame.cooldownInfo (like Ayije does)
-  local function GetFrameSpellID(frame)
-    local ok, info = pcall(function() return frame.cooldownInfo end)
-    if not ok or not info then return nil end
-    local id = info.overrideSpellID or info.spellID
-    return IsSafeNumber(id) and id or nil
-  end
-
   local glowFrame = CreateFrame("Frame")
   glowFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-  glowFrame:SetScript("OnEvent", function()
-    if not Opt("readyGlow") then return end
-    for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
-      local viewer = _G[viewerName]
-      if viewer and viewer.itemFramePool then
-        for frame in viewer.itemFramePool:EnumerateActive() do
-          local spellID = GetFrameSpellID(frame)
-          if spellID then
-            local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-            if ok and cdInfo then
-              local onCD = cdInfo.isActive and not cdInfo.isOnGCD
-              local wasOnCD = glowTrackedCDs[spellID]
-              glowTrackedCDs[spellID] = onCD
-              if wasOnCD and not onCD and frame:IsShown() then
-                ShowReadyGlow(frame)
-              end
-            end
-          end
+  glowFrame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+  glowFrame:RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED")
+  glowFrame:SetScript("OnEvent", function(_, event, ...)
+    if event == "SPELL_UPDATE_COOLDOWN" then
+      CheckGlowTransitions()
+
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+      -- Cast prediction: record that this spell was just cast (→ on CD)
+      local _, _, spellID = ...
+      if spellID and IsSafeNumber(spellID) then
+        castPredictions[spellID] = GetTime()
+        if glowTrackedCDs[spellID] ~= nil then
+          glowTrackedCDs[spellID] = true
+        end
+      end
+
+    elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
+      local _, state = ...
+      if state == 1 then
+        -- Activating: snapshot before values become secret
+        restrictionActive = true
+        SnapshotCooldownStates()
+      elseif state == 0 then
+        -- Inactive: restrictions lifted, reconcile with now-readable values
+        restrictionActive = false
+        CheckGlowTransitions()
+        -- Clean up old cast predictions (> 5 min)
+        local now = GetTime()
+        for id, t in pairs(castPredictions) do
+          if now - t > 300 then castPredictions[id] = nil end
         end
       end
     end
@@ -146,7 +243,7 @@ local function SetupGlowHooks()
 end
 
 -- ── Snap to pixel ───────────────────────────────────────────────────────
-local function Snap(v) return math.floor(v + 0.5) end
+local function Snap(v) return NS.PixelSnap(v) end
 
 -- ── Get or create anchor container ──────────────────────────────────────
 local function GetContainer(viewerName)
@@ -338,6 +435,8 @@ local function HookFrameSetPoint(frame)
   if hookedFrames[frame] then return end
   hookedFrames[frame] = true
 
+  InstallScaleLockHook(frame)
+
   hooksecurefunc(frame, "SetPoint", function(self, _, relativeTo)
     local fd = frameData[self]
     if not fd or not fd.cdmAnchor then return end
@@ -348,8 +447,14 @@ local function HookFrameSetPoint(frame)
   end)
 end
 
+-- Mark a viewer as needing re-layout (dirty-flag pattern from AzortharionUI)
+local function MarkLayoutDirty(viewerName)
+  layoutDirty[viewerName] = true
+end
+
 -- ── Layout a viewer's frames ────────────────────────────────────────────
 local function LayoutViewer(viewerName)
+  layoutDirty[viewerName] = nil  -- clear dirty flag
   local viewer = _G[viewerName]
   if not viewer or not viewer.itemFramePool then return end
   if not NS.IsCDMEnabled() then return end
@@ -432,7 +537,7 @@ local function SetupViewerHooks(viewerName)
       HookFrameSetPoint(itemFrame)
       -- Defer layout to outside combat only
       if not InCombatLockdown() then
-        C_Timer.After(0, function() LayoutViewer(viewerName) end)
+        MarkLayoutDirty(viewerName)
       else
         combatDirty[viewerName] = true
       end
@@ -445,7 +550,7 @@ local function SetupViewerHooks(viewerName)
     hooksecurefunc(viewer.itemFramePool, "Acquire", function()
       if not NS.IsCDMEnabled() then return end
       if not InCombatLockdown() then
-        C_Timer.After(0, function() LayoutViewer(viewerName) end)
+        MarkLayoutDirty(viewerName)
       else
         combatDirty[viewerName] = true
       end
@@ -458,7 +563,7 @@ local function SetupViewerHooks(viewerName)
     hooksecurefunc(viewer, "RefreshLayout", function()
       if not NS.IsCDMEnabled() then return end
       if InCombatLockdown() then combatDirty[viewerName] = true; return end
-      C_Timer.After(0, function() LayoutViewer(viewerName) end)
+      MarkLayoutDirty(viewerName)
     end)
   end
 
@@ -526,6 +631,7 @@ end
 
 function CD.Disable()
   if updateTicker then updateTicker:Cancel(); updateTicker = nil end
+  wipe(glowTrackedCDs); wipe(frameSpellMap); wipe(castPredictions)
   evFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
   evFrame:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   evFrame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
@@ -550,9 +656,12 @@ function CD.Disable()
   end
 end
 
-function CD.Refresh()
+function CD.Refresh(force)
+  if InCombatLockdown() then return end
   for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
-    LayoutViewer(name)
+    if force or layoutDirty[name] then
+      LayoutViewer(name)
+    end
   end
   -- Notify Resources + CastBar to update autoWidth
   if NS.Resources and NS.Resources.Refresh then NS.Resources.Refresh() end
@@ -560,27 +669,40 @@ function CD.Refresh()
 end
 
 -- ── Init ────────────────────────────────────────────────────────────────
--- ── Spec Change handling ────────────────────────────────────────────────
+-- ── Spec Change handling (with backstop timer like Ayije) ───────────────
 local specChangePending = false
+local specChangeToken = 0
 
 local function OnSpecChange()
   if not initialized or not NS.IsCDMEnabled() then return end
   if specChangePending then return end
   specChangePending = true
+  specChangeToken = specChangeToken + 1
+  local myToken = specChangeToken
   -- Batch: wait for talent data to settle, then refresh
   C_Timer.After(0.5, function()
     specChangePending = false
+    specChangeToken = specChangeToken + 1  -- cancel backstop
+    NS.ClearSpellBaseCache()  -- invalidate talent variant cache
+    wipe(glowTrackedCDs); wipe(frameSpellMap); wipe(castPredictions)
     if InCombatLockdown() then return end
-    -- Re-reparent viewers (Blizzard may have reparented them back on spec change)
     for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
       local viewer = _G[name]
       if viewer and viewer:GetParent() ~= UIParent then
-        viewer:SetParent(UIParent)
+        pcall(viewer.SetParent, viewer, UIParent)
       end
     end
-    CD.Refresh()
-    C_Timer.After(0.3, function() CD.Refresh() end)
-    C_Timer.After(1.0, function() CD.Refresh() end)
+    CD.Refresh(true)
+    C_Timer.After(0.3, function() CD.Refresh(true) end)
+    C_Timer.After(1.0, function() CD.Refresh(true) end)
+  end)
+  -- 3s backstop: if normal path didn't complete, force refresh (like Ayije)
+  C_Timer.After(3, function()
+    if specChangeToken ~= myToken then return end  -- superseded by newer event
+    specChangePending = false
+    if initialized and NS.IsCDMEnabled() and not InCombatLockdown() then
+      CD.Refresh()
+    end
   end)
 end
 
@@ -635,7 +757,7 @@ evFrame:SetScript("OnEvent", function(_, event, ...)
         LayoutViewer(vn)
       end
       wipe(combatDirty)
-      CD.Refresh()
+      CD.Refresh(true)
     end
   elseif event == "PLAYER_LOGOUT" then
     for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do

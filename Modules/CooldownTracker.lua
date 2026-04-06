@@ -316,8 +316,32 @@ local function BuildTracker(uid, spellID, entry)
   return f
 end
 
--- ── Cooldown tracking via cast events ────────────────────────────────────
+-- ── Cooldown tracking via cast events (batched dispatch like Ayije) ─────
 local cdState = {}  -- [spellID] = { castTime, duration }
+local pendingCasts = {}  -- queue of {resolvedID} to process
+local castDispatchFrame = CreateFrame("Frame")
+castDispatchFrame:Hide()
+castDispatchFrame:SetScript("OnUpdate", function(self)
+  self:Hide()
+  for i = 1, #pendingCasts do
+    local resolvedID = pendingCasts[i]
+    pendingCasts[i] = nil
+    if cdState[resolvedID] then
+      cdState[resolvedID].castTime = GetTime()
+      if cdState[resolvedID].duration == 0 then
+        C_Timer.After(0.5, function()
+          local cdInfo = C_Spell.GetSpellCooldown(resolvedID)
+          if cdInfo then
+            local ok, dur = pcall(function() return cdInfo.duration end)
+            if ok and dur and type(dur) == "number" and dur > 1.5 then
+              cdState[resolvedID].duration = dur
+            end
+          end
+        end)
+      end
+    end
+  end
+end)
 
 local evFrame = CreateFrame("Frame")
 evFrame:SetScript("OnEvent", function(_, _, unit, _, spellID)
@@ -332,19 +356,14 @@ evFrame:SetScript("OnEvent", function(_, _, unit, _, spellID)
       if sid and cdState[sid] then resolvedID = sid else return end
     end
   end
-  if not cdState[resolvedID] then return end
-  cdState[resolvedID].castTime = GetTime()
-  if cdState[resolvedID].duration == 0 then
-    C_Timer.After(0.5, function()
-      local cdInfo = C_Spell.GetSpellCooldown(resolvedID)
-      if cdInfo then
-        local ok, dur = pcall(function() return cdInfo.duration end)
-        if ok and dur and type(dur) == "number" and dur > 1.5 then
-          cdState[resolvedID].duration = dur
-        end
-      end
-    end)
+  -- Normalize talent variant to base spell ID
+  if not cdState[resolvedID] then
+    local baseID = NS.NormalizeToBase(resolvedID)
+    if baseID and cdState[baseID] then resolvedID = baseID else return end
   end
+  -- Queue for batched processing on next frame
+  pendingCasts[#pendingCasts + 1] = resolvedID
+  castDispatchFrame:Show()
 end)
 
 function CT._InitSpellCD(spellID)

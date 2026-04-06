@@ -546,12 +546,11 @@ function TR.SetupSettings(parent)
   local hint = addRow:CreateFontString(nil, "OVERLAY")
   hint:SetFont(NS.FONT, 9, ""); hint:SetPoint("LEFT", addBtn, "RIGHT", 8, 0)
   hint:SetTextColor(0.4, 0.4, 0.5); hint:SetText("Spell or Item ID")
-  R(cCustom, addRow, 30)
+  R(cCustom, addRow, 26)
 
-  -- Dynamic list container
+  -- Dynamic list container (height 0 baseline — grows with items)
   local listHolder = CreateFrame("Frame", nil, cCustom.inner)
-  local customCount = (LucidUIDB and LucidUIDB["tr_customSpells"]) and #LucidUIDB["tr_customSpells"] or 0
-  R(cCustom, listHolder, math.max(1, customCount * 24))
+  R(cCustom, listHolder, 0)
 
   local listRows = {}
   local function MakeRow()
@@ -617,6 +616,11 @@ function TR.SetupSettings(parent)
       row:Show()
     end
     listHolder:SetHeight(math.max(1, count * 24))
+    -- Update card height dynamically after add/remove
+    if cCustom._baseHeight then
+      cCustom:SetHeight(cCustom._baseHeight + math.max(0, count * 24) + 10)
+      if sc and sc.UpdateScrollChildRect then pcall(sc.UpdateScrollChildRect, sc) end
+    end
   end
 
   addBtn:SetScript("OnClick", function()
@@ -631,7 +635,12 @@ function TR.SetupSettings(parent)
   eb:SetScript("OnEnterPressed", function() addBtn:Click() end)
 
   RefreshList()
-  cCustom:Finish(); Append(cCustom, cCustom:GetHeight())
+  cCustom:Finish()
+  cCustom._baseHeight = cCustom:GetHeight()
+  -- Add current list height to card
+  local initCount = (LucidUIDB and LucidUIDB["tr_customSpells"]) and #LucidUIDB["tr_customSpells"] or 0
+  cCustom:SetHeight(cCustom._baseHeight + math.max(0, initCount * 24) + 10)
+  Append(cCustom, cCustom:GetHeight() + 12)
 
   return cont
 end

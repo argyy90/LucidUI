@@ -637,89 +637,8 @@ local function SetupAdvanced(parent)
   end)
 
   -- Profile dropdown menu
-  local function MakeProfileEntryButtons(button, profileName, isActive)
-    -- Ensure R/X button frames exist on this recycled button, hide by default
-    if not button._ltRenameBtn then
-      local renameBtn = CreateFrame("Button", nil, button)
-      renameBtn:SetSize(16, 16)
-      renameBtn:SetPoint("RIGHT", button, "RIGHT", -24, 0)
-      renameBtn:SetFrameLevel(button:GetFrameLevel() + 5)
-      local renTex = renameBtn:CreateFontString(nil, "OVERLAY")
-      renTex:SetFont(NS.FONT, 11, "OUTLINE")
-      renTex:SetAllPoints(); renTex:SetText("R"); renTex:SetTextColor(0.6, 0.6, 0.6)
-      renameBtn:SetScript("OnEnter", function()
-        local ar, ag, ab = NS.ChatGetAccentRGB()
-        renTex:SetTextColor(ar, ag, ab)
-        GameTooltip:SetOwner(renameBtn, "ANCHOR_RIGHT"); GameTooltip:SetText(L["Rename"]); GameTooltip:Show()
-      end)
-      renameBtn:SetScript("OnLeave", function() renTex:SetTextColor(0.6, 0.6, 0.6); GameTooltip:Hide() end)
-      button._ltRenameBtn = renameBtn
-    end
-    if not button._ltDeleteBtn then
-      local delBtn = CreateFrame("Button", nil, button)
-      delBtn:SetSize(16, 16)
-      delBtn:SetPoint("RIGHT", button, "RIGHT", -6, 0)
-      delBtn:SetFrameLevel(button:GetFrameLevel() + 5)
-      local delTex = delBtn:CreateFontString(nil, "OVERLAY")
-      delTex:SetFont(NS.FONT, 11, "OUTLINE")
-      delTex:SetAllPoints(); delTex:SetText("X"); delTex:SetTextColor(0.6, 0.6, 0.6)
-      delBtn:SetScript("OnEnter", function()
-        delTex:SetTextColor(1, 0.3, 0.3)
-        GameTooltip:SetOwner(delBtn, "ANCHOR_RIGHT"); GameTooltip:SetText(L["Delete"]); GameTooltip:Show()
-      end)
-      delBtn:SetScript("OnLeave", function() delTex:SetTextColor(0.6, 0.6, 0.6); GameTooltip:Hide() end)
-      button._ltDeleteBtn = delBtn
-    end
-
-    -- Show rename, wire click
-    button._ltRenameBtn:Show()
-    button._ltRenameBtn:SetScript("OnClick", function()
-      StaticPopupDialogs["LUI_RENAME_PROFILE"] = {
-        text = "Rename profile '" .. profileName .. "':",
-        hasEditBox = true, button1 = "Rename", button2 = CANCEL,
-        OnShow = function(self) self.EditBox:SetText(profileName) end,
-        OnAccept = function(self)
-          local newName = strtrim(self.EditBox:GetText())
-          if newName == "" or newName == profileName then return end
-          local profiles = LucidUIDB._profiles or {}
-          profiles[newName] = profiles[profileName]
-          profiles[profileName] = nil
-          if LucidUIDB._activeProfile == profileName then
-            LucidUIDB._activeProfile = newName
-          end
-          NS._RebuildProfileMenu()
-        end,
-        timeout = 0, whileDead = true, hideOnEscape = true,
-      }
-      StaticPopup_Show("LUI_RENAME_PROFILE")
-    end)
-
-    -- Show delete only if not active
-    if not isActive then
-      button._ltDeleteBtn:Show()
-      button._ltDeleteBtn:SetScript("OnClick", function()
-        StaticPopupDialogs["LUI_DELETE_PROFILE"] = {
-          text = "Delete profile '" .. profileName .. "' and reload UI?",
-          button1 = "Delete & Reload", button2 = CANCEL,
-          OnAccept = function()
-            local profiles = LucidUIDB._profiles or {}
-            profiles[profileName] = nil
-            ReloadUI()
-          end,
-          timeout = 0, whileDead = true, hideOnEscape = true,
-        }
-        StaticPopup_Show("LUI_DELETE_PROFILE")
-      end)
-    else
-      button._ltDeleteBtn:Hide()
-    end
-  end
-
-  -- Hide R/X buttons on recycled menu buttons that don't need them
-  local function HideProfileButtons(button)
-    if button._ltRenameBtn then button._ltRenameBtn:Hide() end
-    if button._ltDeleteBtn then button._ltDeleteBtn:Hide() end
-  end
+  -- No overlay buttons — use sub-menu entries for Rename/Delete instead
+  -- This avoids recycled-frame issues with WoW's menu system
 
   -- Save current settings into the active profile before switching
   local function SaveCurrentProfile()
@@ -748,13 +667,17 @@ local function SetupAdvanced(parent)
         function()
           if currentProfile ~= "Default" then
             SaveCurrentProfile()
-            LucidUIDB._activeProfile = "Default"
-            StaticPopup_Show("LUCIDUI_CHAT_RELOAD")
+            StaticPopupDialogs["LUCIDUI_SWITCH_PROFILE"] = {
+              text = "Switch to Default profile and reload UI?",
+              button1 = "Switch & Reload", button2 = CANCEL,
+              OnAccept = function() LucidUIDB._activeProfile = "Default"; ReloadUI() end,
+              timeout = 0, whileDead = true, hideOnEscape = true,
+            }
+            StaticPopup_Show("LUCIDUI_SWITCH_PROFILE")
           end
         end
       )
       NS.SkinMenuElement(defRadio)
-      defRadio:AddInitializer(function(button) HideProfileButtons(button) end)
 
       local sortedNames = {}
       for name in pairs(profiles) do table.insert(sortedNames, name) end
@@ -767,28 +690,75 @@ local function SetupAdvanced(parent)
           function()
             if currentProfile ~= capName then
               SaveCurrentProfile()
-              LucidUIDB._activeProfile = capName
-              StaticPopup_Show("LUCIDUI_CHAT_RELOAD")
+              StaticPopupDialogs["LUCIDUI_SWITCH_PROFILE"] = {
+                text = "Switch to profile '" .. capName .. "' and reload UI?",
+                button1 = "Switch & Reload", button2 = CANCEL,
+                OnAccept = function() LucidUIDB._activeProfile = capName; ReloadUI() end,
+                timeout = 0, whileDead = true, hideOnEscape = true,
+              }
+              StaticPopup_Show("LUCIDUI_SWITCH_PROFILE")
             end
           end
         )
         NS.SkinMenuElement(radio)
-        radio:AddInitializer(function(button)
-          MakeProfileEntryButtons(button, capName, isActive)
-        end)
+        if not isActive then
+          -- Sub-menu for Rename/Delete (only on non-active profiles)
+          local sub = radio:CreateButton("|cffcccc44Rename|r", function()
+            StaticPopupDialogs["LUI_RENAME_PROFILE"] = {
+              text = "Rename profile '" .. capName .. "':",
+              hasEditBox = true, button1 = "Rename", button2 = CANCEL,
+              OnShow = function(self) self.EditBox:SetText(capName) end,
+              OnAccept = function(self)
+                local newName = strtrim(self.EditBox:GetText())
+                if newName == "" or newName == capName then return end
+                local profs = LucidUIDB._profiles or {}
+                profs[newName] = profs[capName]; profs[capName] = nil
+                if LucidUIDB._activeProfile == capName then LucidUIDB._activeProfile = newName end
+                if NS._RebuildProfileMenu then NS._RebuildProfileMenu() end
+              end,
+              timeout = 0, whileDead = true, hideOnEscape = true,
+            }
+            StaticPopup_Show("LUI_RENAME_PROFILE")
+          end)
+          radio:CreateButton("|cffff4444Delete|r", function()
+            StaticPopupDialogs["LUI_DELETE_PROFILE"] = {
+              text = "Delete profile '" .. capName .. "'?",
+              button1 = "Delete", button2 = CANCEL,
+              OnAccept = function()
+                local profs = LucidUIDB._profiles or {}
+                profs[capName] = nil
+                if NS._RebuildProfileMenu then NS._RebuildProfileMenu() end
+              end,
+              timeout = 0, whileDead = true, hideOnEscape = true,
+            }
+            StaticPopup_Show("LUI_DELETE_PROFILE")
+          end)
+        end
       end
 
       rootDescription:CreateDivider()
-      local resetBtn = rootDescription:CreateButton("|cffff4444Reset All Settings|r", function()
-        StaticPopupDialogs["LUI_RESET_SETTINGS"] = {
-          text = "Reset ALL LucidUI settings to defaults?\n\nRequires UI reload.",
-          button1 = "Reset & Reload", button2 = CANCEL,
-          OnAccept = function() LucidUIDB = {}; ReloadUI() end,
+      rootDescription:CreateButton("|cff88cc88+ New Profile|r", function()
+        StaticPopupDialogs["LUI_NEW_PROFILE"] = {
+          text = "Enter name for new profile:",
+          hasEditBox = true, button1 = "Create", button2 = CANCEL,
+          OnAccept = function(self)
+            local name = strtrim(self.EditBox:GetText())
+            if name == "" or name == "Default" then return end
+            LucidUIDB._profiles = LucidUIDB._profiles or {}
+            if LucidUIDB._profiles[name] then return end  -- already exists
+            -- Copy current settings as new profile
+            local skip = {_profiles=true, _activeProfile=true, _defaultSnapshot=true, history=true, chatHistory=true, debugHistory=true, _sessionData=true, _rollData=true, _rollEncounter=true}
+            local snapshot = {}
+            for k, v in pairs(LucidUIDB) do
+              if not skip[k] then snapshot[k] = v end
+            end
+            LucidUIDB._profiles[name] = snapshot
+            if NS._RebuildProfileMenu then NS._RebuildProfileMenu() end
+          end,
           timeout = 0, whileDead = true, hideOnEscape = true,
         }
-        StaticPopup_Show("LUI_RESET_SETTINGS")
+        StaticPopup_Show("LUI_NEW_PROFILE")
       end)
-      resetBtn:AddInitializer(function(button) HideProfileButtons(button) end)
     end)
   end
   NS._RebuildProfileMenu()
@@ -831,7 +801,8 @@ local function SetupAdvanced(parent)
         table.insert(lines, k .. "=" .. Serialize(v))
       end
     end
-    local text = table.concat(lines, "\n")
+    local rawText = table.concat(lines, "\n")
+    local text = NS.EncodeProfileString(rawText)
 
     local frame = CreateFrame("Frame", "LUIExportFrame", UIParent, "BackdropTemplate")
     frame:SetSize(500, 300); frame:SetPoint("CENTER")
@@ -912,9 +883,10 @@ local function SetupAdvanced(parent)
       if profileName == "" then
         status:SetTextColor(1, 0.3, 0.3); status:SetText(L["err_no_name"]); return
       end
-      local raw = strtrim(eb:GetText())
-      if raw == "" then status:SetTextColor(1, 0.3, 0.3); status:SetText(L["err_no_paste"]); return end
-      if not raw:match("^LUI_EXPORT:") then
+      local rawInput = strtrim(eb:GetText())
+      if rawInput == "" then status:SetTextColor(1, 0.3, 0.3); status:SetText(L["err_no_paste"]); return end
+      local raw = NS.DecodeProfileString(rawInput)
+      if not raw or not raw:match("^LUI_EXPORT:") then
         status:SetTextColor(1, 0.3, 0.3); status:SetText(L["err_bad_format"])
         return
       end

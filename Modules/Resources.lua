@@ -23,7 +23,16 @@ local POWER_COLORS = {
   [Enum.PowerType.ArcaneCharges]= {0.10, 0.10, 0.98},
   [Enum.PowerType.Fury]         = {0.79, 0.26, 0.99},
   [Enum.PowerType.Essence]      = {0.12, 0.75, 0.56},
+  [Enum.PowerType.Runes]        = {0.50, 0.80, 0.90},  -- fallback, overridden per spec
 }
+
+-- DK Rune colors per spec (ready + recharging)
+local RUNE_SPEC_COLORS = {
+  [250] = {ready = {0.80, 0.20, 0.20}, recharging = {0.40, 0.10, 0.10}},  -- Blood
+  [251] = {ready = {0.30, 0.70, 1.00}, recharging = {0.15, 0.35, 0.50}},  -- Frost
+  [252] = {ready = {0.30, 0.90, 0.30}, recharging = {0.15, 0.45, 0.15}},  -- Unholy
+}
+local runeUpdateTicker = nil
 
 -- Segmented power types: displayed as individual pips instead of a bar
 local SEGMENTED_TYPES = {
@@ -33,6 +42,7 @@ local SEGMENTED_TYPES = {
   [Enum.PowerType.Chi]          = true,
   [Enum.PowerType.ArcaneCharges]= true,
   [Enum.PowerType.Essence]      = true,
+  [Enum.PowerType.Runes]        = true,
 }
 
 -- ── Spec → Resource mapping ─────────────────────────────────────────────
@@ -57,11 +67,12 @@ local SPEC_RESOURCE = {
   -- Priest
   [258] = {Enum.PowerType.Insanity},                                -- Shadow
   -- DK
-  [250] = {Enum.PowerType.RunicPower},                              -- Blood
-  [251] = {Enum.PowerType.RunicPower},                              -- Frost
-  [252] = {Enum.PowerType.RunicPower},                              -- Unholy
+  [250] = {Enum.PowerType.RunicPower, Enum.PowerType.Runes},        -- Blood
+  [251] = {Enum.PowerType.RunicPower, Enum.PowerType.Runes},        -- Frost
+  [252] = {Enum.PowerType.RunicPower, Enum.PowerType.Runes},        -- Unholy
   -- Shaman
   [262] = {Enum.PowerType.Maelstrom},                               -- Elemental
+  -- Enhancement (263): uses Maelstrom Weapon buff stacks, not Maelstrom power — needs custom tracker
   -- Mage
   [62]  = {Enum.PowerType.ArcaneCharges},                           -- Arcane
   -- Warlock
@@ -78,6 +89,7 @@ local SPEC_RESOURCE = {
   -- Demon Hunter
   [577] = {Enum.PowerType.Fury},                                    -- Havoc
   [581] = {Enum.PowerType.Fury},                                    -- Vengeance
+  [1480] = {Enum.PowerType.Fury},                                   -- Devourer
   -- Evoker
   [1467] = {Enum.PowerType.Essence},                                -- Devastation
   [1468] = {Enum.PowerType.Essence},                                -- Preservation
@@ -89,6 +101,7 @@ local MANA_SPECS = {
   [65]   = true,  -- Holy Paladin
   [256]  = true,  -- Discipline Priest
   [257]  = true,  -- Holy Priest
+  [258]  = true,  -- Shadow Priest
   [264]  = true,  -- Restoration Shaman
   [62]   = true,  -- Arcane Mage
   [63]   = true,  -- Fire Mage
@@ -96,6 +109,25 @@ local MANA_SPECS = {
   [105]  = true,  -- Restoration Druid
   [270]  = true,  -- Mistweaver Monk
   [1468] = true,  -- Preservation Evoker
+}
+
+-- ── Custom Power Types (buff/aura-based tracking) ──────────────────────
+-- specID → {spellID, maxStacks, color, label}
+-- These are tracked via C_UnitAuras.GetPlayerAuraBySpellID, not UnitPower
+local CUSTOM_SECONDARY = {
+  [263]  = {spellID = 344179, max = 10, color = {0.00, 0.50, 1.00}, label = "MW"},   -- Enhancement: Maelstrom Weapon
+  [255]  = {spellID = 260286, max = 3,  color = {0.80, 0.40, 0.20}, label = "TotS"}, -- Survival: Tip of the Spear
+  [581]  = {spellID = 228477, max = 5,  color = {0.60, 0.20, 0.80}, label = "SF", useCastCount = true},  -- Vengeance: Soul Fragments (Soul Cleave)
+  [1480] = {spellID = 1225789,max = 50, color = {0.50, 0.00, 0.70}, label = "DS"},   -- Devourer: Devourer Souls
+}
+-- Note: Brewmaster Stagger (268) uses UnitStagger(), Guardian Ironfur (104) and
+-- Prot Warrior Ignore Pain (73) track absorb amounts — these need dedicated handlers.
+-- Stagger:
+local STAGGER_SPEC = 268
+local STAGGER_COLORS = {
+  light  = {0.00, 1.00, 0.60},  -- green
+  medium = {1.00, 0.85, 0.10},  -- yellow
+  heavy  = {1.00, 0.20, 0.20},  -- red
 }
 
 -- ── Defaults ────────────────────────────────────────────────────────────
@@ -315,9 +347,152 @@ local function ApplyStyle()
   end
 end
 
+-- ── DK Runes: per-rune cooldown tracking (like Ayije) ──────────────────
+local function UpdateRuneBar(bar, pipTable, showText)
+  if not bar or not bar:IsShown() then return end
+  local specID = RES._specID
+  local specColors = specID and RUNE_SPEC_COLORS[specID]
+  local readyColor = specColors and specColors.ready or POWER_COLORS[Enum.PowerType.Runes]
+  local rechColor  = specColors and specColors.recharging or {0.25, 0.40, 0.50}
+
+  UpdatePipsFor(bar, pipTable, 6, Enum.PowerType.Runes)
+
+  -- Collect per-rune state and sort: ready first, then by remaining time
+  local runeData = {}
+  local hasRecharging = false
+  local now = GetTime()
+  for i = 1, 6 do
+    local startTime, duration, isReady = GetRuneCooldown(i)
+    local remaining = 0
+    if not isReady and startTime and duration and duration > 0 then
+      remaining = (startTime + duration) - now
+      if remaining < 0 then remaining = 0 end
+      hasRecharging = true
+    end
+    runeData[i] = {startTime = startTime or 0, duration = duration or 0, isReady = isReady, remaining = remaining}
+  end
+
+  -- Sort: ready runes first, then by shortest remaining
+  local order = {1,2,3,4,5,6}
+  table.sort(order, function(a, b)
+    local ra, rb = runeData[a], runeData[b]
+    if ra.isReady and not rb.isReady then return true end
+    if not ra.isReady and rb.isReady then return false end
+    return ra.remaining < rb.remaining
+  end)
+
+  local readyCount = 0
+  for i = 1, 6 do
+    local pip = pipTable[i]
+    if not pip then break end
+    local rune = runeData[order[i]]
+    if rune.isReady then
+      readyCount = readyCount + 1
+      pip:SetValue(1)
+      pip:SetStatusBarColor(readyColor[1], readyColor[2], readyColor[3])
+      pip:SetAlpha(1)
+    elseif rune.duration > 0 then
+      local progress = math.max(0, math.min(1, (now - rune.startTime) / rune.duration))
+      pip:SetValue(progress)
+      pip:SetStatusBarColor(rechColor[1], rechColor[2], rechColor[3])
+      pip:SetAlpha(0.6)
+    else
+      pip:SetValue(0)
+      pip:SetAlpha(0.25)
+    end
+  end
+
+  if showText then
+    bar.text:SetText(tostring(readyCount))
+  else
+    bar.text:SetText("")
+  end
+
+  -- Smooth recharge animation via ticker (only when runes are recharging)
+  if hasRecharging and not runeUpdateTicker then
+    runeUpdateTicker = C_Timer.NewTicker(0.05, function()
+      if not bar or not bar:IsShown() then
+        if runeUpdateTicker then runeUpdateTicker:Cancel(); runeUpdateTicker = nil end
+        return
+      end
+      UpdateRuneBar(bar, pipTable, showText)
+    end)
+  elseif not hasRecharging and runeUpdateTicker then
+    runeUpdateTicker:Cancel()
+    runeUpdateTicker = nil
+  end
+end
+
+-- ── Custom Secondary: Buff-aura stack tracking ────────────────────────
+local function UpdateCustomSecondary(bar, pipTable, showText)
+  if not bar or not bar:IsShown() then return end
+  local specID = RES._specID
+  local cfg = specID and CUSTOM_SECONDARY[specID]
+  if not cfg then bar:Hide(); return end
+
+  local stacks, maxStacks = 0, cfg.max
+  if cfg.useCastCount and C_Spell and C_Spell.GetSpellCastCount then
+    -- Soul Fragments use cast count API (like Ayije)
+    local ok, count = pcall(C_Spell.GetSpellCastCount, cfg.spellID)
+    if ok and count then stacks = count end
+  else
+    local aura = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID(cfg.spellID)
+    if aura and aura.applications then
+      stacks = aura.applications
+      if stacks == 0 and aura.duration and aura.duration > 0 then stacks = 1 end
+    end
+  end
+
+  local color = cfg.color
+  UpdatePipsFor(bar, pipTable, maxStacks, nil)
+  for i = 1, maxStacks do
+    if pipTable[i] then
+      pipTable[i]:SetValue(i <= stacks and 1 or 0)
+      pipTable[i]:SetStatusBarColor(color[1], color[2], color[3])
+      pipTable[i]:SetAlpha(i <= stacks and 1 or 0.25)
+    end
+  end
+  if showText then
+    bar.text:SetText(tostring(stacks))
+  else
+    bar.text:SetText("")
+  end
+end
+
+-- ── Brewmaster Stagger: UnitStagger-based continuous bar ──────────────
+local function UpdateStaggerBar(bar, showText)
+  if not bar or not bar:IsShown() then return end
+  local stagger = UnitStagger("player") or 0
+  local maxHP = UnitHealthMax("player") or 1
+  if maxHP == 0 then maxHP = 1 end
+
+  bar.bar:Show()
+  bar.bar:SetMinMaxValues(0, maxHP)
+  bar.bar:SetValue(stagger)
+
+  -- Color by severity
+  local pct = stagger / maxHP
+  local c
+  if pct >= 0.6 then c = STAGGER_COLORS.heavy
+  elseif pct >= 0.3 then c = STAGGER_COLORS.medium
+  else c = STAGGER_COLORS.light end
+  bar.bar:SetStatusBarColor(c[1], c[2], c[3])
+
+  if showText then
+    bar.text:SetFormattedText("%d%%", math.floor(pct * 100))
+  else
+    bar.text:SetText("")
+  end
+end
+
 -- ── Update a single bar (continuous or segmented) ───────────────────────
 local function UpdateBar(bar, pipTable, powerType, isSegm, showText)
   if not bar or not bar:IsShown() then return end
+  -- DK Runes need per-rune cooldown tracking, not UnitPower
+  if powerType == Enum.PowerType.Runes then
+    UpdateRuneBar(bar, pipTable, showText)
+    return
+  end
   local color = POWER_COLORS[powerType] or {1, 1, 1}
 
   if isSegm then
@@ -387,7 +562,15 @@ local function UpdatePower()
   -- Secondary bar
   if secBar and secondaryType then
     if secBar:IsShown() then
-      UpdateBar(secBar, secPips, secondaryType, secondarySegmented, Opt("showSecText"))
+      if secondaryType == "CUSTOM" then
+        UpdateCustomSecondary(secBar, secPips, Opt("showSecText"))
+      elseif secondaryType == "STAGGER" then
+        -- Hide pips for continuous stagger bar
+        for _, p in ipairs(secPips) do p:Hide() end
+        UpdateStaggerBar(secBar, Opt("showSecText"))
+      else
+        UpdateBar(secBar, secPips, secondaryType, secondarySegmented, Opt("showSecText"))
+      end
     end
   elseif secBar and not secondaryType then
     secBar:Hide()
@@ -432,12 +615,11 @@ local function DetectResources()
   local entry = specID and SPEC_RESOURCE[specID]
   if entry then
     primaryType = entry[1]
-    primarySegmented = SEGMENTED_TYPES[primaryType] or false
+    primarySegmented = primaryType and (SEGMENTED_TYPES[primaryType] or false) or false
     secondaryType = entry[2] or nil
     secondarySegmented = secondaryType and (SEGMENTED_TYPES[secondaryType] or false) or false
   else
     -- Unknown spec (new expansion spec or mana-only healer/caster)
-    -- Try to detect primary power type from the unit directly
     local unitPower = UnitPowerType("player")
     if unitPower and unitPower ~= Enum.PowerType.Mana then
       primaryType = unitPower
@@ -447,6 +629,18 @@ local function DetectResources()
       primarySegmented = false
     end
     secondaryType = nil
+    secondarySegmented = false
+  end
+
+  -- Custom secondary resource (buff-aura-based)
+  -- If spec has no standard secondary but has a custom tracker, use that
+  if not secondaryType and specID and CUSTOM_SECONDARY[specID] then
+    secondaryType = "CUSTOM"
+    secondarySegmented = true
+  end
+  -- Brewmaster Stagger: shown as continuous secondary bar
+  if specID == STAGGER_SPEC then
+    secondaryType = "STAGGER"
     secondarySegmented = false
   end
 end
@@ -510,12 +704,20 @@ local function OnEvent(_, event, arg1)
     NS.RefreshAnchorChain()
     return
   end
-  if event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" then
-    if arg1 == "player" then UpdatePower() end
+  if event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" or event == "RUNE_POWER_UPDATE" then
+    if event == "RUNE_POWER_UPDATE" or arg1 == "player" then UpdatePower() end
     return
   end
   if event == "UNIT_POWER_POINT_CHARGE" then
     if arg1 == "player" then UpdatePower() end
+    return
+  end
+  if event == "UNIT_AURA" then
+    if arg1 == "player" then UpdatePower() end
+    return
+  end
+  if event == "SPELL_UPDATE_USES" then
+    UpdatePower()
     return
   end
 end
@@ -530,6 +732,9 @@ function RES.Enable()
   evFrame:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
   evFrame:RegisterUnitEvent("UNIT_MAXPOWER", "player")
   evFrame:RegisterUnitEvent("UNIT_POWER_POINT_CHARGE", "player")
+  evFrame:RegisterEvent("RUNE_POWER_UPDATE")
+  evFrame:RegisterUnitEvent("UNIT_AURA", "player")  -- for custom buff-based resources
+  evFrame:RegisterEvent("SPELL_UPDATE_USES")         -- for Soul Fragments (cast count)
   evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
   CreateMainBar(); CreateSecBar(); CreateManaBar()
@@ -550,8 +755,12 @@ function RES.Disable()
   evFrame:UnregisterEvent("UNIT_POWER_FREQUENT")
   evFrame:UnregisterEvent("UNIT_MAXPOWER")
   evFrame:UnregisterEvent("UNIT_POWER_POINT_CHARGE")
+  evFrame:UnregisterEvent("RUNE_POWER_UPDATE")
+  evFrame:UnregisterEvent("UNIT_AURA")
+  evFrame:UnregisterEvent("SPELL_UPDATE_USES")
   evFrame:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   evFrame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+  if runeUpdateTicker then runeUpdateTicker:Cancel(); runeUpdateTicker = nil end
   if mainBar then mainBar:Hide() end
   if secBar then secBar:Hide() end
   if manaBar then manaBar:Hide() end
@@ -622,7 +831,7 @@ function RES.SetupSettings(parent)
   -- Reset position button
   local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
   resetBtn:SetScript("OnClick", function()
     OptSet("pos", nil)
     if mainBar then NS.AnchorToChain(mainBar, "Resources") end
@@ -632,7 +841,7 @@ function RES.SetupSettings(parent)
   -- Unlock button
   local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
   lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
   local unlocked = false
   lockBtn:SetScript("OnClick", function()
     unlocked = not unlocked

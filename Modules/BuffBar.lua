@@ -57,7 +57,7 @@ local function GetFD(frame)
   return frameData[frame]
 end
 
-local function Snap(v) return math.floor(v + 0.5) end
+local function Snap(v) return NS.PixelSnap(v) end
 
 -- ── Containers ──────────────────────────────────────────────────────────
 local function GetContainer(viewerName)
@@ -78,10 +78,21 @@ local function GetContainer(viewerName)
   return f
 end
 
+-- ── Scale Lock (prevent Blizzard from scaling buff frames) ─────────────
+local function InstallScaleLockHook(frame)
+  local fd = GetFD(frame)
+  if fd.scaleLockHooked then return end
+  fd.scaleLockHooked = true
+  hooksecurefunc(frame, "SetScale", function(self, scale)
+    if scale ~= 1 then self:SetScale(1) end
+  end)
+end
+
 -- ── Hook individual frame SetPoint ──────────────────────────────────────
 local function HookFrameSetPoint(frame)
   if hookedFrames[frame] then return end
   hookedFrames[frame] = true
+  InstallScaleLockHook(frame)
   hooksecurefunc(frame, "SetPoint", function(self, _, relativeTo)
     local fd = frameData[self]
     if not fd or not fd.bbAnchor then return end
@@ -481,6 +492,15 @@ function BB:Enable()
   evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
   evFrame:RegisterEvent("SPELLS_CHANGED")
+  -- Hook mixin to detect when Blizzard assigns a spell to a buff frame (like Ayije)
+  if not BB._mixinHooked and _G.CooldownViewerBuffIconItemMixin
+     and _G.CooldownViewerBuffIconItemMixin.OnCooldownIDSet then
+    BB._mixinHooked = true
+    hooksecurefunc(_G.CooldownViewerBuffIconItemMixin, "OnCooldownIDSet", function()
+      if not NS.IsCDMEnabled() or not initialized then return end
+      C_Timer.After(0, function() LayoutBuffIcons(); LayoutBuffBars() end)
+    end)
+  end
 end
 
 function BB:Disable()
@@ -512,20 +532,32 @@ function BB:Disable()
   end
 end
 
--- ── Spec Change handling ────────────────────────────────────────────────
+-- ── Spec Change handling (with backstop timer like Ayije) ───────────────
 local specChangePending = false
+local specChangeToken = 0
 
 local function OnSpecChange()
   if not initialized or not NS.IsCDMEnabled() then return end
   if specChangePending then return end
   specChangePending = true
+  specChangeToken = specChangeToken + 1
+  local myToken = specChangeToken
   C_Timer.After(0.5, function()
     specChangePending = false
+    specChangeToken = specChangeToken + 1
     if InCombatLockdown() then return end
     for k in pairs(frameData) do frameData[k] = nil end
     BB:Refresh()
     C_Timer.After(0.3, function() BB:Refresh() end)
     C_Timer.After(1.0, function() BB:Refresh() end)
+  end)
+  -- 3s backstop: force refresh if normal path didn't fire
+  C_Timer.After(3, function()
+    if specChangeToken ~= myToken then return end
+    specChangePending = false
+    if initialized and NS.IsCDMEnabled() and not InCombatLockdown() then
+      BB:Refresh()
+    end
   end)
 end
 
