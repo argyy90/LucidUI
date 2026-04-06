@@ -32,7 +32,7 @@ local Opt, OptSet = NS.MakeOpt("cb_", DEFAULTS)
 local bar = nil
 local casting, channeling = false, false
 local castStartTime, castEndTime, castDuration = 0, 0, 0
-local castSpellID, castSpellName, castSpellTex = nil, "", nil
+local castSpellName, castSpellTex = "", nil
 local castNotInterruptible = false
 local fadeOut, fadeAlpha = false, 1
 
@@ -141,11 +141,13 @@ local function ApplyBarStyle()
 end
 
 -- ── Cast state management ───────────────────────────────────────────────
+local cachedClassColor = nil
 local function GetClassColor()
+  if cachedClassColor then return cachedClassColor end
   local _, className = UnitClass("player")
   local cc = RAID_CLASS_COLORS and RAID_CLASS_COLORS[className]
-  if cc then return {cc.r, cc.g, cc.b} end
-  return {1, 1, 1}
+  cachedClassColor = cc and {cc.r, cc.g, cc.b} or {1, 1, 1}
+  return cachedClassColor
 end
 
 local function SetCastColor()
@@ -170,7 +172,7 @@ local function StartCast(unit)
   if not name then return end
 
   casting = true; channeling = false; fadeOut = false; fadeAlpha = 1
-  castSpellName = name; castSpellTex = tex; castSpellID = spellID
+  castSpellName = name; castSpellTex = tex
   castStartTime = startMS / 1000; castEndTime = endMS / 1000
   castDuration = castEndTime - castStartTime
   castNotInterruptible = notInterruptible
@@ -188,7 +190,7 @@ local function StartChannel(unit)
   if not name then return end
 
   channeling = true; casting = false; fadeOut = false; fadeAlpha = 1
-  castSpellName = name; castSpellTex = tex; castSpellID = spellID
+  castSpellName = name; castSpellTex = tex
   castStartTime = startMS / 1000; castEndTime = endMS / 1000
   castDuration = castEndTime - castStartTime
   castNotInterruptible = notInterruptible

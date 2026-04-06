@@ -6,7 +6,6 @@ local NS = LucidUINS
 local L  = LucidUIL
 local CYAN = NS.CYAN
 
-local NUM_FRAMES   = 10
 local MAX_HISTORY  = 200
 local TAB_H        = 28
 local TAB_SPACING  = 2
@@ -92,10 +91,6 @@ local FILTER_CATS = {
   }},
 }
 
-local ALL_FILTER_EVENTS = {}
-for _, cat in ipairs(FILTER_CATS) do
-  for _, ev in ipairs(cat.events) do ALL_FILTER_EVENTS[#ALL_FILTER_EVENTS+1] = ev end
-end
 
 -- ── Helpers ──────────────────────────────────────────────────────────
 

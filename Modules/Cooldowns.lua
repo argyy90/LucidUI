@@ -12,6 +12,7 @@ local VIEWERS = {
   ESSENTIAL = "EssentialCooldownViewer",
   UTILITY   = "UtilityCooldownViewer",
 }
+local VIEWER_LIST = {VIEWERS.ESSENTIAL, VIEWERS.UTILITY}
 
 -- ── Defaults ────────────────────────────────────────────────────────────
 local DEFAULTS = {
@@ -88,7 +89,7 @@ local function ShowReadyGlow(frame)
   if not LCG or not Opt("readyGlow") then return end
   ClearReadyGlow(frame)
   local gc = Opt("readyGlowColor") or {0.95, 0.95, 0.32, 1}
-  local color = {gc[1], gc[2], gc[3], gc[4] or 1}
+  local color = gc
   local glowType = Opt("readyGlowType") or "pixel"
 
   if glowType == "pixel" then
@@ -113,7 +114,8 @@ local glowHooksSetup = false
 local glowTrackedCDs = {}    -- spellID → wasOnCD (bool)
 local frameSpellMap = setmetatable({}, {__mode = "k"})  -- frame → spellID (persists through restrictions)
 local castPredictions = {}   -- spellID → castTime
-local restrictionActive = false
+
+local cdmEvFrame = nil  -- created once in CD.Enable()
 
 local function IsSafeNumber(v)
   return v ~= nil and type(v) == "number" and not (issecretvalue and issecretvalue(v))
@@ -139,7 +141,7 @@ end
 
 -- Snapshot all CDM frame states while values are still readable
 local function SnapshotCooldownStates()
-  for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+  for _, viewerName in ipairs(VIEWER_LIST) do
     local viewer = _G[viewerName]
     if viewer and viewer.itemFramePool then
       for frame in viewer.itemFramePool:EnumerateActive() do
@@ -165,7 +167,7 @@ end
 -- Check glow transitions on all CDM frames (called from events)
 local function CheckGlowTransitions()
   if not Opt("readyGlow") then return end
-  for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+  for _, viewerName in ipairs(VIEWER_LIST) do
     local viewer = _G[viewerName]
     if viewer and viewer.itemFramePool then
       for frame in viewer.itemFramePool:EnumerateActive() do
@@ -226,11 +228,9 @@ local function SetupGlowHooks()
       local _, state = ...
       if state == 1 then
         -- Activating: snapshot before values become secret
-        restrictionActive = true
         SnapshotCooldownStates()
       elseif state == 0 then
         -- Inactive: restrictions lifted, reconcile with now-readable values
-        restrictionActive = false
         CheckGlowTransitions()
         -- Clean up old cast predictions (> 5 min)
         local now = GetTime()
@@ -243,7 +243,7 @@ local function SetupGlowHooks()
 end
 
 -- ── Snap to pixel ───────────────────────────────────────────────────────
-local function Snap(v) return NS.PixelSnap(v) end
+local Snap = NS.PixelSnap
 
 -- ── Get or create anchor container ──────────────────────────────────────
 local function GetContainer(viewerName)
@@ -468,11 +468,56 @@ local function LayoutViewer(viewerName)
 
   local container = GetContainer(viewerName)
 
-  -- Collect active frames
+  -- Collect active frames (only those with a valid spell/cooldown)
   local frames = {}
   for frame in viewer.itemFramePool:EnumerateActive() do
-    frames[#frames + 1] = frame
+    -- Check if this frame actually has a visible spell
+    local hasSpell = false
+    pcall(function()
+      if frame.isActive or frame.cooldownID or (frame.cooldownInfo and frame.cooldownInfo.spellID) then
+        hasSpell = true
+      end
+    end)
+    if hasSpell then
+      frames[#frames + 1] = frame
+    else
+      -- Hide empty placeholder frames and their backgrounds
+      local fd = frameData[frame]
+      if fd and fd.bg then fd.bg:Hide() end
+      pcall(frame.Hide, frame)
+    end
   end
+
+  -- Empty viewer: collapse both container and viewer to invisible
+  if #frames == 0 then
+    pcall(container.SetSize, container, 0, 0)
+    pcall(container.SetAlpha, container, 0)
+    pcall(rawClearAllPoints, viewer)
+    pcall(rawSetPoint, viewer, "TOPLEFT", container, "TOPLEFT", 0, 0)
+    pcall(viewer.SetSize, viewer, 0, 0)
+    pcall(viewer.SetAlpha, viewer, 0)
+    -- Hide all viewer child regions (background textures, nine-slice)
+    pcall(function()
+      for _, region in pairs({viewer:GetRegions()}) do
+        region:SetAlpha(0)
+      end
+      for _, child in pairs({viewer:GetChildren()}) do
+        child:SetAlpha(0)
+      end
+    end)
+    return
+  end
+  pcall(container.SetAlpha, container, 1)
+  pcall(viewer.SetAlpha, viewer, 1)
+  pcall(function()
+    for _, region in pairs({viewer:GetRegions()}) do
+      region:SetAlpha(1)
+    end
+    for _, child in pairs({viewer:GetChildren()}) do
+      child:SetAlpha(1)
+    end
+  end)
+
   table.sort(frames, function(a, b) return (a.layoutIndex or 0) < (b.layoutIndex or 0) end)
 
   -- Position and style each frame
@@ -598,7 +643,7 @@ local updateTicker = nil
 
 -- ── Enable / Disable ────────────────────────────────────────────────────
 function CD.Enable()
-  for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+  for _, name in ipairs(VIEWER_LIST) do
     GetContainer(name)
     SetupViewerHooks(name)
     -- Reparent viewer to UIParent (protected op — pcall in combat)
@@ -617,13 +662,41 @@ function CD.Enable()
     utilC:SetPoint("TOP", essC, "BOTTOM", 0, -2)
   end
   if not updateTicker then
+    local lastFrameCounts = {}
     updateTicker = C_Timer.NewTicker(0.5, function()
-      if NS.IsCDMEnabled() and not InCombatLockdown() then CD.Refresh() end
+      if not NS.IsCDMEnabled() or InCombatLockdown() then return end
+      -- Check if frame counts changed (spells added/removed in CDM menu)
+      for _, vn in ipairs(VIEWER_LIST) do
+        local viewer = _G[vn]
+        local count = 0
+        if viewer and viewer.itemFramePool then
+          for _ in viewer.itemFramePool:EnumerateActive() do count = count + 1 end
+        end
+        if lastFrameCounts[vn] ~= count then
+          lastFrameCounts[vn] = count
+          MarkLayoutDirty(vn)
+        end
+      end
+      CD.Refresh(true)
     end)
   end
   SetupGlowHooks()
   -- Register runtime events (only when module is active)
   evFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+  -- CDM layout save events — refresh layout when spells are added/removed via /cdm
+  if not cdmEvFrame then
+    cdmEvFrame = CreateFrame("Frame")
+    cdmEvFrame:SetScript("OnEvent", function()
+      C_Timer.After(0.1, function()
+        for _, vn in ipairs(VIEWER_LIST) do
+          MarkLayoutDirty(vn)
+        end
+        CD.Refresh()
+      end)
+    end)
+  end
+  cdmEvFrame:RegisterEvent("COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED")
+  cdmEvFrame:RegisterEvent("COOLDOWN_VIEWER_DATA_LOADED")
   evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
   evFrame:RegisterEvent("SPELLS_CHANGED")
@@ -636,7 +709,11 @@ function CD.Disable()
   evFrame:UnregisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   evFrame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
   evFrame:UnregisterEvent("SPELLS_CHANGED")
-  for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+  if cdmEvFrame then
+    cdmEvFrame:UnregisterEvent("COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED")
+    cdmEvFrame:UnregisterEvent("COOLDOWN_VIEWER_DATA_LOADED")
+  end
+  for _, viewerName in ipairs(VIEWER_LIST) do
     local viewer = _G[viewerName]
     if viewer and viewer.itemFramePool then
       for frame in viewer.itemFramePool:EnumerateActive() do
@@ -656,10 +733,10 @@ function CD.Disable()
   end
 end
 
-function CD.Refresh(force)
+function CD.Refresh(dirtyOnly)
   if InCombatLockdown() then return end
-  for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
-    if force or layoutDirty[name] then
+  for _, name in ipairs(VIEWER_LIST) do
+    if not dirtyOnly or layoutDirty[name] then
       LayoutViewer(name)
     end
   end
@@ -672,6 +749,27 @@ end
 -- ── Spec Change handling (with backstop timer like Ayije) ───────────────
 local specChangePending = false
 local specChangeToken = 0
+
+-- Auto-save CDM positions before spec switch
+do
+  local function SaveCDMPositions()
+    if not NS.IsPerSpec or not NS.IsPerSpec("cdv") then return end
+    for _, viewerName in ipairs(VIEWER_LIST) do
+      local posKey = viewerName == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
+      local c = containers[viewerName]
+      if c then
+        local p, _, _, x, y = c:GetPoint()
+        if p then OptSet(posKey, {p=p, x=x, y=y}) end
+      end
+    end
+  end
+  if C_SpecializationInfo and C_SpecializationInfo.SetSpecialization then
+    hooksecurefunc(C_SpecializationInfo, "SetSpecialization", SaveCDMPositions)
+  end
+  local lf = CreateFrame("Frame")
+  lf:RegisterEvent("PLAYER_LOGOUT")
+  lf:SetScript("OnEvent", SaveCDMPositions)
+end
 
 local function OnSpecChange()
   if not initialized or not NS.IsCDMEnabled() then return end
@@ -686,13 +784,24 @@ local function OnSpecChange()
     NS.ClearSpellBaseCache()  -- invalidate talent variant cache
     wipe(glowTrackedCDs); wipe(frameSpellMap); wipe(castPredictions)
     if InCombatLockdown() then return end
-    for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+    for _, name in ipairs(VIEWER_LIST) do
       local viewer = _G[name]
       if viewer and viewer:GetParent() ~= UIParent then
         pcall(viewer.SetParent, viewer, UIParent)
       end
+      -- Reload per-spec positions
+      local c = containers[name]
+      if c then
+        local posKey = name == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
+        local pos = Opt(posKey)
+        if pos and pos.p then
+          c:ClearAllPoints()
+          c:SetPoint(pos.p, UIParent, pos.p, pos.x, pos.y)
+        end
+      end
     end
-    CD.Refresh(true)
+    CD.Refresh()
+    NS.RefreshAnchorChain()
     C_Timer.After(0.3, function() CD.Refresh(true) end)
     C_Timer.After(1.0, function() CD.Refresh(true) end)
   end)
@@ -709,6 +818,8 @@ end
 -- Pre-create containers at file load so other addons (ElvUI) can anchor to them immediately
 GetContainer(VIEWERS.ESSENTIAL)
 GetContainer(VIEWERS.UTILITY)
+-- Collapse utility until LayoutViewer confirms it has frames
+containers[VIEWERS.UTILITY]:SetSize(0, 1)
 
 evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
@@ -743,7 +854,7 @@ evFrame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "PLAYER_REGEN_ENABLED" then
     -- Re-do protected ops that may have failed during combat init
     if initialized and NS.IsCDMEnabled() then
-      for _, name in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+      for _, name in ipairs(VIEWER_LIST) do
         local viewer = _G[name]
         if viewer and viewer:GetParent() ~= UIParent then
           pcall(viewer.SetParent, viewer, UIParent)
@@ -760,7 +871,7 @@ evFrame:SetScript("OnEvent", function(_, event, ...)
       CD.Refresh(true)
     end
   elseif event == "PLAYER_LOGOUT" then
-    for _, viewerName in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+    for _, viewerName in ipairs(VIEWER_LIST) do
       local posKey = viewerName == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
       -- Only save if user has manually positioned (not auto-anchored)
       if Opt(posKey) then
@@ -858,7 +969,7 @@ function CD.SetupSettings(parent)
     lockFS:SetText(unlocked and "Lock" or "Unlock")
     local r, g, b = NS.ChatGetAccentRGB()
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
-    for _, vn in ipairs({VIEWERS.ESSENTIAL, VIEWERS.UTILITY}) do
+    for _, vn in ipairs(VIEWER_LIST) do
       local c = GetContainer(vn)
       local posKey = vn == VIEWERS.ESSENTIAL and "essPos" or "utilPos"
       local label = vn == VIEWERS.ESSENTIAL and "Essential" or "Utility"
@@ -935,14 +1046,15 @@ function CD.SetupSettings(parent)
     local row = CreateFrame("Frame", nil, card.inner); row:SetHeight(24)
     local lbl = row:CreateFontString(nil, "OVERLAY"); lbl:SetFont("Fonts/FRIZQT__.TTF", 10, "")
     lbl:SetPoint("LEFT", 4, 0); lbl:SetTextColor(0.6, 0.6, 0.7); lbl:SetText(label)
-    local cur = Opt(key) or {1,1,1}
+    local initC = Opt(key) or {1,1,1}
     local sw = CreateFrame("Frame", nil, row, "BackdropTemplate"); sw:SetSize(20, 16); sw:SetPoint("LEFT", 110, 0)
-    sw:SetBackdrop(SBD); sw:SetBackdropColor(cur[1], cur[2], cur[3], 1); sw:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    sw:SetBackdrop(SBD); sw:SetBackdropColor(initC[1], initC[2], initC[3], 1); sw:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
     local hit = CreateFrame("Button", nil, sw); hit:SetAllPoints()
     hit:SetScript("OnClick", function()
+      local cur = Opt(key) or {1,1,1}
       ColorPickerFrame:SetupColorPickerAndShow({r=cur[1], g=cur[2], b=cur[3],
         swatchFunc = function() local r,g,b = ColorPickerFrame:GetColorRGB(); OptSet(key, {r,g,b}); sw:SetBackdropColor(r,g,b,1); CD.Refresh() end,
-        cancelFunc = function() sw:SetBackdropColor(cur[1], cur[2], cur[3], 1) end})
+        cancelFunc = function() OptSet(key, {cur[1], cur[2], cur[3]}); sw:SetBackdropColor(cur[1], cur[2], cur[3], 1); CD.Refresh() end})
     end)
     R(card, row, 24)
   end

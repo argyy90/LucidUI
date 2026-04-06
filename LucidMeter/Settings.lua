@@ -18,7 +18,9 @@ function DM.SetupSettings(parent)
   -- ── Card: General ────────────────────────────────────────────────
   local cGen = MakeCard(sc, "General")
 
-  local enableCB = NS.ChatGetCheckbox(cGen.inner, "Enable LucidMeter", 26, function(state)
+  -- Enable checkbox + Per-Spec dropdown on same row
+  local enRow = CreateFrame("Frame", nil, cGen.inner); enRow:SetHeight(26)
+  local enableCB = NS.ChatGetCheckbox(enRow, "Enable LucidMeter", 26, function(state)
     DBSet("dmEnabled", state)
     if state then
       if DM.RegisterEvents then DM.RegisterEvents() end
@@ -28,7 +30,67 @@ function DM.SetupSettings(parent)
       if DM.windows then for _, w in ipairs(DM.windows) do w.frame:Hide() end end
     end
   end, "Show a damage meter window")
-  enableCB.option = "dmEnabled"; R(cGen, enableCB, 26)
+  enableCB:ClearAllPoints(); enableCB:SetPoint("LEFT", enRow, "LEFT", 0, 0)
+  enableCB:SetPoint("RIGHT", enRow, "CENTER", 0, 0)
+  enableCB.option = "dmEnabled"
+  -- Per-Spec dropdown (inline, styled to match LucidUI)
+  local specDD = NS.ChatGetDropdown(enRow, "",
+    function(v) return v == (NS.IsPerSpec("dm") and "current" or "all") end,
+    function(v)
+      if LucidUIDB then LucidUIDB["dm_perSpec"] = (v == "current") end
+      -- Refresh meter display with new spec settings
+      if DM.UpdateDisplay then pcall(DM.UpdateDisplay) end
+      if DM.RefreshAllWindows then pcall(DM.RefreshAllWindows) end
+    end)
+  local function GetSpecLabel()
+    local si2 = GetSpecialization and GetSpecialization()
+    if si2 then
+      local _, sn = GetSpecializationInfo(si2)
+      local _, cls = UnitClass("player")
+      local cc = C_ClassColor and C_ClassColor.GetClassColor(cls)
+      local hex = cc and cc:GenerateHexColor():sub(3) or "ffffff"
+      if sn then return "Current Spec (|cff" .. hex .. sn .. "|r)" end
+    end
+    return "Current Spec"
+  end
+  local function RefreshSpecDD()
+    specDD:Init({"All Specs", GetSpecLabel()}, {"all", "current"})
+  end
+  RefreshSpecDD()
+  local specEvF = CreateFrame("Frame")
+  specEvF:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  specEvF:SetScript("OnEvent", function()
+    C_Timer.After(0.5, function()
+      RefreshSpecDD()
+      -- Reload per-spec meter settings for all windows
+      if NS.IsPerSpec("dm") and DM.windows then
+        local function specGet(k) return LucidUIDB and LucidUIDB[NS.GetSpecSettingsKey("dm_", k)] end
+
+        local ApplyWindowState = DM.ApplyWindowState
+
+        -- Main window
+        if DM.windows[1] then
+          ApplyWindowState(DM.windows[1], specGet("WinPos"), specGet("WinSize"), specGet("MeterType"), specGet("SessionType"))
+        end
+        -- Extra windows
+        local extra = specGet("ExtraWindows")
+        if extra then
+          for _, ew in ipairs(extra) do
+            for _, w in ipairs(DM.windows) do
+              if w.id == ew.id then
+                ApplyWindowState(w, ew.pos, ew.size, ew.meterType, ew.sessionType)
+                break
+              end
+            end
+          end
+        end
+      end
+    end)
+  end)
+  specDD:ClearAllPoints()
+  specDD:SetPoint("RIGHT", enRow, "RIGHT", 0, 0)
+  specDD:SetSize(280, 26)
+  R(cGen, enRow, 26)
 
   local function PairRow(lbl1,key1,cb1,tip1, lbl2,key2,cb2,tip2)
     local row = CreateFrame("Frame", nil, cGen.inner); row:SetHeight(26)

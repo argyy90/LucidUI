@@ -33,6 +33,14 @@ local RUNE_SPEC_COLORS = {
   [252] = {ready = {0.30, 0.90, 0.30}, recharging = {0.15, 0.45, 0.15}},  -- Unholy
 }
 local runeUpdateTicker = nil
+local _runeData = {}       -- reused per UpdateRuneBar call (avoid alloc every 50ms)
+local _runeOrder = {1,2,3,4,5,6}
+local function _runeSortCmp(a, b)
+  local ra, rb = _runeData[a], _runeData[b]
+  if ra.isReady and not rb.isReady then return true end
+  if not ra.isReady and rb.isReady then return false end
+  return ra.remaining < rb.remaining
+end
 
 -- Segmented power types: displayed as individual pips instead of a bar
 local SEGMENTED_TYPES = {
@@ -358,7 +366,6 @@ local function UpdateRuneBar(bar, pipTable, showText)
   UpdatePipsFor(bar, pipTable, 6, Enum.PowerType.Runes)
 
   -- Collect per-rune state and sort: ready first, then by remaining time
-  local runeData = {}
   local hasRecharging = false
   local now = GetTime()
   for i = 1, 6 do
@@ -369,23 +376,23 @@ local function UpdateRuneBar(bar, pipTable, showText)
       if remaining < 0 then remaining = 0 end
       hasRecharging = true
     end
-    runeData[i] = {startTime = startTime or 0, duration = duration or 0, isReady = isReady, remaining = remaining}
+    local rd = _runeData[i]
+    if rd then
+      rd.startTime = startTime or 0; rd.duration = duration or 0; rd.isReady = isReady; rd.remaining = remaining
+    else
+      _runeData[i] = {startTime = startTime or 0, duration = duration or 0, isReady = isReady, remaining = remaining}
+    end
+    _runeOrder[i] = i
   end
 
   -- Sort: ready runes first, then by shortest remaining
-  local order = {1,2,3,4,5,6}
-  table.sort(order, function(a, b)
-    local ra, rb = runeData[a], runeData[b]
-    if ra.isReady and not rb.isReady then return true end
-    if not ra.isReady and rb.isReady then return false end
-    return ra.remaining < rb.remaining
-  end)
+  table.sort(_runeOrder, _runeSortCmp)
 
   local readyCount = 0
   for i = 1, 6 do
     local pip = pipTable[i]
     if not pip then break end
-    local rune = runeData[order[i]]
+    local rune = _runeData[_runeOrder[i]]
     if rune.isReady then
       readyCount = readyCount + 1
       pip:SetValue(1)
@@ -580,16 +587,15 @@ local function UpdatePower()
   if manaBar and GetShowMana() and primaryType ~= Enum.PowerType.Mana then
     local wasHidden = not manaBar:IsShown()
     manaBar:Show()
-    manaBar:SetSize(Opt("width"), Opt("height"))
     pcall(function()
-      manaBar.bar:SetMinMaxValues(0, UnitPowerMax("player", Enum.PowerType.Mana))
-      manaBar.bar:SetValue(UnitPower("player", Enum.PowerType.Mana))
+      local manaMax = UnitPowerMax("player", Enum.PowerType.Mana)
+      local manaCur = UnitPower("player", Enum.PowerType.Mana)
+      manaBar.bar:SetMinMaxValues(0, manaMax)
+      manaBar.bar:SetValue(manaCur)
+      if Opt("showText") then
+        manaBar.text:SetFormattedText("%d", manaCur)
+      else manaBar.text:SetText("") end
     end)
-    if Opt("showText") then
-      pcall(function()
-        manaBar.text:SetFormattedText("%d", UnitPower("player", Enum.PowerType.Mana))
-      end)
-    else manaBar.text:SetText("") end
     if wasHidden then NS.RefreshAnchorChain() end
   elseif manaBar then
     local wasShown = manaBar:IsShown()
@@ -696,6 +702,12 @@ local function OnEvent(_, event, arg1)
     DetectResources()
     if mainBar then
       if primaryType then mainBar:Show() else mainBar:Hide() end
+      -- Reload per-spec position
+      local pos = Opt("pos")
+      if pos and pos.p then
+        mainBar:ClearAllPoints()
+        mainBar:SetPoint(pos.p, UIParent, pos.p, pos.x, pos.y)
+      end
     end
     if secBar then
       if secondaryType then secBar:Show() else secBar:Hide() end

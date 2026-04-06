@@ -127,25 +127,39 @@ end
 
 function NS.ChatGetDropdown(parent, labelText, isSelectedCb, onSelectionCb)
   local frame = CreateFrame("Frame", nil, parent)
-  frame:SetPoint("LEFT", 30, 0)
-  frame:SetPoint("RIGHT", -30, 0)
-  frame:SetHeight(50)
+  if labelText and labelText ~= "" then
+    frame:SetPoint("LEFT", 30, 0)
+    frame:SetPoint("RIGHT", -30, 0)
+    frame:SetHeight(50)
+  else
+    frame:SetAllPoints()
+  end
 
   local label = frame:CreateFontString(nil, "OVERLAY")
   label:SetFont(NS.FONT, 11, "")
   label:SetPoint("TOPLEFT", 20, 0)
   label:SetJustifyH("LEFT")
-  label:SetText("|cff" .. GetAccentHex() .. ">|r |cff808080" .. labelText .. "|r")
-  table.insert(NS.chatOptAccentLabels, {fs = label, rawText = labelText})
+  if labelText and labelText ~= "" then
+    label:SetText("|cff" .. GetAccentHex() .. ">|r |cff808080" .. labelText .. "|r")
+    table.insert(NS.chatOptAccentLabels, {fs = label, rawText = labelText})
+  else
+    label:Hide()
+  end
 
   local divLine = frame:CreateTexture(nil, "ARTWORK")
   divLine:SetColorTexture(0.18, 0.18, 0.18, 1)
   divLine:SetHeight(1)
   divLine:SetPoint("TOPLEFT", 20, -14)
   divLine:SetPoint("TOPRIGHT", -20, -14)
+  if not labelText or labelText == "" then divLine:Hide() end
 
   local dropdown = CreateFrame("DropdownButton", nil, frame, "WowStyle1DropdownTemplate")
-  dropdown:SetPoint("TOPLEFT", 18, -20)
+  if labelText and labelText ~= "" then
+    dropdown:SetPoint("TOPLEFT", 18, -20)
+  else
+    dropdown:SetPoint("TOPLEFT", 0, 0)
+    frame:SetHeight(26)
+  end
   dropdown:SetPoint("RIGHT", -20, 0)
 
   -- Skin: hide default textures, dark backdrop with accent arrow

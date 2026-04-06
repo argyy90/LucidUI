@@ -544,18 +544,23 @@ local function OnSpecChange()
   local myToken = specChangeToken
   C_Timer.After(0.5, function()
     specChangePending = false
-    specChangeToken = specChangeToken + 1
-    if InCombatLockdown() then return end
+    if InCombatLockdown() then
+      -- Combat blocked us; let backstop handle it
+      return
+    end
+    specChangeToken = specChangeToken + 1  -- cancel backstop only on success
     for k in pairs(frameData) do frameData[k] = nil end
     BB:Refresh()
     C_Timer.After(0.3, function() BB:Refresh() end)
     C_Timer.After(1.0, function() BB:Refresh() end)
   end)
-  -- 3s backstop: force refresh if normal path didn't fire
+  -- 3s backstop: force refresh if normal path was blocked by combat
   C_Timer.After(3, function()
     if specChangeToken ~= myToken then return end
     specChangePending = false
+    specChangeToken = specChangeToken + 1
     if initialized and NS.IsCDMEnabled() and not InCombatLockdown() then
+      for k in pairs(frameData) do frameData[k] = nil end
       BB:Refresh()
     end
   end)

@@ -267,66 +267,6 @@ local function CommitRun(att)
   if MP.win and MP.win:IsShown() then MP.Refresh() end
 end
 
--- ─────────────────────────────── BLIZZARD SYNC (GLogger approach) ────────
-function MP.SyncBlizzard(key,season)
-  local k=key or GetPlayerKey(); local s=season or GetCurrentSeason()
-  if not MP.Seasons[s] then return end
-  local db=GetDB(); if not db[k] then db[k]={} end; if not db[k][s] then db[k][s]={} end
-  local ourDB=db[k][s]
-  local currentOverallScore=C_ChallengeMode.GetOverallDungeonScore() or 0
-  local importOffset=0  -- sequential counter so imports sort by order, not all same second
-
-  local function AddRunIfMissing(mid,lv,isC,sc,el)
-    if not mid or mid==0 then return end
-    -- Dedup: 2s tolerance (GLogger value), NEVER overwrite roster/loot/deaths
-    for _,r in ipairs(ourDB) do
-      if r.mapID==mid and r.level==lv then
-        local diff=(el and r.timeElapsed) and math.abs(r.timeElapsed-el) or 0
-        local match=(el and r.timeElapsed) and diff<=2 or (not el or not r.timeElapsed)
-        if match then
-          -- Only update score on match
-          if sc and sc>0 and (not r.mapScore or sc>r.mapScore) then r.mapScore=sc end
-          return  -- duplicate found, keep existing data intact
-        end
-      end
-    end
-    -- Not found — insert as baseline import (no roster/loot/deaths)
-    local mn,_,_,lim=C_ChallengeMode.GetMapUIInfo(mid); lim=lim or 1800
-    local safe=el or (isC and lim-1 or lim+1); local st=1
-    if isC and safe<=lim then
-      if safe<=lim*0.6 then st=4 elseif safe<=lim*0.8 then st=3 else st=2 end
-    end
-    table.insert(ourDB,{
-      status=st, mapID=mid, mapName=mn or "Unknown", level=lv or 0,
-      timeLimit=lim, timeElapsed=safe, deaths=0, timeLost=0,
-      mapScore=sc or 0, overallScore=currentOverallScore,
-      date=time()-importOffset, roster={}, loot={}, _blizzardImport=true
-    })
-    importOffset=importOffset+1
-  end
-
-  -- Step 1: Season best per dungeon (GetSeasonBestForMap — GLogger does this first)
-  if MP.Seasons[s] and MP.Seasons[s].dungeons then
-    for mid,_ in pairs(MP.Seasons[s].dungeons) do
-      local inT,ovT=C_MythicPlus.GetSeasonBestForMap(mid)
-      if inT and (inT.level or 0)>0 then
-        AddRunIfMissing(mid,inT.level,true,inT.dungeonScore or 0,inT.durationSec)
-      end
-      if ovT and (ovT.level or 0)>0 then
-        AddRunIfMissing(mid,ovT.level,false,ovT.dungeonScore or 0,ovT.durationSec)
-      end
-    end
-  end
-
-  -- Step 2: Full run history
-  local hist=C_MythicPlus.GetRunHistory and C_MythicPlus.GetRunHistory(true,true)
-  if hist then
-    for _,br in ipairs(hist) do
-      AddRunIfMissing(br.mapChallengeModeID,br.level,br.completed,
-        br.runScore or br.dungeonScore or br.score or 0, br.durationSec)
-    end
-  end
-end
 
 -- ─────────────────────────────── EVENTS ─────────────────────────────────────
 local evF=CreateFrame("Frame")
@@ -355,9 +295,6 @@ end
 
 MP.EnableTracking = function()
   RegisterMPEvents()
-  if C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
-  if C_MythicPlus.RequestMapInfo then C_MythicPlus.RequestMapInfo() end
-  C_Timer.After(2,function() MP.SyncBlizzard() end)
 end
 
 MP.DisableTracking = function()
@@ -453,11 +390,6 @@ evF:SetScript("OnEvent",function(_,ev,...)
         local sName = curSeason and curSeason.name or "current season"
         print("[|cff3bd2edLucid|r|cffffffffUI|r |cff3bd2edMythic+|r] Migrated "..totalMigrated.." run(s) to "..sName..".")
       end
-    end)
-    C_Timer.After(3,function()
-      if C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
-      if C_MythicPlus.RequestMapInfo then C_MythicPlus.RequestMapInfo() end
-      C_Timer.After(2,function() MP.SyncBlizzard() end)
     end)
   elseif ev=="PLAYER_ENTERING_WORLD" then
     if C_ChallengeMode.IsChallengeModeActive() and activeState=="IDLE" then
@@ -641,10 +573,8 @@ local function BuildWindow()
   closeBtn:SetScript("OnLeave",function() closeBtn:SetBackdropBorderColor(0.34,0.09,0.09,1); cX:SetTextColor(0.60,0.18,0.18) end)
   closeBtn:SetScript("OnClick",function() MP.win:Hide() end)
 
-  -- Sync + Clear buttons (right of alt/season)
-  local syncBtn=MkBtn(MP.win,"Sync",60,20,BD); syncBtn:SetPoint("TOPRIGHT",MP.win,"TOPRIGHT",-125,-10)
-  syncBtn:SetScript("OnClick",function() MP.SyncBlizzard(MP._selAlt,MP._selSeason); MP.Refresh() end)
-  local clearBtn=MkBtn(MP.win,"Clear All",70,20,BD); clearBtn:SetPoint("LEFT",syncBtn,"RIGHT",4,0)
+  -- Clear button (right of alt/season)
+  local clearBtn=MkBtn(MP.win,"Clear All",70,20,BD); clearBtn:SetPoint("TOPRIGHT",MP.win,"TOPRIGHT",-55,-10)
   clearBtn:SetScript("OnClick",function()
     StaticPopupDialogs["LUCIDUI_MP3_CLEAR"]={text="Clear Mythic+ history?",button1=ACCEPT,button2=CANCEL,
       OnAccept=function() local db=GetDB(); if db[MP._selAlt] then db[MP._selAlt][MP._selSeason]={} end; MP._selRun=nil; MP.Refresh() end,
@@ -1281,9 +1211,11 @@ local function DrawAnalytics(teammates)
   local h2=hdr:CreateFontString(nil,"OVERLAY"); h2:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
   h2:SetPoint("RIGHT",hdr,"RIGHT",-4,0); h2:SetTextColor(ar,ag,ab); h2:SetText("Runs")
   yOff=yOff+ROW+2
-  if #teammates==0 then sc:SetHeight(40)
-    local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,""); fs:SetPoint("TOP",sc,"TOP",0,-yOff)
-    fs:SetTextColor(0.35,0.35,0.45); fs:SetText("No teammates yet"); return end
+  if #teammates==0 then sc:SetHeight(60)
+    local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,9,""); fs:SetPoint("TOPLEFT",sc,"TOPLEFT",6,-yOff)
+    fs:SetPoint("RIGHT",sc,"RIGHT",-6,0)
+    fs:SetTextColor(0.35,0.35,0.45); fs:SetWordWrap(true)
+    fs:SetText("No teammates yet.\nRoster is only tracked for runs\ncompleted while LucidUI is active."); return end
   for _,tm in ipairs(teammates) do
     local row=CreateFrame("Button",nil,sc,"BackdropTemplate"); row:SetHeight(ROW)
     row:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
@@ -1333,7 +1265,12 @@ local function DrawHistory(runs,bestDates)
     local sBar=row:CreateTexture(nil,"OVERLAY",nil,5); sBar:SetWidth(2); sBar:SetPoint("TOPLEFT"); sBar:SetPoint("BOTTOMLEFT"); sBar:SetColorTexture(sr,sg,sb,1)
     local xc2=6
     local isBest=bestDates and bestDates[run.date]
-    local dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "")..date("%d.%m.%y %H:%M",run.date)
+    local dTxt
+    if run._blizzardImport then
+      dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "").."|cff606070Imported|r"
+    else
+      dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "")..date("%d.%m.%y %H:%M",run.date)
+    end
     local dFS=row:CreateFontString(nil,"OVERLAY"); dFS:SetFont(STANDARD_TEXT_FONT,11,""); dFS:SetPoint("LEFT",row,"LEFT",xc2,0); dFS:SetTextColor(0.50,0.50,0.62); dFS:SetText(dTxt); xc2=xc2+CW[1]
     local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,11,""); nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(run.mapName or "?"); xc2=xc2+CW[2]
     local lFS=row:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,12,"OUTLINE"); lFS:SetPoint("LEFT",row,"LEFT",xc2,0); lFS:SetTextColor(sr,sg,sb); lFS:SetText("+"..tostring(run.level or 0)); xc2=xc2+CW[3]
@@ -1394,6 +1331,7 @@ local function DrawDetails(run)
   end
   if not run then sc:SetHeight(60)
     FS("Select a run to view details",10,0.40,0.40,0.50); return end
+  local isImport = run._blizzardImport
   -- Card 1: Run Info
   local endCard1=CardStart()
   local sr,sg,sb=SC(run.status)
@@ -1402,7 +1340,11 @@ local function DrawDetails(run)
     local sc2n=math.floor(run.mapScore+0.5); local cr,cg,cb=1,0.84,0
     if C_ChallengeMode.GetDungeonScoreRarityColor then local co=C_ChallengeMode.GetDungeonScoreRarityColor(run.mapScore); if co then cr,cg,cb=co.r,co.g,co.b end end
     FS("Score: "..tostring(sc2n), 11, cr,cg,cb) end
-  FS(date("%Y-%m-%d  %H:%M",run.date or 0), 10, 0.50,0.50,0.62)
+  if isImport then
+    FS("Imported from Blizzard API", 10, 0.50,0.50,0.62)
+  else
+    FS(date("%Y-%m-%d  %H:%M",run.date or 0), 10, 0.50,0.50,0.62)
+  end
   FS(string.format("Time: %s / %s  (%s)",FmtTime(run.timeElapsed),FmtTime(run.timeLimit),ST(run.status)),10,sr,sg,sb)
   local dStr=tostring(run.deaths or 0)
   if (run.deaths or 0)>0 and (run.timeLost or 0)>0 then dStr=dStr.."  (-"..FmtTime(run.timeLost)..")" end
@@ -1412,6 +1354,10 @@ local function DrawDetails(run)
     for _,affID in ipairs(run.affixes) do local nm,_,fid=C_ChallengeMode.GetAffixInfo(affID)
       local ico=fid and ("|T"..fid..":12:12:0:0:64:64:4:60:4:60|t ") or ""
       FS(ico..(nm or ("Affix "..affID)), 10, 0.72,0.72,0.85, 14) end end
+  if isImport then
+    yOff=yOff+2
+    FS("|TInterface/OptionsFrame/UI-OptionsFrame-NewFeatureIcon:14:14|t Imported from Blizzard API — no roster or loot data available.", 9, 1,0.27,0.27)
+  end
   endCard1()
   -- Card 2: Roster
   if run.roster and next(run.roster) then
@@ -1658,8 +1604,14 @@ function MP.Refresh()
     if pass then table.insert(filteredRuns,r); table.insert(graphRuns,r)
       totalCount=totalCount+1; if SR(r.status)>=3 and (r.level or 0)>highestTimed then highestTimed=r.level end end
   end
-  -- Sort newest first (GLogger: sort before building rows, not after)
-  table.sort(filteredRuns,function(a,b) return (a.date or 0)>(b.date or 0) end)
+  -- Sort: live-tracked runs first (newest first), then imported runs (by level desc)
+  table.sort(filteredRuns,function(a,b)
+    local aImp = a._blizzardImport and 1 or 0
+    local bImp = b._blizzardImport and 1 or 0
+    if aImp ~= bImp then return aImp < bImp end  -- live runs first
+    if aImp == 0 then return (a.date or 0) > (b.date or 0) end  -- live: newest first
+    return (a.level or 0) > (b.level or 0)  -- imported: highest level first
+  end)
   table.sort(graphRuns,function(a,b) return (a.date or 0)>(b.date or 0) end)
   for nm,d in pairs(tmCounts) do table.insert(teammates,{rawName=nm,count=d.count,class=d.class,lastSeen=d.lastSeen}) end
   table.sort(teammates,function(a,b) return a.lastSeen>b.lastSeen end)
@@ -1702,9 +1654,6 @@ function MP.ShowWindow()
   if MP.win:IsShown() then MP.win:Hide(); return end
   if not MP._selSeason then MP._selSeason=GetCurrentSeason() end
   if not MP._selAlt    then MP._selAlt=GetPlayerKey() end
-  if C_MythicPlus.RequestRewards then C_MythicPlus.RequestRewards() end
-  if C_MythicPlus.RequestMapInfo then C_MythicPlus.RequestMapInfo() end
-  C_Timer.After(0.5,function() MP.SyncBlizzard(MP._selAlt,MP._selSeason) end)
   MP.win:Show(); MP.win:Raise(); MP.Refresh()
 end
 

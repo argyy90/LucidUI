@@ -178,7 +178,6 @@ local function SetupDisplay(parent)
   local sc,Add=MakePage(container)
   local allFrames={}
   container:SetScript("OnShow",function()
-    DBSet("chatClassColors",true); DBSet("chatClickableUrls",true)
     for _,f in ipairs(allFrames) do
       if f.SetValue then if f.option then f:SetValue(DB(f.option)) else f:SetValue() end end
     end
@@ -547,24 +546,12 @@ local function SetupAdvanced(parent)
   local container=CreateFrame("Frame",nil,parent)
   local sc,Add=MakePage(container)
   local allLayout={}
-  local allFrames={}  -- used by pasted original profile/export/import code
 
   -- ── Card: Profiles ─────────────────────────────────────────────────
   local cProf=MakeCard(sc,"Profiles")
   local profileRow=CreateFrame("Frame",nil,cProf.inner); profileRow:SetHeight(26)
 
-  local function MakeIEBtn(par,txt)
-    local btn=CreateFrame("Button",nil,par,"BackdropTemplate"); btn:SetSize(88,22); btn:SetBackdrop(BD)
-    btn:SetBackdropColor(0.04,0.04,0.07,1); btn:SetBackdropBorderColor(0.12,0.12,0.20,1)
-    local cut=btn:CreateTexture(nil,"OVERLAY",nil,4); cut:SetSize(8,1); cut:SetPoint("TOPRIGHT",btn,"TOPRIGHT",0,-1); cut:SetColorTexture(0,1,1,0.25)
-    local fs=btn:CreateFontString(nil,"OVERLAY"); fs:SetFont(NS.FONT,10,""); fs:SetPoint("CENTER",0,0); fs:SetTextColor(0.75,0.75,0.85); fs:SetText(txt)
-    btn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); btn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
-    btn:SetScript("OnLeave",function() btn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
-    return btn
-  end
-
   profileRow:SetPoint("RIGHT", -50, 0)
-  table.insert(allFrames, profileRow)
 
   -- Styled button helper for Export/Import
   local function MakeIEButton(parent, text)
@@ -804,81 +791,98 @@ local function SetupAdvanced(parent)
     local rawText = table.concat(lines, "\n")
     local text = NS.EncodeProfileString(rawText)
 
-    local frame = CreateFrame("Frame", "LUIExportFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(500, 300); frame:SetPoint("CENTER")
-    frame:SetFrameStrata("FULLSCREEN_DIALOG"); frame:SetMovable(true); frame:SetClampedToScreen(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function() frame:StartMoving() end)
-    frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
-    frame:EnableMouse(true)
-    frame:SetBackdrop(NS.BACKDROP)
-    frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95); frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    title:SetPoint("TOP", 0, -6); title:SetText(L["export_hint"])
-    local ar2,ag2,ab2 = NS.ChatGetAccentRGB(); title:SetTextColor(ar2, ag2, ab2)
-    local closeBtn2 = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeBtn2:SetPoint("TOPRIGHT", 2, 2)
-    closeBtn2:SetScript("OnClick", function() frame:Hide() end)
-    local sf = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", 10, -22); sf:SetPoint("BOTTOMRIGHT", -30, 10)
-    local eb = CreateFrame("EditBox", nil, frame)
-    eb:SetMultiLine(true); eb:SetAutoFocus(true); eb:SetFontObject(GameFontHighlight); eb:SetWidth(460)
-    eb:SetScript("OnEscapePressed", function() frame:Hide() end)
-    sf:SetScrollChild(eb)
+    local frame = _G["LUIExportFrame"]
+    if not frame then
+      frame = CreateFrame("Frame", "LUIExportFrame", UIParent, "BackdropTemplate")
+      frame:SetSize(500, 300); frame:SetPoint("CENTER")
+      frame:SetFrameStrata("FULLSCREEN_DIALOG"); frame:SetMovable(true); frame:SetClampedToScreen(true)
+      frame:RegisterForDrag("LeftButton")
+      frame:SetScript("OnDragStart", function() frame:StartMoving() end)
+      frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
+      frame:EnableMouse(true)
+      frame:SetBackdrop(NS.BACKDROP)
+      frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95); frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+      local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      title:SetPoint("TOP", 0, -6); title:SetText(L["export_hint"])
+      local ar2,ag2,ab2 = NS.ChatGetAccentRGB(); title:SetTextColor(ar2, ag2, ab2)
+      local closeBtn2 = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+      closeBtn2:SetPoint("TOPRIGHT", 2, 2)
+      closeBtn2:SetScript("OnClick", function() frame:Hide() end)
+      local sf = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+      sf:SetPoint("TOPLEFT", 10, -22); sf:SetPoint("BOTTOMRIGHT", -30, 10)
+      local eb = CreateFrame("EditBox", nil, frame)
+      eb:SetMultiLine(true); eb:SetAutoFocus(true); eb:SetFontObject(GameFontHighlight); eb:SetWidth(460)
+      eb:SetScript("OnEscapePressed", function() frame:Hide() end)
+      sf:SetScrollChild(eb)
+      frame._eb = eb; frame._sf = sf
+    end
+    frame:Show()
     C_Timer.After(0, function()
       if not frame:IsShown() then return end
-      eb:SetWidth(sf:GetWidth()); eb:SetText(text); eb:HighlightText()
+      frame._eb:SetWidth(frame._sf:GetWidth()); frame._eb:SetText(text); frame._eb:HighlightText()
     end)
   end)
 
   -- Import: paste settings
   importBtn2:SetScript("OnClick", function()
-    local frame = CreateFrame("Frame", "LUIImportFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(500, 340); frame:SetPoint("CENTER")
-    frame:SetFrameStrata("FULLSCREEN_DIALOG"); frame:SetMovable(true); frame:SetClampedToScreen(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function() frame:StartMoving() end)
-    frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
-    frame:EnableMouse(true)
-    frame:SetBackdrop(NS.BACKDROP)
-    frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95); frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    title:SetPoint("TOP", 0, -6); title:SetText(L["import_hint"])
-    local ar2,ag2,ab2 = NS.ChatGetAccentRGB(); title:SetTextColor(ar2, ag2, ab2)
-    local status = frame:CreateFontString(nil, "OVERLAY")
-    status:SetFont(NS.FONT, 10, ""); status:SetPoint("TOPLEFT", 12, -22)
-    status:SetTextColor(0.6, 0.6, 0.6)
-    local closeBtn2 = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeBtn2:SetPoint("TOPRIGHT", 2, 2)
-    closeBtn2:SetScript("OnClick", function() frame:Hide() end)
+    local frame = _G["LUIImportFrame"]
+    if not frame then
+      frame = CreateFrame("Frame", "LUIImportFrame", UIParent, "BackdropTemplate")
+      frame:SetSize(500, 340); frame:SetPoint("CENTER")
+      frame:SetFrameStrata("FULLSCREEN_DIALOG"); frame:SetMovable(true); frame:SetClampedToScreen(true)
+      frame:RegisterForDrag("LeftButton")
+      frame:SetScript("OnDragStart", function() frame:StartMoving() end)
+      frame:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
+      frame:EnableMouse(true)
+      frame:SetBackdrop(NS.BACKDROP)
+      frame:SetBackdropColor(0.06, 0.06, 0.06, 0.95); frame:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+      local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      title:SetPoint("TOP", 0, -6); title:SetText(L["import_hint"])
+      local ar2,ag2,ab2 = NS.ChatGetAccentRGB(); title:SetTextColor(ar2, ag2, ab2)
+      local status = frame:CreateFontString(nil, "OVERLAY")
+      status:SetFont(NS.FONT, 10, ""); status:SetPoint("TOPLEFT", 12, -22)
+      status:SetTextColor(0.6, 0.6, 0.6)
+      local closeBtn2 = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+      closeBtn2:SetPoint("TOPRIGHT", 2, 2)
+      closeBtn2:SetScript("OnClick", function() frame:Hide() end)
 
-    -- Profile name input
-    local nameLabel = frame:CreateFontString(nil, "OVERLAY")
-    nameLabel:SetFont(NS.FONT, 10, ""); nameLabel:SetPoint("TOPLEFT", 12, -36)
-    nameLabel:SetTextColor(0.7, 0.7, 0.7); nameLabel:SetText(L["Profile Name:"])
-    local nameBox = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
-    nameBox:SetSize(200, 22); nameBox:SetPoint("LEFT", nameLabel, "RIGHT", 6, 0)
-    nameBox:SetFontObject(GameFontHighlight); nameBox:SetAutoFocus(false)
-    nameBox:SetBackdrop(NS.BACKDROP)
-    nameBox:SetBackdropColor(0.1, 0.1, 0.1, 1); nameBox:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-    nameBox:SetTextInsets(4, 4, 0, 0)
-    nameBox:SetScript("OnEscapePressed", function() nameBox:ClearFocus() end)
-    nameBox:SetScript("OnEnterPressed", function() nameBox:ClearFocus() end)
+      -- Profile name input
+      local nameLabel = frame:CreateFontString(nil, "OVERLAY")
+      nameLabel:SetFont(NS.FONT, 10, ""); nameLabel:SetPoint("TOPLEFT", 12, -36)
+      nameLabel:SetTextColor(0.7, 0.7, 0.7); nameLabel:SetText(L["Profile Name:"])
+      local nameBox = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
+      nameBox:SetSize(200, 22); nameBox:SetPoint("LEFT", nameLabel, "RIGHT", 6, 0)
+      nameBox:SetFontObject(GameFontHighlight); nameBox:SetAutoFocus(false)
+      nameBox:SetBackdrop(NS.BACKDROP)
+      nameBox:SetBackdropColor(0.1, 0.1, 0.1, 1); nameBox:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+      nameBox:SetTextInsets(4, 4, 0, 0)
+      nameBox:SetScript("OnEscapePressed", function() nameBox:ClearFocus() end)
+      nameBox:SetScript("OnEnterPressed", function() nameBox:ClearFocus() end)
 
-    local sf = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", 10, -60); sf:SetPoint("BOTTOMRIGHT", -30, 40)
-    local eb = CreateFrame("EditBox", nil, frame)
-    eb:SetMultiLine(true); eb:SetAutoFocus(true); eb:SetFontObject(GameFontHighlight); eb:SetWidth(460)
-    eb:SetScript("OnEscapePressed", function() frame:Hide() end)
-    sf:SetScrollChild(eb)
+      local sf = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+      sf:SetPoint("TOPLEFT", 10, -60); sf:SetPoint("BOTTOMRIGHT", -30, 40)
+      local eb = CreateFrame("EditBox", nil, frame)
+      eb:SetMultiLine(true); eb:SetAutoFocus(true); eb:SetFontObject(GameFontHighlight); eb:SetWidth(460)
+      eb:SetScript("OnEscapePressed", function() frame:Hide() end)
+      sf:SetScrollChild(eb)
+      frame._eb = eb; frame._sf = sf; frame._nameBox = nameBox; frame._status = status
+    end
+    frame:Show()
+    frame._eb:SetText(""); frame._nameBox:SetText(""); frame._status:SetText("")
     C_Timer.After(0, function()
       if not frame:IsShown() then return end
-      eb:SetWidth(sf:GetWidth()); eb:SetFocus()
+      frame._eb:SetWidth(frame._sf:GetWidth()); frame._eb:SetFocus()
     end)
-    local doImport = MakeIEButton(frame, "Import")
-    doImport:ClearAllPoints()
-    doImport:SetSize(85, 24); doImport:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 10)
-    doImport:SetScript("OnClick", function()
+    if not frame._doImport then
+      local doImport = MakeIEButton(frame, "Import")
+      doImport:ClearAllPoints()
+      doImport:SetSize(85, 24); doImport:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 10)
+      frame._doImport = doImport
+    end
+    frame._doImport:SetScript("OnClick", function()
+      local nameBox = frame._nameBox
+      local status = frame._status
+      local eb = frame._eb
       local profileName = strtrim(nameBox:GetText())
       if profileName == "" then
         status:SetTextColor(1, 0.3, 0.3); status:SetText(L["err_no_name"]); return
@@ -1553,7 +1557,6 @@ local function SetupLoot(parent)
   cWin:Finish(); Add(cWin); Add(Sep(sc),9)
   -- Card: Rolls config
   local cRolls = MakeCard(sc,"Loot Rolls")
-  local rollDelay
 
   local rollCloseMode = NS.ChatGetDropdown(cRolls.inner,"Roll close mode",
     function(v) return (DB("rollCloseMode") or "timer")==v end,
@@ -1843,7 +1846,7 @@ local function SetupQoL(parent)
       if NS.QoL.RefreshMouseRing then NS.QoL.RefreshMouseRing() end
     end)
   R(cRing,ringColorRow,26)
-  for _,w in ipairs({ringEn,ringHide,ringOOC,ringSz,ringOp}) do table.insert(ringFrames,w) end
+  for _,w in ipairs({ringOOC,ringSz,ringOp}) do table.insert(ringFrames,w) end
   cRing:Finish(); Add(cRing); Add(Sep(sc),9)
   -- ── Card: Combat Timer ───────────────────────────────────────────────────
   local cTimer=MakeCard(sc,"Combat Timer"); local timerFrames={}; local timerColorRow
@@ -1920,7 +1923,7 @@ local function SetupQoL(parent)
     -- Expose SetColor for OnShow refresh
     timerColorRow = {_swatch=tcSwatch, SetColor=function(_,r,g,b) tcSwatch:SetBackdropColor(r,g,b,1) end}
   end
-  for _,w in ipairs({tEn,tInst,tHide,tShowBg,tSz}) do table.insert(timerFrames,w) end
+  table.insert(timerFrames,tSz)
   cTimer:Finish(); Add(cTimer); Add(Sep(sc),9)
   -- ── Card: Combat Alert ───────────────────────────────────────────────────
   local cAlert=MakeCard(sc,"Combat Alert"); local alertFrames={}
@@ -2196,7 +2199,7 @@ local function SetupTabSettings(parent)
     table.insert(dropdowns, dd)
 
     dd.DropDown:SetupMenu(function(_, rootDescription)
-      local DEFAULUI_NAMES = {[1]="General",[2]="Trade",[3]="LocalDefense",[4]="Services",[5]="LookingForGroup"}
+      local DEFAULT_NAMES = {[1]="General",[2]="Trade",[3]="LocalDefense",[4]="Services",[5]="LookingForGroup"}
       local chanList = {}
       local seen = {}
       for i = 1, 5 do
@@ -2204,7 +2207,7 @@ local function SetupTabSettings(parent)
         if ok2 and num and num > 0 and name and name ~= "" then
           chanList[#chanList+1] = {num=i, name=name}
         else
-          chanList[#chanList+1] = {num=i, name=DEFAULUI_NAMES[i] or ("Channel "..i)}
+          chanList[#chanList+1] = {num=i, name=DEFAULT_NAMES[i] or ("Channel "..i)}
         end
         seen[i] = true
       end
@@ -2255,10 +2258,10 @@ local function SetupTabSettings(parent)
       local cr2, cg2, cb2 = 1, 0.75, 0.75
       if ci2 then cr2, cg2, cb2 = ci2.r, ci2.g, ci2.b end
       local activeLabels = {}
-      local DEFAULUI_NAMES2 = {[1]="General",[2]="Trade",[3]="LocalDefense",[4]="Services",[5]="LookingForGroup"}
+      local DEFAULT_NAMES2 = {[1]="General",[2]="Trade",[3]="LocalDefense",[4]="Services",[5]="LookingForGroup"}
       for i = 1, 5 do
         local ok2, num, name = pcall(GetChannelName, i)
-        local chName = (ok2 and num and num > 0 and name and name ~= "") and name or (DEFAULUI_NAMES2[i] or ("Channel "..i))
+        local chName = (ok2 and num and num > 0 and name and name ~= "") and name or (DEFAULT_NAMES2[i] or ("Channel "..i))
         if not blocked or not blocked[chName] then
           activeLabels[#activeLabels+1] = string.format("|cff%02x%02x%02x%d. %s|r", cr2*255, cg2*255, cb2*255, i, chName)
         end
@@ -2459,7 +2462,9 @@ local function SetupLucidCDMTab(parent)
   -- ── Enable Card ────────────────────────────────────────────────────────
   local MakeCard = NS._SMakeCard
   local cEnable = MakeCard(container, "LucidCDM")
-  local enCb; enCb = NS.ChatGetCheckbox(cEnable.inner,
+  -- Enable checkbox + Per-Spec dropdown on same row
+  local enRow = CreateFrame("Frame", nil, cEnable.inner); enRow:SetHeight(26)
+  local enCb; enCb = NS.ChatGetCheckbox(enRow,
     "Enable LucidCDM  |cff555555(reload)|r", 26,
     function(s)
       local prev = LucidUIDB and LucidUIDB["cdm_enabled"]
@@ -2470,8 +2475,43 @@ local function SetupLucidCDMTab(parent)
       end)
     end,
     "Enable/disable Cooldowns, Cast Bar, Resources and Buffs")
-  NS._SR(cEnable, enCb, 26)
+  enCb:ClearAllPoints(); enCb:SetPoint("LEFT", enRow, "LEFT", 0, 0)
+  enCb:SetPoint("RIGHT", enRow, "CENTER", 0, 0)
   enCb:SetValue(allEnabled())
+  -- Per-Spec dropdown (inline, styled to match LucidUI)
+  local specDD = NS.ChatGetDropdown(enRow, "",
+    function(v) return v == (NS.IsPerSpec("cdv") and "current" or "all") end,
+    function(v)
+      if LucidUIDB then LucidUIDB["cdv_perSpec"] = (v == "current") end
+      if NS._RebuildCDMSubContents then NS._RebuildCDMSubContents() end
+    end)
+  local function GetSpecLabel()
+    local si2 = GetSpecialization and GetSpecialization()
+    if si2 then
+      local _, sn = GetSpecializationInfo(si2)
+      local _, cls = UnitClass("player")
+      local cc = C_ClassColor and C_ClassColor.GetClassColor(cls)
+      local hex = cc and cc:GenerateHexColor():sub(3) or "ffffff"
+      if sn then return "Current Spec (|cff" .. hex .. sn .. "|r)" end
+    end
+    return "Current Spec"
+  end
+  local function RefreshSpecDD()
+    specDD:Init({"All Specs", GetSpecLabel()}, {"all", "current"})
+  end
+  RefreshSpecDD()
+  local specEvF = CreateFrame("Frame")
+  specEvF:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  specEvF:SetScript("OnEvent", function()
+    C_Timer.After(0.5, function()
+      RefreshSpecDD()
+      if NS.IsPerSpec("cdv") and NS._RebuildCDMSubContents then NS._RebuildCDMSubContents() end
+    end)
+  end)
+  specDD:ClearAllPoints()
+  specDD:SetPoint("RIGHT", enRow, "RIGHT", 0, 0)
+  specDD:SetSize(280, 26)
+  NS._SR(cEnable, enRow, 26)
   -- Tab bar inside the card (below the checkbox)
   local TAB_BAR_H = 22
   local tabBar = CreateFrame("Frame", nil, cEnable.inner)
@@ -2499,8 +2539,32 @@ local function SetupLucidCDMTab(parent)
 
   local subContainers = {}
   local subTabs       = {}
+  local activeSubIdx  = 1
+
+  -- Rebuild all sub-tab contents (called on per-spec switch or spec change)
+  local function RebuildSubContents()
+    for i, mod in ipairs(modules) do
+      if subContainers[i] then subContainers[i]:Hide(); subContainers[i]:SetParent(nil) end
+      local ok, tc = pcall(mod.fn, container)
+      if not ok then tc = CreateFrame("Frame", nil, container) end
+      tc:ClearAllPoints()
+      tc:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -CONTENT_Y)
+      tc:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+      tc:SetClipsChildren(true)
+      tc:Hide()
+      subContainers[i] = tc
+    end
+    if subContainers[activeSubIdx] then subContainers[activeSubIdx]:Show() end
+    -- Refresh modules
+    if NS.Cooldowns and NS.Cooldowns.Refresh then pcall(NS.Cooldowns.Refresh, true) end
+    if NS.CastBar and NS.CastBar.Refresh then pcall(NS.CastBar.Refresh) end
+    if NS.Resources and NS.Resources.Refresh then pcall(NS.Resources.Refresh) end
+    if NS.BuffBar and NS.BuffBar.Refresh then pcall(NS.BuffBar.Refresh) end
+  end
+  NS._RebuildCDMSubContents = RebuildSubContents
 
   local function CDMSelect(idx)
+    activeSubIdx = idx
     local cr, cg, cb = NS.ChatGetAccentRGB()
     for i = 1, N do
       subContainers[i]:Hide()

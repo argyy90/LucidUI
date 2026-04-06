@@ -323,9 +323,9 @@ local castDispatchFrame = CreateFrame("Frame")
 castDispatchFrame:Hide()
 castDispatchFrame:SetScript("OnUpdate", function(self)
   self:Hide()
-  for i = 1, #pendingCasts do
+  local count = #pendingCasts
+  for i = 1, count do
     local resolvedID = pendingCasts[i]
-    pendingCasts[i] = nil
     if cdState[resolvedID] then
       cdState[resolvedID].castTime = GetTime()
       if cdState[resolvedID].duration == 0 then
@@ -341,6 +341,7 @@ castDispatchFrame:SetScript("OnUpdate", function(self)
       end
     end
   end
+  wipe(pendingCasts)
 end)
 
 local evFrame = CreateFrame("Frame")
@@ -970,6 +971,7 @@ function CT.SetupSettings(parent)
   local selectedType = nil
   local selectedKey  = nil
   local listRows     = {}
+  local listRowPool  = {}
   local rpPage       = nil
 
   local MakeCard = NS._SMakeCard
@@ -1381,7 +1383,10 @@ function CT.SetupSettings(parent)
   -- captured by BuildOptionsPanel's closures points to this body.
   RefreshList = function()
     ar, ag, ab = AC()
-    for _, r in ipairs(listRows) do r:Hide() end; listRows = {}
+    -- Recycle old rows: hide and store in pool instead of orphaning
+    if not listRowPool then listRowPool = {} end
+    for _, r in ipairs(listRows) do r:Hide(); listRowPool[#listRowPool + 1] = r end
+    listRows = {}
     local groups  = GetGroups(); local spells = GetSpells()
     local ROW_H   = 22; local yOff = 0
     local curSpec = GetSpecialization() or 1
@@ -1449,22 +1454,24 @@ function CT.SetupSettings(parent)
 
   -- Wire add buttons to the module-level StaticPopup dialogs.
   -- We patch the callbacks here so they can call RefreshList (which is local to this scope).
-  do
+  -- Guard: only patch once to avoid chaining wrappers on repeated SetupSettings calls.
+  if not CT._popupsPatched then
+    CT._popupsPatched = true
     local origSpellAccept = StaticPopupDialogs["LUI_CD_ADD_SPELL"].OnAccept
     StaticPopupDialogs["LUI_CD_ADD_SPELL"].OnAccept = function(self)
-      origSpellAccept(self); RefreshList()
+      origSpellAccept(self); if RefreshList then RefreshList() end
     end
     local origSpellEnter = StaticPopupDialogs["LUI_CD_ADD_SPELL"].EditBoxOnEnterPressed
     StaticPopupDialogs["LUI_CD_ADD_SPELL"].EditBoxOnEnterPressed = function(self)
-      origSpellEnter(self); RefreshList()
+      origSpellEnter(self); if RefreshList then RefreshList() end
     end
     local origGroupAccept = StaticPopupDialogs["LUI_CD_ADD_GROUP"].OnAccept
     StaticPopupDialogs["LUI_CD_ADD_GROUP"].OnAccept = function(self)
-      origGroupAccept(self); RefreshList()
+      origGroupAccept(self); if RefreshList then RefreshList() end
     end
     local origGroupEnter = StaticPopupDialogs["LUI_CD_ADD_GROUP"].EditBoxOnEnterPressed
     StaticPopupDialogs["LUI_CD_ADD_GROUP"].EditBoxOnEnterPressed = function(self)
-      origGroupEnter(self); RefreshList()
+      origGroupEnter(self); if RefreshList then RefreshList() end
     end
   end
 

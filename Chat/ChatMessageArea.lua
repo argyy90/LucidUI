@@ -173,14 +173,6 @@ function NS.CreateChatMessageArea(parent, name)
 
   -- ── Slot pool ──────────────────────────────────────────────────────
 
-  local TOOLTIP_LINK_TYPES = {
-    achievement=true, item=true, spell=true, quest=true, currency=true,
-    keystone=true, unit=true, enchant=true, glyph=true, instancelock=true,
-    talent=true, apower=true, azessence=true, conduit=true, mawpower=true,
-    transmogappearance=true, transmogset=true, transmogillusion=true,
-    battlepet=true, battlePetAbil=true, dungeonScore=true,
-  }
-
   local function getSlot(i)
     if slots[i] then return slots[i] end
     local s = {}

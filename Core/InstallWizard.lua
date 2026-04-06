@@ -550,7 +550,7 @@ local function ApplyLucidUIProfile(resolution)
     -- Enable all modules (disable conflicting ones)
     for _, m in ipairs(MODULES) do
       local enable = true
-      if m.key == "cdvEnabled" and hasAyije then enable = false end
+      if m.key == "cdm_enabled" and hasAyije then enable = false end
       if m.key == "dmEnabled" and hasDetails then enable = false end
       snapshot[m.key] = enable
     end
@@ -647,7 +647,7 @@ local function ShowModules()
     local hasDetails = IsAddonLoaded("Details")
     local mList = {}
     for _, m in ipairs(MODULES) do
-      local disabled = (m.key == "cdvEnabled" and hasAyije) or (m.key == "dmEnabled" and hasDetails)
+      local disabled = (m.key == "cdm_enabled" and hasAyije) or (m.key == "dmEnabled" and hasDetails)
       if disabled then
         mList[#mList+1] = "|cff666666" .. m.label .. "|r — |cffaa5555disabled (conflict)|r"
       else

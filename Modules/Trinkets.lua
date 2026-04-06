@@ -382,7 +382,7 @@ evFrame:SetScript("OnEvent", function(_, event, arg1)
       NS.SafeCall(function()
         initialized = true
         FullRefresh()
-        TR._ticker = C_Timer.NewTicker(0.2, function()
+        TR._ticker = C_Timer.NewTicker(0.5, function()
           if not initialized or not NS.IsCDMEnabled() or not Opt("enabled") then return end
           for i = 1, 2 do
             if trkFrames[i] then UpdateTrinket(trkFrames[i], i == 1 and TRINKET_SLOT_1 or TRINKET_SLOT_2) end

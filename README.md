@@ -3,7 +3,7 @@
 A comprehensive UI addon for World of Warcraft (Retail) featuring a cooldown manager, custom chat, bags, damage meter, loot tracking, resource bars, cast bar, trinket/item tracking, gold tracking, Mythic+ tracking and quality-of-life features.
 
 ![Interface](https://img.shields.io/badge/Interface-12.0.x-blue)
-![Version](https://img.shields.io/badge/Version-1.27-green)
+![Version](https://img.shields.io/badge/Version-1.28-green)
 
 ---
 

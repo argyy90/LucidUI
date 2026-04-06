@@ -372,6 +372,7 @@ local function RestoreSnapRelations()
 end
 
 -- ── Per-window data fetch ────────────────────────────────────────────
+DM.RefreshWindowData = nil  -- forward declaration
 local function RefreshWindowData(w)
   if not DM.available then return end
   local ok, session
@@ -383,6 +384,7 @@ local function RefreshWindowData(w)
   if not ok or not session then return end
   w.sessionData = session
 end
+DM.RefreshWindowData = RefreshWindowData
 
 -- ── Save helpers ─────────────────────────────────────────────────────
 local function SaveWindowPosSize(w)
@@ -980,6 +982,13 @@ function DM.CloseWindow(windowID)
   if windowID == 1 then return end
   for i, w in ipairs(DM.windows) do
     if w.id == windowID then
+      -- Clean up snap references from other windows
+      if w.snappedTo then
+        for edge, other in pairs(w.snappedTo) do
+          if other.snappedTo then other.snappedTo[OPPOSITE_EDGE[edge]] = nil end
+        end
+        wipe(w.snappedTo)
+      end
       w.frame:Hide()
       w.frame:SetParent(nil)
       table.remove(DM.windows, i)
@@ -1997,7 +2006,11 @@ function DM.OpenReportWindow(w)
         for j = 1, #w.sessionData.combatSources do sources[#sources + 1] = w.sessionData.combatSources[j] end
       end)
       if #sources > 0 and not isSecret(sources[1].totalAmount) then
-        table.sort(sources, function(a, b) return (a.totalAmount or 0) > (b.totalAmount or 0) end)
+        table.sort(sources, function(a, b)
+          local ta, tb = a.totalAmount or 0, b.totalAmount or 0
+          if isSecret(ta) or isSecret(tb) then return false end
+          return ta > tb
+        end)
       end
     end
 

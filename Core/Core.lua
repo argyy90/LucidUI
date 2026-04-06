@@ -114,11 +114,35 @@ do
   end
 end
 
--- Override spell detection (AzortharionUI pattern — resolves talent-transformed spells)
-function NS.GetOverrideSpell(spellID)
-  if not spellID or not C_Spell or not C_Spell.GetOverrideSpell then return spellID end
-  local override = C_Spell.GetOverrideSpell(spellID)
-  return (override and override > 0 and override ~= spellID) and override or spellID
+-- ── Per-Spec Settings System ────────────────────────────────────────────────
+-- When "Current Spec" mode is active for a module (CDM or DM), settings are read/written
+-- under spec-specific keys: e.g. cdv_spec_262_essWidth instead of cdv_essWidth
+do
+  function NS.GetSpecSettingsKey(prefix, key)
+    local specIndex = GetSpecialization and GetSpecialization()
+    if not specIndex then return prefix .. key end
+    local specID = GetSpecializationInfo and GetSpecializationInfo(specIndex)
+    if not specID then return prefix .. key end
+    return prefix .. "spec_" .. specID .. "_" .. key
+  end
+
+  -- Check if per-spec mode is active for a module
+  function NS.IsPerSpec(module)
+    -- module: "cdv" or "dm"
+    return LucidUIDB and LucidUIDB[module .. "_perSpec"] == true
+  end
+
+  -- Get a setting value, respecting per-spec mode
+  function NS.GetSpecOpt(prefix, key, defaults)
+    if NS.IsPerSpec(prefix:sub(1, -2)) then  -- "cdv_" → "cdv"
+      local specKey = NS.GetSpecSettingsKey(prefix, key)
+      if LucidUIDB and LucidUIDB[specKey] ~= nil then return LucidUIDB[specKey] end
+    end
+    -- Fallback to global
+    if LucidUIDB and LucidUIDB[prefix .. key] ~= nil then return LucidUIDB[prefix .. key] end
+    return defaults and defaults[key]
+  end
+
 end
 
 -- Class colors (shared across LucidMeter, LootRolls, etc.)
@@ -209,14 +233,26 @@ end
 -- Creates Opt(key)/OptSet(key,val) functions for a module with a given DB prefix and defaults table.
 -- Usage: local Opt, OptSet = NS.MakeOpt("cb_", DEFAULTS)
 function NS.MakeOpt(prefix, defaults)
+  local module = prefix:sub(1, -2)  -- "cdv_" → "cdv", "dm_" → "dm"
   local function Opt(key)
     local db = LucidUIDB
-    if db and db[prefix .. key] ~= nil then return db[prefix .. key] end
+    if not db then return defaults[key] end
+    -- Per-spec: check spec-specific key first
+    if NS.IsPerSpec(module) then
+      local specKey = NS.GetSpecSettingsKey(prefix, key)
+      if db[specKey] ~= nil then return db[specKey] end
+    end
+    -- Global fallback
+    if db[prefix .. key] ~= nil then return db[prefix .. key] end
     return defaults[key]
   end
   local function OptSet(key, val)
     if not LucidUIDB then return end
-    LucidUIDB[prefix .. key] = val
+    if NS.IsPerSpec(module) then
+      LucidUIDB[NS.GetSpecSettingsKey(prefix, key)] = val
+    else
+      LucidUIDB[prefix .. key] = val
+    end
   end
   return Opt, OptSet
 end
@@ -266,19 +302,42 @@ end
 
 -- Refresh the entire anchor chain (called when ManaBar toggles etc.)
 function NS.RefreshAnchorChain()
-  -- Re-anchor chain modules only if they don't have a saved manual position
-  local db = LucidUIDB or {}
+  -- Re-anchor chain modules, reloading per-spec positions when available
+  -- Helper: reload per-spec position on a frame
+  local function ReloadPos(frame, prefix, key)
+    if not frame then return end
+    local pos = NS.GetSpecOpt(prefix, key, nil)
+    if pos and type(pos) == "table" and pos.p then
+      frame:ClearAllPoints()
+      frame:SetPoint(pos.p, UIParent, pos.p, pos.x or 0, pos.y or 0)
+      return true
+    end
+    return false
+  end
+
   -- Re-anchor ManaBar above Essential (it has no saved position)
   local mana = NS.Resources and NS.Resources._manaBar
   if mana and mana:IsShown() then pcall(NS.AnchorToChain, mana, "ManaBar") end
+  -- Resources
   local res = NS.Resources and NS.Resources._mainBar
-  if res and not db["res_pos"] then pcall(NS.AnchorToChain, res, "Resources") end
+  if res then
+    if not ReloadPos(res, "res_", "pos") then pcall(NS.AnchorToChain, res, "Resources") end
+  end
+  -- CastBar
   local cb = NS.CastBar and NS.CastBar._bar
-  if cb and not db["cb_pos"] then pcall(NS.AnchorToChain, cb, "CastBar") end
+  if cb then
+    if not ReloadPos(cb, "cb_", "pos") then pcall(NS.AnchorToChain, cb, "CastBar") end
+  end
+  -- BuffIcons
   local iconC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffIconCooldownViewer"]
-  if iconC and not db["bb_buffIconPos"] then pcall(NS.AnchorToChain, iconC, "BuffIcons") end
+  if iconC then
+    if not ReloadPos(iconC, "bb_", "buffIconPos") then pcall(NS.AnchorToChain, iconC, "BuffIcons") end
+  end
+  -- BuffBars
   local barC = NS.BuffBar and NS.BuffBar._containers and NS.BuffBar._containers["BuffBarCooldownViewer"]
-  if barC and not db["bb_buffBarPos"] then pcall(NS.AnchorToChain, barC, "BuffBars") end
+  if barC then
+    if not ReloadPos(barC, "bb_", "buffBarPos") then pcall(NS.AnchorToChain, barC, "BuffBars") end
+  end
 end
 
 -- Re-anchor chain after combat ends (protected ops may have failed during combat init)
@@ -302,9 +361,10 @@ do
   local acFrame = CreateFrame("Frame")
   acFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
   acFrame:SetScript("OnEvent", function()
-    for i = 1, #queue do
-      local fn = queue[i]; queue[i] = nil
-      pcall(fn)
+    local snapshot = {unpack(queue)}
+    wipe(queue)
+    for i = 1, #snapshot do
+      pcall(snapshot[i])
     end
   end)
   function NS.AfterCombat(fn)
@@ -798,8 +858,9 @@ NS.DB_DEFAULTS = {
 }
 
 NS.DB = function(key)
-  if LucidUIDB[key] == nil then LucidUIDB[key] = NS.DB_DEFAULTS[key] end
-  return LucidUIDB[key]
+  local v = LucidUIDB[key]
+  if v == nil then return NS.DB_DEFAULTS[key] end
+  return v
 end
 
 NS.DBSet = function(key, val)
@@ -816,7 +877,6 @@ NS.GetClassColor = function(class)
   return "|cffffffff"
 end
 
-NS.AddSmoothScroll = function() end
 
 -- ── Apply* functions ───────────────────────────────────────────────────────────
 NS.ApplyTheme = function(themeKey)
