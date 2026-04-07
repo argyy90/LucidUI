@@ -15,7 +15,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: ZIP erstellen
-        run: zip -r "LucidUI-${{ github.event.release.tag_name }}.zip" LucidUI/ --exclude "LucidUI/.github/*"
+        run: |
+          mkdir LucidUI
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='LucidUI/' \
+            . LucidUI/
+          zip -r "LucidUI-${{ github.event.release.tag_name }}.zip" LucidUI/
 
       - name: An Release anhängen
         uses: softprops/action-gh-release@v2
