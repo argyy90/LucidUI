@@ -471,6 +471,18 @@ local function UpdateStaggerBar(bar, showText)
   if not bar or not bar:IsShown() then return end
   local stagger = UnitStagger("player") or 0
   local maxHP = UnitHealthMax("player") or 1
+
+  -- Guard against secret values from UnitHealthMax/UnitStagger during combat (12.x)
+  -- The `or` fallback does NOT catch secret values — they are truthy. StatusBar:SetValue
+  -- accepts secrets, but arithmetic (pct = stagger / maxHP) will error.
+  if issecretvalue and (issecretvalue(stagger) or issecretvalue(maxHP)) then
+    bar.bar:Show()
+    pcall(bar.bar.SetMinMaxValues, bar.bar, 0, maxHP)
+    pcall(bar.bar.SetValue, bar.bar, stagger)
+    bar.text:SetText("")
+    return
+  end
+
   if maxHP == 0 then maxHP = 1 end
 
   bar.bar:Show()
@@ -516,18 +528,27 @@ local function UpdateBar(bar, pipTable, powerType, isSegm, showText)
     local ok3, rawNum = pcall(function() return rawPower + 0 end)
     if not ok3 then rawNum = pNum * 10 end
 
-    -- Detect partial support: raw differs from whole × 10 scale
-    local hasPartial = (rawNum ~= pNum) or (rawNum > 0 and rawNum ~= pNum * 10) or (mNum > 0 and rawNum % 10 ~= 0)
-    -- Fallback: if raw == whole, no partial (ComboPoints, Chi, etc.)
-    if rawNum == pNum then hasPartial = false; rawNum = pNum * 10 end
+    -- Detect partial support: raw differs from whole × 10 scale.
+    -- All comparisons/modulo wrapped in pcall in case the value was tainted.
+    local hasPartial = false
+    pcall(function()
+      if rawNum ~= pNum then hasPartial = true end
+      if rawNum > 0 and rawNum ~= pNum * 10 then hasPartial = true end
+      if mNum > 0 and rawNum % 10 ~= 0 then hasPartial = true end
+      -- If raw == whole, no partial support (ComboPoints, Chi, etc.)
+      if rawNum == pNum then hasPartial = false; rawNum = pNum * 10 end
+    end)
 
     UpdatePipsFor(bar, pipTable, mNum, powerType)
     for i = 1, mNum do
       if pipTable[i] then
         if hasPartial then
           -- Partial fill: each pip = 10 units of raw power
-          local pipRaw = rawNum - (i - 1) * 10
-          local fill = math.max(0, math.min(1, pipRaw / 10))
+          local fill = 0
+          pcall(function()
+            local pipRaw = rawNum - (i - 1) * 10
+            fill = math.max(0, math.min(1, pipRaw / 10))
+          end)
           pipTable[i]:SetValue(fill)
           pipTable[i]:SetAlpha(fill >= 1 and 1 or (fill > 0 and 0.5 or 0.25))
         else

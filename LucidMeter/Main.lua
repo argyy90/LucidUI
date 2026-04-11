@@ -29,12 +29,9 @@ DM.METER_TYPES = {
 
 function DM.FormatNumber(n)
   if not n or n == 0 then return "0" end
-  local result
-  if n >= 1000000 then result = string.format("%.2fM", n / 1000000)
-  elseif n >= 10000 then result = string.format("%.1fK", n / 1000)
-  elseif n >= 1000 then result = string.format("%.1fK", n / 1000)
-  else result = string.format("%.0f", n) end
-  return result
+  if n >= 1000000 then return string.format("%.2fM", n / 1000000) end
+  if n >= 1000    then return string.format("%.1fK", n / 1000)    end
+  return string.format("%.0f", n)
 end
 
 

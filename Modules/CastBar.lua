@@ -35,6 +35,11 @@ local castStartTime, castEndTime, castDuration = 0, 0, 0
 local castSpellName, castSpellTex = "", nil
 local castNotInterruptible = false
 local fadeOut, fadeAlpha = false, 1
+-- Token incremented on every new cast/channel. The deferred UNIT_SPELLCAST_STOP
+-- handler captures the token at STOP time and only runs StopCast if it matches
+-- (prevents hiding a new cast that started in the same frame as the previous
+-- cast's STOP event — which caused casts to be skipped).
+local castToken = 0
 
 local function CreateBar()
   if bar then return bar end
@@ -47,7 +52,7 @@ local function CreateBar()
   -- Position
   local pos = Opt("pos")
   if pos and pos.p then
-    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", pos.x, pos.y)
+    f:SetPoint(pos.p, UIParent, pos.p, pos.x or 0, pos.y or 0)
   else
     f:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
     f._needsAnchor = true
@@ -168,9 +173,10 @@ end
 
 local function StartCast(unit)
   if unit ~= "player" then return end
-  local name, _, tex, startMS, endMS, _, _, notInterruptible, spellID = UnitCastingInfo("player")
+  local name, _, tex, startMS, endMS, _, _, notInterruptible = UnitCastingInfo("player")
   if not name then return end
 
+  castToken = castToken + 1  -- invalidate any pending deferred STOP from a previous cast
   casting = true; channeling = false; fadeOut = false; fadeAlpha = 1
   castSpellName = name; castSpellTex = tex
   castStartTime = startMS / 1000; castEndTime = endMS / 1000
@@ -186,9 +192,10 @@ end
 
 local function StartChannel(unit)
   if unit ~= "player" then return end
-  local name, _, tex, startMS, endMS, _, notInterruptible, spellID = UnitChannelInfo("player")
+  local name, _, tex, startMS, endMS, _, notInterruptible = UnitChannelInfo("player")
   if not name then return end
 
+  castToken = castToken + 1  -- invalidate any pending deferred STOP
   channeling = true; casting = false; fadeOut = false; fadeAlpha = 1
   castSpellName = name; castSpellTex = tex
   castStartTime = startMS / 1000; castEndTime = endMS / 1000
@@ -306,7 +313,17 @@ local function OnEvent(_, event, unit, ...)
 
   if event == "UNIT_SPELLCAST_START" then StartCast(unit)
   elseif event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_EMPOWER_START" then StartChannel(unit)
-  elseif event == "UNIT_SPELLCAST_STOP" then if casting then StopCast(false) end
+  elseif event == "UNIT_SPELLCAST_STOP" then
+    -- 12.x: STOP fires BEFORE INTERRUPTED. Defer one frame so INTERRUPTED can
+    -- still set fail color. Capture the current castToken — if a new cast
+    -- starts before the next frame, StartCast/StartChannel bumps the token
+    -- and this closure will skip StopCast, keeping the new cast visible.
+    if casting then
+      local myToken = castToken
+      C_Timer.After(0, function()
+        if casting and castToken == myToken then StopCast(false) end
+      end)
+    end
   elseif event == "UNIT_SPELLCAST_SUCCEEDED" then -- let OnUpdate finish the cast naturally via castEndTime
   elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then if channeling then StopCast(false) end
   elseif event == "UNIT_SPELLCAST_INTERRUPTED" then StopCast(true)

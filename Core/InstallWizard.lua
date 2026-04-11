@@ -74,7 +74,6 @@ local ADDON_STEPS = {
   {key = "ElvUI",            label = "ElvUI",             check = "ElvUI",             has1080p = true},
   {key = "Ayije_CDM",        label = "Ayije CDM",         check = "Ayije_CDM",         has1080p = true},
   {key = "Plater",           label = "Plater",            check = "Plater",            has1080p = true},
-  {key = "MiniCC",           label = "MiniCC",            check = "MiniCC",            has1080p = false},
   {key = "BigWigs",          label = "BigWigs",           check = "BigWigs",           has1080p = true},
   {key = "Details",          label = "Details",            check = "Details",           has1080p = true},
   {key = "NaowhQOL",         label = "NaowhQOL",          check = "NaowhQOL",          has1080p = true},
@@ -117,7 +116,6 @@ local function IsAddonLoaded(name)
     ElvUI = _G.ElvUI,
     Ayije_CDM = _G.Ayije_CDM,
     Plater = _G.Plater,
-    MiniCC = _G.MiniCCDB,
     BigWigs = _G.BigWigs,
     Details = _G.Details,
     NaowhQOL = _G.NaowhQOL,
@@ -134,11 +132,7 @@ local function RebuildSteps()
   for _, a in ipairs(ADDON_STEPS) do
     local installed = IsAddonLoaded(a.check)
     local hasData = NS.Profiles and NS.Profiles[a.key]
-    -- Only add steps for addons that are installed AND have profile data.
-    -- Disabled / missing addons are hidden from the sidebar entirely.
-    if installed and hasData then
-      steps[#steps+1] = {id = "addon", label = a.label, addon = a, available = true}
-    end
+    steps[#steps+1] = {id = "addon", label = a.label, addon = a, available = installed and hasData}
   end
   steps[#steps+1] = {id = "modules",     label = "LucidUI"}
   steps[#steps+1] = {id = "classLayout", label = "Class Layout"}
@@ -724,32 +718,6 @@ local function ApplyAddonProfile(addonKey, resolution)
     local ok2, err2 = pcall(Pltr.ImportAndSwitchProfile, PROFILE_NAME, data, false, false, true)
     if not ok2 then print("|cff3BD2ED[LucidUI]|r Plater ImportAndSwitchProfile failed: " .. tostring(err2)); return end
     print("|cff3BD2ED[LucidUI]|r Plater profile imported successfully")
-
-  elseif addonKey == "MiniCC" then
-    local str = P.MiniCC
-    if not str then print("|cff3BD2ED[LucidUI]|r MiniCC profile data missing"); return end
-    local prefix = "!MiniCC!"
-    if str:sub(1, #prefix) ~= prefix then
-      print("|cff3BD2ED[LucidUI]|r MiniCC profile string has invalid prefix"); return
-    end
-    if not C_EncodingUtil or not C_EncodingUtil.DecodeBase64 or not C_EncodingUtil.DeserializeCBOR then
-      print("|cff3BD2ED[LucidUI]|r MiniCC import requires C_EncodingUtil API"); return
-    end
-    local encoded = str:sub(#prefix + 1)
-    local okD, decoded = pcall(C_EncodingUtil.DecodeBase64, encoded)
-    if not okD or not decoded or decoded == "" then
-      print("|cff3BD2ED[LucidUI]|r MiniCC Base64 decode failed"); return
-    end
-    local okC, importedTable = pcall(C_EncodingUtil.DeserializeCBOR, decoded)
-    if not okC or type(importedTable) ~= "table" then
-      print("|cff3BD2ED[LucidUI]|r MiniCC CBOR deserialize failed"); return
-    end
-    -- Suppress what's-new popup like MiniCC's own importer does
-    importedTable.WhatsNew = {}
-    importedTable.NotifiedChanges = true
-    -- Write directly to SavedVariables; MiniCC's migrator runs on next reload
-    _G["MiniCCDB"] = importedTable
-    print("|cff3BD2ED[LucidUI]|r MiniCC profile imported successfully")
 
   elseif addonKey == "BigWigs" then
     local BWAPI = _G.BigWigsAPI

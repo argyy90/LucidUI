@@ -6,7 +6,10 @@ local DB    = NS.DB
 local DBSet = NS.DBSet
 
 -- ── Debug log ──────────────────────────────────────────────────────────────────
+NS.debugLines = NS.debugLines or {}
+NS.MAX_DEBUG  = NS.MAX_DEBUG or 200
 NS.DebugLog = function(msg, r, g, b)
+  if type(msg) ~= "string" then msg = tostring(msg or "") end
   r, g, b = r or 0.7, g or 0.7, b or 0.7
   local entry = "|cff737373"..date("%H:%M:%S").."|r " .. msg
   table.insert(NS.debugLines, 1, {text=entry, r=r, g=g, b=b})
@@ -36,7 +39,7 @@ local function FormatEntry(msg, ts_unix)
     local tsc = DB("chatTimestampColor")
     local tsHex = "737373"
     if tsc and type(tsc) == "table" and tsc.r then
-      tsHex = string.format("%02x%02x%02x", tsc.r*255, tsc.g*255, tsc.b*255)
+      tsHex = string.format("%02x%02x%02x", math.floor(tsc.r*255), math.floor(tsc.g*255), math.floor(tsc.b*255))
     end
     return "|cff"..tsHex..date(fmt, ts_unix or time()).."|r"..sep..msg
   end

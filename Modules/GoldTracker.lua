@@ -13,6 +13,21 @@
 local NS = LucidUINS
 NS.GoldTracker = NS.GoldTracker or {}
 local GT = NS.GoldTracker
+
+-- Item quality colors (indexed 0..5 — Poor..Legendary)
+local QUALITY_COLORS = {
+  [0] = {0.62, 0.62, 0.62}, -- Poor
+  [1] = {1.00, 1.00, 1.00}, -- Common
+  [2] = {0.12, 1.00, 0.00}, -- Uncommon
+  [3] = {0.00, 0.44, 0.87}, -- Rare
+  [4] = {0.64, 0.21, 0.93}, -- Epic
+  [5] = {1.00, 0.50, 0.00}, -- Legendary
+}
+
+local function QColor(q)
+  local c = QUALITY_COLORS[q] or QUALITY_COLORS[1]
+  return c[1], c[2], c[3]
+end
 GT._accentTextures = {}
 
 local function RegAccentGT(tex, alpha, isFS)

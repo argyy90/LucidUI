@@ -120,7 +120,6 @@ end
 
 -- Save periodically and on logout
 local saveFrame = CreateFrame("Frame")
-local saveTimer = 0
 
 local _statsSaveTicker = nil
 local function EnableStatsSave()

@@ -479,13 +479,34 @@ function BB:Enable()
   end
   LayoutBuffIcons()
   LayoutBuffBars()
-  -- Dynamic update ticker — re-layout when buffs change
+  -- Dirty-flag ticker: only re-layout when the visible frame count changes.
+  -- Eliminates ~3x/sec GetRegions() table allocations per frame in steady state.
+  if not BB._lastCounts then BB._lastCounts = {icon=0, bar=0} end
   if not BB._ticker then
     BB._ticker = C_Timer.NewTicker(0.3, function()
       if not NS.IsCDMEnabled() then return end
       if BB._unlocked then return end
-      LayoutBuffIcons()
-      LayoutBuffBars()
+      local iconViewer = _G[VIEWER_BUFF_ICON]
+      local barViewer  = _G[VIEWER_BUFF_BAR]
+      local iconCount, barCount = 0, 0
+      if iconViewer and iconViewer.itemFramePool then
+        for f in iconViewer.itemFramePool:EnumerateActive() do
+          if f:IsShown() then iconCount = iconCount + 1 end
+        end
+      end
+      if barViewer and barViewer.itemFramePool then
+        for f in barViewer.itemFramePool:EnumerateActive() do
+          if f:IsShown() then barCount = barCount + 1 end
+        end
+      end
+      if iconCount ~= BB._lastCounts.icon then
+        BB._lastCounts.icon = iconCount
+        LayoutBuffIcons()
+      end
+      if barCount ~= BB._lastCounts.bar then
+        BB._lastCounts.bar = barCount
+        LayoutBuffBars()
+      end
     end)
   end
   -- Register runtime events (only when module is active)

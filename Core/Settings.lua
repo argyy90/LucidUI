@@ -1181,20 +1181,27 @@ local function SetupAdvanced(parent)
   orderTitleHit:SetFrameLevel(cOrder:GetFrameLevel()+5)
 
   local ORDER_ANIM_SPD = 400
-  local orderBaseScH = sc:GetHeight()  -- scroll height with collapsed card
+  -- Captured lazily on first animation (sc:GetHeight() returns 0 at build time
+  -- before layout passes complete, which clipped the scroll area).
+  local orderBaseScH = nil
   local function AnimateOrderCard(toH)
+    if not orderBaseScH or orderBaseScH <= 0 then
+      local h = sc:GetHeight() or 0
+      if h > 0 then orderBaseScH = h end
+    end
+    local base = orderBaseScH or 0
     cOrder:SetScript("OnUpdate",function(self,dt)
       local cur = self:GetHeight()
       local diff = toH - cur
       if math.abs(diff) < 1 then
         self:SetHeight(toH); self:SetScript("OnUpdate",nil)
         if orderCollapsed then cOrder.inner:Hide() end
-        sc:SetHeight(orderBaseScH + (toH - ORDER_COLLAPSED_H) + 30)
+        sc:SetHeight(base + (toH - ORDER_COLLAPSED_H) + 30)
         return
       end
       local newH = cur + (diff > 0 and math.min(ORDER_ANIM_SPD*dt,diff) or math.max(-ORDER_ANIM_SPD*dt,diff))
       self:SetHeight(newH)
-      sc:SetHeight(orderBaseScH + (newH - ORDER_COLLAPSED_H) + 30)
+      sc:SetHeight(base + (newH - ORDER_COLLAPSED_H) + 30)
     end)
   end
 
@@ -2542,9 +2549,20 @@ local function SetupLucidCDMTab(parent)
   local activeSubIdx  = 1
 
   -- Rebuild all sub-tab contents (called on per-spec switch or spec change)
+  -- NOTE: WoW frames cannot be destroyed. Old containers are orphaned with
+  -- SetParent(nil) and become unreachable. Their event scripts are cleared
+  -- here to stop any residual polling/OnUpdate handlers from ticking.
   local function RebuildSubContents()
     for i, mod in ipairs(modules) do
-      if subContainers[i] then subContainers[i]:Hide(); subContainers[i]:SetParent(nil) end
+      local old = subContainers[i]
+      if old then
+        old:Hide()
+        old:SetScript("OnUpdate", nil)
+        old:SetScript("OnShow", nil)
+        old:SetScript("OnHide", nil)
+        old:UnregisterAllEvents()
+        old:SetParent(nil)
+      end
       local ok, tc = pcall(mod.fn, container)
       if not ok then tc = CreateFrame("Frame", nil, container) end
       tc:ClearAllPoints()
@@ -2655,6 +2673,15 @@ NS.BuildChatOptionsWindow = function()
     end
     return
   end
+
+  -- Defensive: clear accent accumulators so repeated rebuilds don't collect
+  -- stale frame references (not normally reachable because of the chatOptWin
+  -- guard above, but protects against future rebuild paths).
+  if NS.chatOptCheckboxFills  then wipe(NS.chatOptCheckboxFills)  end
+  if NS.chatOptAccentLabels   then wipe(NS.chatOptAccentLabels)   end
+  if NS.chatOptDropdownArrows then wipe(NS.chatOptDropdownArrows) end
+  if NS.chatOptSliderThumbs   then wipe(NS.chatOptSliderThumbs)   end
+  if NS.chatOptAccentTextures then wipe(NS.chatOptAccentTextures) end
 
   local ar,ag,ab = NS.ChatGetAccentRGB()
   local WIN_W=860; local WIN_H=600
@@ -2919,14 +2946,17 @@ NS.BuildChatOptionsWindow = function()
     {name="Chat Colors", callback=SetupMessageColors},
     {name="Loot",        callback=SetupLoot},
     {name="QoL",         callback=SetupQoL},
-    {name="LucidMeter",  callback=NS.LucidMeter.SetupSettings},
-    {name="Bags",        callback=NS.Bags.SetupSettings},
-    {name="Gold",        callback=NS.GoldTracker.SetupSettings},
-    {name="Mythic+",     callback=NS.MythicPlus.SetupSettings},
-    {name="CD Tracker",  callback=NS.CooldownTracker.SetupSettings},
+    {name="LucidMeter",  callback=NS.LucidMeter and NS.LucidMeter.SetupSettings},
+    {name="Bags",        callback=NS.Bags and NS.Bags.SetupSettings},
+    {name="Gold",        callback=NS.GoldTracker and NS.GoldTracker.SetupSettings},
+    {name="Mythic+",     callback=NS.MythicPlus and NS.MythicPlus.SetupSettings},
     {name="LucidCDM",   callback=SetupLucidCDMTab},
     {name="Tab Settings",callback=SetupTabSettings,hidden=true},
   }
+  -- Drop tabs where the callback is nil (module failed to load)
+  for i = #TabSetups, 1, -1 do
+    if not TabSetups[i].callback then table.remove(TabSetups, i) end
+  end
 
   local TAB_H=34; local containers={}; local tabs={}
 

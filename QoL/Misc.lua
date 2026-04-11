@@ -18,9 +18,14 @@ lootFrame:SetScript("OnEvent", function()
   local t = GetTime()
   if t - lootCooldown < 0.15 then return end
   lootCooldown = t
-  -- GetCursorInfo: global wrapper still exists in 12.x; C_Cursor as fallback
-  local cursorHasItem = (C_Cursor and C_Cursor.GetCursorInfo) and
-    (C_Cursor.GetCursorInfo() ~= nil) or (GetCursorInfo() ~= nil)
+  -- Skip if the cursor is holding an item (prevents looting while dragging).
+  -- Prefer C_Cursor.GetCursorInfo in 12.x; fall back to global GetCursorInfo.
+  local cursorHasItem = false
+  if C_Cursor and C_Cursor.GetCursorInfo then
+    cursorHasItem = C_Cursor.GetCursorInfo() ~= nil
+  elseif GetCursorInfo then
+    cursorHasItem = GetCursorInfo() ~= nil
+  end
   if cursorHasItem then return end
   for i = 1, GetNumLootItems() do LootSlot(i) end
 end)
@@ -29,18 +34,27 @@ end)
 -- Auto-confirms bind-on-pickup, disenchant, trade timer and mail lock popups.
 local warnFrame = CreateFrame("Frame")
 
+-- Deferred API lookup: `ConfirmLootRoll` etc. may not be loaded when this file
+-- executes. Check at handler call time instead of at table-construction time.
 local WARN_HANDLERS = {
-  CONFIRM_LOOT_ROLL       = ConfirmLootRoll and function(_, id, roll)
-    ConfirmLootRoll(id, roll); StaticPopup_Hide("CONFIRM_LOOT_ROLL")
-  end or nil,
-  CONFIRM_DISENCHANT_ROLL = ConfirmLootRoll and function(_, id, roll)
-    ConfirmLootRoll(id, roll); StaticPopup_Hide("CONFIRM_LOOT_ROLL")
-  end or nil,
-  LOOT_BIND_CONFIRM       = ConfirmLootSlot and function(_, slot, ...)
-    ConfirmLootSlot(slot); StaticPopup_Hide("LOOT_BIND", ...)
-  end or nil,
-  MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL = function() SellCursorItem() end,
-  MAIL_LOCK_SEND_ITEMS   = function(_, slot) RespondMailLockSendItem(slot, true) end,
+  CONFIRM_LOOT_ROLL = function(_, id, roll)
+    if ConfirmLootRoll then ConfirmLootRoll(id, roll) end
+    StaticPopup_Hide("CONFIRM_LOOT_ROLL")
+  end,
+  CONFIRM_DISENCHANT_ROLL = function(_, id, roll)
+    if ConfirmLootRoll then ConfirmLootRoll(id, roll) end
+    StaticPopup_Hide("CONFIRM_LOOT_ROLL")
+  end,
+  LOOT_BIND_CONFIRM = function(_, slot, ...)
+    if ConfirmLootSlot then ConfirmLootSlot(slot) end
+    StaticPopup_Hide("LOOT_BIND", ...)
+  end,
+  MERCHANT_CONFIRM_TRADE_TIMER_REMOVAL = function()
+    if SellCursorItem then SellCursorItem() end
+  end,
+  MAIL_LOCK_SEND_ITEMS = function(_, slot)
+    if RespondMailLockSendItem then RespondMailLockSendItem(slot, true) end
+  end,
 }
 
 warnFrame:SetScript("OnEvent", function(_, ev, ...)
@@ -119,7 +133,7 @@ local function HookKeystoneFrame()
     if not NS.DB("qolAutoKeystone") then return end
     if C_ChallengeMode.HasSlottedKeystone() then return end
     -- Search bags for a keystone reagent
-    for bag = 0, (NUM_BAG_FRAMES or 4) do
+    for bag = 0, (NUM_BAG_SLOTS or 4) do
       for slot = 1, C_Container.GetContainerNumSlots(bag) do
         local id = C_Container.GetContainerItemID(bag, slot)
         if id then

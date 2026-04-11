@@ -278,17 +278,23 @@ NS.BuildDebugWindow = function()
     -- Start/stop perf ticker
     if activeTab == "perf" then
       if not devWin._perfTicker then
-        devWin._perfTicker = C_Timer.NewTicker(1, function()
+        -- 12.x: GetAddOnMemoryUsage / UpdateAddOnMemoryUsage were removed.
+        -- Use C_AddOnProfiler if available, fall back to total Lua memory.
+        devWin._perfTicker = C_Timer.NewTicker(2, function()
           if contentFrames.perf and contentFrames.perf:IsShown() then
             local fps = math.floor(GetFramerate())
             local latH, latW = select(3, GetNetStats()), select(4, GetNetStats())
             local mem = math.floor(collectgarbage("count"))
-            if UpdateAddOnMemoryUsage then UpdateAddOnMemoryUsage() end
-            local luiMem = GetAddOnMemoryUsage and GetAddOnMemoryUsage("LucidUI") or 0
-            contentFrames.perf._fps:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "FPS:|r " .. fps)
-            contentFrames.perf._lat:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "Latency:|r " .. latH .. "ms (H) " .. latW .. "ms (W)")
-            contentFrames.perf._mem:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "Total Memory:|r " .. string.format("%.1f MB", mem / 1024))
-            contentFrames.perf._luiMem:SetText("|cff" .. string.format("%02x%02x%02x", ar*255, ag*255, ab*255) .. "LucidUI:|r " .. string.format("%.1f KB", luiMem))
+            local luiMem = 0
+            if C_AddOnProfiler and C_AddOnProfiler.GetAddOnMetric then
+              local ok, v = pcall(C_AddOnProfiler.GetAddOnMetric, "LucidUI", Enum.AddOnProfilerMetric.RecentAverageTime or 0)
+              if ok and type(v) == "number" then luiMem = v end
+            end
+            local hex = string.format("%02x%02x%02x", math.floor(ar*255), math.floor(ag*255), math.floor(ab*255))
+            contentFrames.perf._fps:SetText("|cff" .. hex .. "FPS:|r " .. fps)
+            contentFrames.perf._lat:SetText("|cff" .. hex .. "Latency:|r " .. latH .. "ms (H) " .. latW .. "ms (W)")
+            contentFrames.perf._mem:SetText("|cff" .. hex .. "Total Memory:|r " .. string.format("%.1f MB", mem / 1024))
+            contentFrames.perf._luiMem:SetText("|cff" .. hex .. "LucidUI:|r " .. string.format("%.3f ms/frame", luiMem))
           end
         end)
       end

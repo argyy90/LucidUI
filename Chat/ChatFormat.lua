@@ -12,7 +12,7 @@ NS.ChatFormatTimestamp = function(unixTime)
   local tsc = NS.DB("chatTimestampColor")
   local hex = "737373"
   if tsc and type(tsc) == "table" and tsc.r then
-    hex = string.format("%02x%02x%02x", tsc.r*255, tsc.g*255, tsc.b*255)
+    hex = string.format("%02x%02x%02x", math.floor(tsc.r*255), math.floor(tsc.g*255), math.floor(tsc.b*255))
   end
   local result = "|cff" .. hex .. ts .. "|r "
   if NS.DB("chatShowSeparator") ~= false then

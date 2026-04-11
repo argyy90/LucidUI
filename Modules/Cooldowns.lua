@@ -780,10 +780,14 @@ local function OnSpecChange()
   -- Batch: wait for talent data to settle, then refresh
   C_Timer.After(0.5, function()
     specChangePending = false
-    specChangeToken = specChangeToken + 1  -- cancel backstop
+    if InCombatLockdown() then
+      -- Combat blocked us; let the 3s backstop retry. Do NOT bump the token —
+      -- otherwise the backstop sees a mismatch and skips the retry.
+      return
+    end
+    specChangeToken = specChangeToken + 1  -- success path: cancel backstop
     NS.ClearSpellBaseCache()  -- invalidate talent variant cache
     wipe(glowTrackedCDs); wipe(frameSpellMap); wipe(castPredictions)
-    if InCombatLockdown() then return end
     for _, name in ipairs(VIEWER_LIST) do
       local viewer = _G[name]
       if viewer and viewer:GetParent() ~= UIParent then
@@ -805,12 +809,16 @@ local function OnSpecChange()
     C_Timer.After(0.3, function() CD.Refresh(true) end)
     C_Timer.After(1.0, function() CD.Refresh(true) end)
   end)
-  -- 3s backstop: if normal path didn't complete, force refresh (like Ayije)
+  -- 3s backstop: fires only if the 0.5s path bailed out (combat) or was superseded
   C_Timer.After(3, function()
-    if specChangeToken ~= myToken then return end  -- superseded by newer event
+    if specChangeToken ~= myToken then return end  -- superseded by newer event or success
     specChangePending = false
+    specChangeToken = specChangeToken + 1
     if initialized and NS.IsCDMEnabled() and not InCombatLockdown() then
+      NS.ClearSpellBaseCache()
+      wipe(glowTrackedCDs); wipe(frameSpellMap); wipe(castPredictions)
       CD.Refresh()
+      NS.RefreshAnchorChain()
     end
   end)
 end

@@ -282,6 +282,34 @@ local function ScheduleAutoClose()
 end
 
 -- ============================================================
+-- Shared timer ticker for all active roll rows
+-- Avoids per-row OnUpdate (expensive with many active rolls).
+-- ============================================================
+local _activeTimerRows = {}  -- weak-keyed set: row → true
+setmetatable(_activeTimerRows, {__mode = "k"})
+local _timerTicker = nil
+
+local function StartTimerTicker()
+  if _timerTicker then return end
+  _timerTicker = C_Timer.NewTicker(0.1, function()
+    local anyActive = false
+    for row in pairs(_activeTimerRows) do
+      if row._tick then
+        local keepAlive = row._tick()
+        if keepAlive then anyActive = true
+        else _activeTimerRows[row] = nil end
+      else
+        _activeTimerRows[row] = nil
+      end
+    end
+    if not anyActive and _timerTicker then
+      _timerTicker:Cancel()
+      _timerTicker = nil
+    end
+  end)
+end
+
+-- ============================================================
 -- Build one item row (no sub-rows – all detail in tooltip)
 -- ============================================================
 local function BuildItemRow(parent, session, yOffset)
@@ -349,18 +377,21 @@ local function BuildItemRow(parent, session, yOffset)
     local totalDuration = (session.rollTime or 0) / 1000
     timerBg:Show()
     timerBar:Show()
-    row:SetScript("OnUpdate", function(self, elapsed)
+    -- Shared ticker: each row exposes a _tick() that returns true while active.
+    row._tick = function()
       local remaining = session.rollExpires - GetTime()
       if remaining <= 0 or session.done then
         timerBar:SetWidth(0)
         timerBg:Hide()
         timerBar:Hide()
-        self:SetScript("OnUpdate", nil)
-      else
-        local pct = totalDuration > 0 and (remaining / totalDuration) or 0
-        timerBar:SetWidth(math.max(1, timerBg:GetWidth() * pct))
+        return false
       end
-    end)
+      local pct = totalDuration > 0 and (remaining / totalDuration) or 0
+      timerBar:SetWidth(math.max(1, timerBg:GetWidth() * pct))
+      return true
+    end
+    _activeTimerRows[row] = true
+    StartTimerTicker()
   end
 
   -- "Passed" indicator (bottom right, shown when local player passed)

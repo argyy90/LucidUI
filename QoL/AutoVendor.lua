@@ -20,17 +20,27 @@ local function DoAutoRepair()
   end
 end
 
+-- Auto-sell grey items. Item info / sell price may not be cached yet on first
+-- call after login; in that case we request the data and retry once.
+local _pendingGreySell = false
 local function DoAutoSellGrey()
   if not NS.DB("qolAutoSellGrey") then return end
 
   local sold, gold = 0, 0
+  local skipped = 0
   for bag = 0, NUM_BAG_SLOTS do
-    local slots = C_Container.GetContainerNumSlots(bag)
+    local slots = C_Container.GetContainerNumSlots(bag) or 0
     for slot = 1, slots do
       local info = C_Container.GetContainerItemInfo(bag, slot)
-      if info and info.quality == 0 then
-        local _, _, _, _, _, _, _, _, _, _, price = C_Item.GetItemInfo(info.itemID or 0)
-        if price and price > 0 then
+      if info and info.quality == 0 and info.itemID then
+        local _, _, _, _, _, _, _, _, _, _, price = C_Item.GetItemInfo(info.itemID)
+        if price == nil then
+          -- Item data not cached yet — request and retry shortly.
+          if C_Item.RequestLoadItemDataByID then
+            C_Item.RequestLoadItemDataByID(info.itemID)
+          end
+          skipped = skipped + 1
+        elseif price > 0 then
           C_Container.UseContainerItem(bag, slot)
           sold = sold + 1
           gold = gold + price
@@ -41,6 +51,16 @@ local function DoAutoSellGrey()
 
   if sold > 0 then
     print(string.format("[|cff3bd2edLucid|r|cffffffffUI|r] Sold %d grey item(s) for %s.", sold, C_CurrencyInfo.GetCoinTextureString(gold)))
+  end
+
+  if skipped > 0 and not _pendingGreySell then
+    _pendingGreySell = true
+    C_Timer.After(0.6, function()
+      _pendingGreySell = false
+      if MerchantFrame and MerchantFrame:IsShown() then
+        DoAutoSellGrey()
+      end
+    end)
   end
 end
 

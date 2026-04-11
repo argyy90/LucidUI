@@ -11,6 +11,16 @@ local TRINKET_SLOT_1 = 13
 local TRINKET_SLOT_2 = 14
 local CD_MIN = 1.5
 
+-- Secret-safe SetCooldown: 12.0.1+ restricts CooldownFrame:SetCooldown with secret values.
+-- Prefer SetCooldownFromDurationObject for spell-based CDs when a spellID is known.
+local function SafeSetCooldown(cd, start, duration, spellID)
+  if spellID and C_Spell and C_Spell.GetSpellCooldownDuration then
+    local ok, durObj = pcall(C_Spell.GetSpellCooldownDuration, spellID)
+    if ok and durObj then cd:SetCooldownFromDurationObject(durObj); return end
+  end
+  pcall(cd.SetCooldown, cd, start, duration)
+end
+
 -- ── Default items for Racials bar ───────────────────────────────────────
 local DEFAULT_ITEMS = {}
 
@@ -141,7 +151,7 @@ local function UpdateTrinket(frame, slotID)
   pcall(function()
     local start, duration, enable = GetInventoryItemCooldown("player", slotID)
     if start and duration and duration > CD_MIN and enable == 1 then
-      frame.cd:SetCooldown(start, duration)
+      SafeSetCooldown(frame.cd, start, duration)
       frame.icon:SetDesaturated(true)
     else
       frame.cd:Clear()
@@ -191,7 +201,7 @@ local function UpdateRacialIcon(frame, entry)
     pcall(function()
       local start, dur = C_Container.GetItemCooldown(id)
       if start and dur and dur > CD_MIN then
-        frame.cd:SetCooldown(start, dur); frame.icon:SetDesaturated(true); cdSet = true
+        SafeSetCooldown(frame.cd, start, dur); frame.icon:SetDesaturated(true); cdSet = true
       end
     end)
     -- 2) Try C_Spell.GetSpellCooldownDuration (returns duration object)
@@ -213,7 +223,7 @@ local function UpdateRacialIcon(frame, entry)
       pcall(function()
         local cdInfo = C_Spell.GetSpellCooldown(spellToCheck)
         if cdInfo and cdInfo.duration and cdInfo.duration > CD_MIN then
-          frame.cd:SetCooldown(cdInfo.startTime, cdInfo.duration); frame.icon:SetDesaturated(true); cdSet = true
+          SafeSetCooldown(frame.cd, cdInfo.startTime, cdInfo.duration, spellToCheck); frame.icon:SetDesaturated(true); cdSet = true
         end
       end)
     end
@@ -223,7 +233,7 @@ local function UpdateRacialIcon(frame, entry)
     pcall(function()
       local cdInfo = C_Spell.GetSpellCooldown(id)
       if cdInfo and cdInfo.duration and cdInfo.duration > CD_MIN then
-        frame.cd:SetCooldown(cdInfo.startTime, cdInfo.duration)
+        SafeSetCooldown(frame.cd, cdInfo.startTime, cdInfo.duration, id)
         frame.icon:SetDesaturated(true)
       else frame.cd:Clear(); frame.icon:SetDesaturated(false) end
     end)
@@ -368,8 +378,14 @@ end
 
 -- ── Event handling ──────────────────────────────────────────────────────
 local evFrame = CreateFrame("Frame")
+-- Register all events up front so the first PLAYER_SPECIALIZATION_CHANGED /
+-- PLAYER_EQUIPMENT_CHANGED after login is also observed. The handler itself
+-- gates on `initialized` to avoid doing work before init completes.
 evFrame:RegisterEvent("PLAYER_LOGIN")
 evFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+evFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 evFrame:SetScript("OnEvent", function(_, event, arg1)
   if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
     if event == "PLAYER_ENTERING_WORLD" then
@@ -391,15 +407,12 @@ evFrame:SetScript("OnEvent", function(_, event, arg1)
             if racFrames[i] then UpdateRacialIcon(racFrames[i], entry) end
           end
         end)
-        evFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
-        evFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
-        evFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
       end, "Trinkets")
     end)
   elseif event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" then
-    C_Timer.After(0.5, FullRefresh)
+    if initialized then C_Timer.After(0.5, FullRefresh) end
   elseif event == "PLAYER_EQUIPMENT_CHANGED" then
-    LayoutTrinkets()
+    if initialized then LayoutTrinkets() end
   end
 end)
 

@@ -32,27 +32,35 @@ local function FormatCPU(ms)
   end
 end
 
+-- 12.x: GetAddOnMemoryUsage / GetAddOnCPUUsage / UpdateAddOn* globals are removed.
+-- C_AddOnProfiler exposes per-addon timing metrics; there is no per-addon memory API yet.
+-- We fall back to Lua's total gc count for a single system-wide memory reading.
 local function GetAddonData()
-  UpdateAddOnMemoryUsage()
-  if cpuEnabled then UpdateAddOnCPUUsage() end
-
   local data = {}
   local totalMem = 0
   local totalCPU = 0
 
+  local profiler = C_AddOnProfiler
+  local METRIC_AVG = Enum and Enum.AddOnProfilerMetric and Enum.AddOnProfilerMetric.RecentAverageTime
+
   for i = 1, C_AddOns.GetNumAddOns() do
     local name, _, _, enabled = C_AddOns.GetAddOnInfo(i)
-    if enabled then
-      local mem = GetAddOnMemoryUsage(i) -- no C_ equivalent yet
-      local cpu = cpuEnabled and GetAddOnCPUUsage(i) or 0
-      totalMem = totalMem + mem
+    if enabled and name then
+      local cpu = 0
+      if cpuEnabled and profiler and profiler.GetAddOnMetric and METRIC_AVG then
+        local ok, v = pcall(profiler.GetAddOnMetric, name, METRIC_AVG)
+        if ok and type(v) == "number" then cpu = v end
+      end
       totalCPU = totalCPU + cpu
-      table.insert(data, {name = name, memory = mem, cpu = cpu})
+      table.insert(data, {name = name, memory = 0, cpu = cpu})
     end
   end
 
+  -- System-wide Lua memory (no per-addon breakdown in 12.x)
+  totalMem = collectgarbage("count")
+
   if sortMode == "memory" then
-    table.sort(data, function(a, b) return a.memory > b.memory end)
+    table.sort(data, function(a, b) return (a.name or "") < (b.name or "") end)
   else
     table.sort(data, function(a, b) return a.cpu > b.cpu end)
   end
@@ -242,9 +250,17 @@ local function BuildProfilerWindow()
   cpuHeaderBtn:SetSize(60, 14)
   cpuHeaderBtn:SetScript("OnClick", function()
     if not cpuEnabled then
-      local _SetCVar = (C_CVar and C_CVar.SetCVar) or SetCVar
-      pcall(_SetCVar, "scriptProfile", "1")
-      ReloadUI()
+      StaticPopupDialogs["LUCIDUI_PROFILER_ENABLE_CPU"] = {
+        text = "Enable CPU profiling?\n\nThis sets scriptProfile=1 and requires a UI reload.",
+        button1 = ACCEPT, button2 = CANCEL,
+        OnAccept = function()
+          local _SetCVar = (C_CVar and C_CVar.SetCVar) or SetCVar
+          pcall(_SetCVar, "scriptProfile", "1")
+          ReloadUI()
+        end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+      }
+      StaticPopup_Show("LUCIDUI_PROFILER_ENABLE_CPU")
     else
       sortMode = "cpu"
       RefreshDisplay()

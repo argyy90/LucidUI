@@ -1,7 +1,7 @@
 ## Interface: 120001, 120000
 ## Title: LucidUI
 ## Notes: Complete chat replacement, loot tracking, session stats & QoL features
-## Version: 1.28
+## Version: 1.29
 ## SavedVariables: LucidUIDB
 ## IconTexture: Interface\\AddOns\\LucidUI\\Assets\\Logo.png
 
@@ -39,7 +39,6 @@ Core\Profiles\Bigwigs.lua
 Core\Profiles\BlizziInterrupts.lua
 Core\Profiles\Details.lua
 Core\Profiles\Elvui.lua
-Core\Profiles\MiniCC.lua
 Core\Profiles\Naowhqol.lua
 Core\Profiles\Plater.lua
 Core\Profiles\WarpDeplete.lua
@@ -66,7 +65,6 @@ LucidMeter\Settings.lua
 Modules\Bags.lua
 Modules\GoldTracker.lua
 Modules\MythicPlus.lua
-Modules\CooldownTracker.lua
 Modules\CastBar.lua
 Modules\Resources.lua
 Modules\Cooldowns.lua

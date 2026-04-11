@@ -14,15 +14,46 @@ local function GetItemQualityFromLink(link)
   return quality or 1
 end
 
+-- Build per-locale "own loot" prefix patterns from Blizzard's localized
+-- LOOT_ITEM_SELF / LOOT_ITEM_PUSHED_SELF globals. Falls back to "You " / "Ihr ".
+local OWN_LOOT_PATTERNS
+local function BuildOwnLootPatterns()
+  if OWN_LOOT_PATTERNS then return OWN_LOOT_PATTERNS end
+  OWN_LOOT_PATTERNS = {}
+  local function addPat(g)
+    if type(g) ~= "string" then return end
+    -- LOOT_ITEM_SELF = "You receive loot: %s." — strip from "%s" onward
+    local prefix = g:match("^(.-)%%s")
+    if prefix and prefix ~= "" then
+      -- Escape Lua pattern chars in the localized prefix
+      local esc = prefix:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])","%%%1")
+      OWN_LOOT_PATTERNS[#OWN_LOOT_PATTERNS+1] = "^" .. esc
+    end
+  end
+  addPat(LOOT_ITEM_SELF)
+  addPat(LOOT_ITEM_PUSHED_SELF)
+  addPat(LOOT_ITEM_SELF_MULTIPLE)
+  addPat(LOOT_ITEM_PUSHED_SELF_MULTIPLE)
+  -- Fallback if globals are missing
+  if #OWN_LOOT_PATTERNS == 0 then
+    OWN_LOOT_PATTERNS[1] = "^You "
+    OWN_LOOT_PATTERNS[2] = "^Ihr "
+  end
+  return OWN_LOOT_PATTERNS
+end
+
 NS.OnLoot = function(msg, sender, senderGUID)
   -- Guard: WoW marks some encounter loot strings as "secret" / restricted.
   if type(msg) ~= "string" then return end
-  local loc = GetLocale()
-  local ownPrefix = (loc == "deDE") and "^Ihr " or "^You "
-  local ok, isOwn = pcall(string.find, msg, ownPrefix)
-  if not ok then
-    NS.DebugLog("OnLoot: skipped (restricted msg)", 0.8, 0.5, 0)
-    return
+  local patterns = BuildOwnLootPatterns()
+  local isOwn = false
+  for _, pat in ipairs(patterns) do
+    local ok, matchStart = pcall(string.find, msg, pat)
+    if not ok then
+      NS.DebugLog("OnLoot: skipped (restricted msg)", 0.8, 0.5, 0)
+      return
+    end
+    if matchStart then isOwn = true; break end
   end
   NS.DebugLog("EVENT: " .. (isOwn and "[Own]" or "[Group]") .. " " .. msg, 0.5, 0.8, 1)
 

@@ -846,15 +846,6 @@ NS.DB_DEFAULTS = {
   mpEnabled            = false,
   mpTeleport           = false,
   mpWinPos3            = nil,
-  -- Cooldown Tracker
-  cdTrackerEnabled     = false,
-  cdTrackerGrow        = "RIGHT",
-  cdTrackerMode        = "iconbar",
-  cdTrackerIconSize    = 36,  -- legacy
-  cdTrackerIconWidth   = 36,
-  cdTrackerIconHeight  = 36,
-  cdTrackerBarWidth    = 120,
-  cdTrackerPos         = nil,
 }
 
 NS.DB = function(key)
@@ -1197,15 +1188,27 @@ local CDM_CONFLICTING_ADDONS = {
 }
 
 local function DisableCDMModules()
-  if NS.Cooldowns then NS.Cooldowns.Disable() end
-  if NS.BuffBar   then NS.BuffBar:Disable()   end
-  if NS.CastBar   then NS.CastBar.Disable()   end
+  if NS.Cooldowns and NS.Cooldowns.Disable then NS.Cooldowns.Disable() end
+  if NS.BuffBar   and NS.BuffBar.Disable   then NS.BuffBar:Disable()   end
+  if NS.CastBar   and NS.CastBar.Disable   then NS.CastBar.Disable()   end
   -- Resources hat keinen Viewer-Conflict, bleibt aktiv
+end
+
+-- Safe addon-loaded check: 12.x may return a secret boolean here which would
+-- taint any branch that consumes it directly. Wrap in pcall and fall back to
+-- the global-name heuristic like InstallWizard does.
+local function SafeIsAddonLoaded(name)
+  if C_AddOns and C_AddOns.IsAddOnLoaded then
+    local ok, loaded = pcall(C_AddOns.IsAddOnLoaded, name)
+    if ok and loaded then return true end
+  end
+  if _G[name] then return true end
+  return false
 end
 
 local function HasConflictingAddon()
   for _, name in ipairs(CDM_CONFLICTING_ADDONS) do
-    if C_AddOns.IsAddOnLoaded(name) then return true, name end
+    if SafeIsAddonLoaded(name) then return true, name end
   end
   return false
 end

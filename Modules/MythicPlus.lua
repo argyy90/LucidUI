@@ -365,23 +365,25 @@ evF:SetScript("OnEvent",function(_,ev,...)
     C_Timer.After(1, function()
       local db=GetDB(); local totalMigrated=0
       for _,charData in pairs(db) do
-        if type(charData) ~= "table" then break end
-        for rawKey,runs in pairs(charData) do
-          local mappedKey=MP.SeasonMap[rawKey]
-          if mappedKey and mappedKey~=rawKey and type(runs)=="table" and #runs>0 then
-            if not charData[mappedKey] then charData[mappedKey]={} end
-            -- Dedup by mapID+level+floor(timeElapsed)
-            local seen={}
-            for _,r in ipairs(charData[mappedKey]) do
-              seen[tostring(r.mapID).."|"..tostring(r.level).."|"..tostring(math.floor(r.timeElapsed or 0))]=true
+        -- Skip non-table entries (e.g. corrupted buckets) without breaking the whole loop
+        if type(charData) == "table" then
+          for rawKey,runs in pairs(charData) do
+            local mappedKey=MP.SeasonMap[rawKey]
+            if mappedKey and mappedKey~=rawKey and type(runs)=="table" and #runs>0 then
+              if not charData[mappedKey] then charData[mappedKey]={} end
+              -- Dedup by mapID+level+floor(timeElapsed)
+              local seen={}
+              for _,r in ipairs(charData[mappedKey]) do
+                seen[tostring(r.mapID).."|"..tostring(r.level).."|"..tostring(math.floor(r.timeElapsed or 0))]=true
+              end
+              local moved=0
+              for _,r in ipairs(runs) do
+                local sig=tostring(r.mapID).."|"..tostring(r.level).."|"..tostring(math.floor(r.timeElapsed or 0))
+                if not seen[sig] then table.insert(charData[mappedKey],r); seen[sig]=true; moved=moved+1 end
+              end
+              charData[rawKey]=nil  -- remove old bucket
+              totalMigrated=totalMigrated+moved
             end
-            local moved=0
-            for _,r in ipairs(runs) do
-              local sig=tostring(r.mapID).."|"..tostring(r.level).."|"..tostring(math.floor(r.timeElapsed or 0))
-              if not seen[sig] then table.insert(charData[mappedKey],r); seen[sig]=true; moved=moved+1 end
-            end
-            charData[rawKey]=nil  -- remove old bucket
-            totalMigrated=totalMigrated+moved
           end
         end
       end
@@ -463,7 +465,7 @@ end)
 
 -- ═════════════════════════════ WINDOW ══════════════════════════════════════
 local WIN_W,WIN_H=1150,700
-local HDR_H=46; local TILE_H=88; local PANE_H=300; local GRAPH_H=nil
+local HDR_H=46; local TILE_H=88; local PANE_H=300
 local LEFT_W=260; local RIGHT_W=270
 local CENTER_W=WIN_W-LEFT_W-RIGHT_W-32
 
@@ -611,8 +613,6 @@ local function BuildWindow()
       seg:SetColorTexture(ar,ag,ab,0.18)
       RegAccent(seg,0.18)
     end
-    MP._goldLabels = MP._goldLabels or {}
-    table.insert(MP._goldLabels, fs)
   end
   PaneLabel("PLAYERS",8,LEFT_W); PaneLabel("RUN HISTORY",LEFT_W+14,CENTER_W)
   PaneLabel("RUN DETAILS",LEFT_W+CENTER_W+20,RIGHT_W)
@@ -684,11 +684,19 @@ local function BuildWindow()
   local gHdr=graphCard:CreateFontString(nil,"OVERLAY"); gHdr:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
   gHdr:SetPoint("TOP",graphCard,"TOP",0,-6)
   gHdr:SetJustifyH("CENTER"); gHdr:SetTextColor(1,0.82,0); gHdr:SetText("KEY LEVEL CHART  — Best timed runs per dungeon")
-  MP._goldLabels = MP._goldLabels or {}
-  table.insert(MP._goldLabels, gHdr)
   local gHolder=CreateFrame("Frame",nil,graphCard)
   gHolder:SetPoint("TOPLEFT",graphCard,"TOPLEFT",8,-20); gHolder:SetPoint("BOTTOMRIGHT",graphCard,"BOTTOMRIGHT",-8,6)
   MP.win._gHolder=gHolder
+  -- Install mouse wheel scroll handler ONCE here (not on every DrawGraph call,
+  -- which caused the handler to re-bind per refresh and could trigger recursive refreshes).
+  gHolder:EnableMouseWheel(true)
+  gHolder:SetScript("OnMouseWheel", function(_, delta)
+    local maxScroll = gHolder._scrollMax or 0
+    if maxScroll <= 0 then return end
+    local cur = MP._graphScrollX or 0
+    MP._graphScrollX = math.max(0, math.min(maxScroll, cur - delta * 30))
+    if MP.win and MP.win:IsShown() then MP.Refresh() end
+  end)
 
   -- Footer checkboxes + buttons
   local maskCB=NS.ChatGetCheckbox(MP.win,"Mask Names",18,function(s) MP._maskNames=s; MP.Refresh() end,"Anonymise player names to first 3 letters")
@@ -1126,7 +1134,7 @@ local function DrawTiles(seasonData,runs)
         end
       else
         local cdInfo = C_Spell.GetSpellCooldown(teleportSpell)
-        if cdInfo and cdInfo.startTime and cdInfo.startTime > 0 and cdInfo.duration > 2 then
+        if cdInfo and cdInfo.startTime and cdInfo.startTime > 0 and cdInfo.duration and cdInfo.duration > 2 then
           local remaining = cdInfo.startTime + cdInfo.duration - GetTime()
           if remaining > 0 then
             local cdText = remaining >= 60 and string.format("%dm", math.ceil(remaining/60)) or string.format("%ds", math.ceil(remaining))
@@ -1265,12 +1273,7 @@ local function DrawHistory(runs,bestDates)
     local sBar=row:CreateTexture(nil,"OVERLAY",nil,5); sBar:SetWidth(2); sBar:SetPoint("TOPLEFT"); sBar:SetPoint("BOTTOMLEFT"); sBar:SetColorTexture(sr,sg,sb,1)
     local xc2=6
     local isBest=bestDates and bestDates[run.date]
-    local dTxt
-    if run._blizzardImport then
-      dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "").."|cff606070Imported|r"
-    else
-      dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "")..date("%d.%m.%y %H:%M",run.date)
-    end
+    local dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "")..date("%d.%m.%y %H:%M",run.date)
     local dFS=row:CreateFontString(nil,"OVERLAY"); dFS:SetFont(STANDARD_TEXT_FONT,11,""); dFS:SetPoint("LEFT",row,"LEFT",xc2,0); dFS:SetTextColor(0.50,0.50,0.62); dFS:SetText(dTxt); xc2=xc2+CW[1]
     local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,11,""); nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(run.mapName or "?"); xc2=xc2+CW[2]
     local lFS=row:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,12,"OUTLINE"); lFS:SetPoint("LEFT",row,"LEFT",xc2,0); lFS:SetTextColor(sr,sg,sb); lFS:SetText("+"..tostring(run.level or 0)); xc2=xc2+CW[3]
@@ -1331,7 +1334,6 @@ local function DrawDetails(run)
   end
   if not run then sc:SetHeight(60)
     FS("Select a run to view details",10,0.40,0.40,0.50); return end
-  local isImport = run._blizzardImport
   -- Card 1: Run Info
   local endCard1=CardStart()
   local sr,sg,sb=SC(run.status)
@@ -1340,11 +1342,7 @@ local function DrawDetails(run)
     local sc2n=math.floor(run.mapScore+0.5); local cr,cg,cb=1,0.84,0
     if C_ChallengeMode.GetDungeonScoreRarityColor then local co=C_ChallengeMode.GetDungeonScoreRarityColor(run.mapScore); if co then cr,cg,cb=co.r,co.g,co.b end end
     FS("Score: "..tostring(sc2n), 11, cr,cg,cb) end
-  if isImport then
-    FS("Imported from Blizzard API", 10, 0.50,0.50,0.62)
-  else
-    FS(date("%Y-%m-%d  %H:%M",run.date or 0), 10, 0.50,0.50,0.62)
-  end
+  FS(date("%Y-%m-%d  %H:%M",run.date or 0), 10, 0.50,0.50,0.62)
   FS(string.format("Time: %s / %s  (%s)",FmtTime(run.timeElapsed),FmtTime(run.timeLimit),ST(run.status)),10,sr,sg,sb)
   local dStr=tostring(run.deaths or 0)
   if (run.deaths or 0)>0 and (run.timeLost or 0)>0 then dStr=dStr.."  (-"..FmtTime(run.timeLost)..")" end
@@ -1354,10 +1352,6 @@ local function DrawDetails(run)
     for _,affID in ipairs(run.affixes) do local nm,_,fid=C_ChallengeMode.GetAffixInfo(affID)
       local ico=fid and ("|T"..fid..":12:12:0:0:64:64:4:60:4:60|t ") or ""
       FS(ico..(nm or ("Affix "..affID)), 10, 0.72,0.72,0.85, 14) end end
-  if isImport then
-    yOff=yOff+2
-    FS("|TInterface/OptionsFrame/UI-OptionsFrame-NewFeatureIcon:14:14|t Imported from Blizzard API — no roster or loot data available.", 9, 1,0.27,0.27)
-  end
   endCard1()
   -- Card 2: Roster
   if run.roster and next(run.roster) then
@@ -1394,7 +1388,7 @@ local function DrawDetails(run)
         end
       end)
       lootBtn:SetScript("OnLeave",function() GameTooltip:Hide() end)
-      lootBtn:SetScript("OnClick",function(_,btn)
+      lootBtn:SetScript("OnClick",function()
         if capLink and IsShiftKeyDown() then
           local eb = ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow()
           if eb then eb:Insert(capLink) end
@@ -1472,7 +1466,6 @@ local function DrawGraph(runs,seasonData)
   local BAR_W  = 24
   local BAR_GAP = 4
   local GROUP_GAP = 20  -- extra gap between dungeon groups
-  local N=#graphRuns
 
   -- Calculate total canvas width needed
   local totalW = PL + PR
@@ -1486,18 +1479,10 @@ local function DrawGraph(runs,seasonData)
   end
   totalW = math.max(totalW, W)
 
-  -- Make graph canvas scrollable if needed
+  -- Make graph canvas scrollable if needed. The OnMouseWheel handler is installed
+  -- once in BuildWindow; here we just record the max scroll for that handler to read.
   holder:SetWidth(totalW)
-  -- Scrolling: if wider than window, enable mouse wheel scroll on holder
-  local scrollOffsetX = 0
-  holder:EnableMouseWheel(true)
-  holder:SetScript("OnMouseWheel", function(self, delta)
-    local maxScroll = math.max(0, totalW - W)
-    scrollOffsetX = math.max(0, math.min(maxScroll, scrollOffsetX - delta * 30))
-    MP._graphScrollX = scrollOffsetX
-    -- Redraw on next refresh
-    if MP.win and MP.win:IsShown() then MP.Refresh() end
-  end)
+  holder._scrollMax = math.max(0, totalW - W)
 
   local startX = PL - (MP._graphScrollX or 0)
   local currentX = startX
@@ -1515,7 +1500,7 @@ local function DrawGraph(runs,seasonData)
     dnFS:SetText(abbr); dnFS:SetJustifyH("CENTER")
   end
 
-  for i,run in ipairs(graphRuns) do
+  for _,run in ipairs(graphRuns) do
     local frac=run.level/maxLv; local bh=math.max(4,math.floor(frac*CH))
     local sr2,sg2,sb2=SC(run.status)
 
@@ -1547,8 +1532,8 @@ local function DrawGraph(runs,seasonData)
     end
     local hit=CreateFrame("Frame",nil,holder); hit:SetSize(BAR_W+BAR_GAP,CH+PB)
     hit:SetPoint("BOTTOMLEFT",holder,"BOTTOMLEFT",xB,PB); hit:EnableMouse(true)
-    local capRun=run; hit:SetScript("OnEnter",function(self)
-      GameTooltip:SetOwner(self,"ANCHOR_TOP"); GameTooltip:SetText(capRun.mapName.."  +"..capRun.level,ar,ag,ab)
+    local capRun=run; hit:SetScript("OnEnter",function(selfHit)
+      GameTooltip:SetOwner(selfHit,"ANCHOR_TOP"); GameTooltip:SetText(capRun.mapName.."  +"..capRun.level,ar,ag,ab)
       GameTooltip:AddLine(date("%Y-%m-%d",capRun.date),0.50,0.50,0.62)
       GameTooltip:AddLine(ST(capRun.status).."  "..FmtTime(capRun.timeElapsed).." / "..FmtTime(capRun.timeLimit),SC(capRun.status))
       if (capRun.mapScore or 0)>0 then GameTooltip:AddLine("Score: "..tostring(math.floor(capRun.mapScore)),1,0.84,0) end
@@ -1604,14 +1589,8 @@ function MP.Refresh()
     if pass then table.insert(filteredRuns,r); table.insert(graphRuns,r)
       totalCount=totalCount+1; if SR(r.status)>=3 and (r.level or 0)>highestTimed then highestTimed=r.level end end
   end
-  -- Sort: live-tracked runs first (newest first), then imported runs (by level desc)
-  table.sort(filteredRuns,function(a,b)
-    local aImp = a._blizzardImport and 1 or 0
-    local bImp = b._blizzardImport and 1 or 0
-    if aImp ~= bImp then return aImp < bImp end  -- live runs first
-    if aImp == 0 then return (a.date or 0) > (b.date or 0) end  -- live: newest first
-    return (a.level or 0) > (b.level or 0)  -- imported: highest level first
-  end)
+  -- Sort newest first
+  table.sort(filteredRuns,function(a,b) return (a.date or 0)>(b.date or 0) end)
   table.sort(graphRuns,function(a,b) return (a.date or 0)>(b.date or 0) end)
   for nm,d in pairs(tmCounts) do table.insert(teammates,{rawName=nm,count=d.count,class=d.class,lastSeen=d.lastSeen}) end
   table.sort(teammates,function(a,b) return a.lastSeen>b.lastSeen end)
@@ -1661,7 +1640,7 @@ end
 function MP.SetupSettings(parent)
   local container=CreateFrame("Frame",nil,parent)
   local MakeCard=NS._SMakeCard; local MakePage=NS._SMakePage
-  local Sep=NS._SSep; local R=NS._SR; local BD=NS._SBD
+  local Sep=NS._SSep; local BD=NS._SBD
   local sc,Add=MakePage(container)
   local function DB(k) return NS.DB(k) end; local function DBSet(k,v) NS.DBSet(k,v) end
   local cT=MakeCard(sc,"Mythic+ Tracking")

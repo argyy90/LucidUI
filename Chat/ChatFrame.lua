@@ -634,8 +634,13 @@ chatEventFrame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, a
 
   -- Feed Dev Monitor Chat tab (only when monitor is open)
   if NS._devChatSMF and NS.Debug and NS.Debug.LogChat then
-    local senderStr = not (isSecretValue(arg2)) and arg2 or "<secret>"
-    local msgStr = not (isSecretValue(arg1)) and arg1 and arg1:sub(1, 80) or "<secret>"
+    local senderStr = (not isSecretValue(arg2)) and arg2 or "<secret>"
+    local msgStr
+    if not isSecretValue(arg1) and type(arg1) == "string" then
+      msgStr = arg1:sub(1, 80)
+    else
+      msgStr = "<secret>"
+    end
     NS.Debug.LogChat(event, senderStr, msgStr)
   end
 
@@ -1499,7 +1504,9 @@ local function BuildTabBar(bg)
   NS._voiceGetIconColor = GetVoiceIconColor
 
   -- Show mute/deafen only when in voice channel, reposition tabs when state changes
-  local voiceSyncTicker = C_Timer.NewTicker(2, function()
+  -- Stored on NS so it can be cancelled on /reload or when chat is disabled
+  if NS._chatVoiceSyncTicker then NS._chatVoiceSyncTicker:Cancel() end
+  NS._chatVoiceSyncTicker = C_Timer.NewTicker(2, function()
     local wasVisible = voiceButtonsVisible
     if C_VoiceChat and C_VoiceChat.IsLoggedIn and C_VoiceChat.IsLoggedIn() then
       local inChannel = C_VoiceChat.GetActiveChannelID and C_VoiceChat.GetActiveChannelID()
@@ -1618,7 +1625,9 @@ local function SetupEditBox(bg)
     eb:Hide(); cont:Hide()
   end
   -- Track chat type while user has focus — ticker fires 4x/sec (C_Timer is lighter than OnUpdate)
-  local _focusTicker = C_Timer.NewTicker(0.25, function()
+  -- Stored on NS so reload or chat-disable can cancel it.
+  if NS._chatFocusTicker then NS._chatFocusTicker:Cancel() end
+  NS._chatFocusTicker = C_Timer.NewTicker(0.25, function()
     if eb:HasFocus() then
       local ct = eb:GetAttribute("chatType")
       if ct and ct ~= "" then

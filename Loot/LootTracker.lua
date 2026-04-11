@@ -283,13 +283,14 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 
--- Loot-specific events registered conditionally after DB is available
+-- Loot-specific events registered conditionally after DB is available.
+-- PLAYER_ENTERING_WORLD is ALWAYS registered (line 284) since other subsystems
+-- (SessionStats, profile load) rely on it. Do NOT toggle it here.
 local function RegisterLootEvents()
   local lootActive = NS.DB("lootOwnWindow") or NS.DB("lootInChatTab")
   if lootActive then
     eventFrame:RegisterEvent("CHAT_MSG_LOOT")
     eventFrame:RegisterEvent("CHAT_MSG_MONEY")
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     eventFrame:RegisterEvent("ENCOUNTER_END")
     eventFrame:RegisterEvent("PLAYER_DEAD")
@@ -297,7 +298,6 @@ local function RegisterLootEvents()
   else
     eventFrame:UnregisterEvent("CHAT_MSG_LOOT")
     eventFrame:UnregisterEvent("CHAT_MSG_MONEY")
-    eventFrame:UnregisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:UnregisterEvent("ZONE_CHANGED_NEW_AREA")
     eventFrame:UnregisterEvent("ENCOUNTER_END")
     eventFrame:UnregisterEvent("PLAYER_DEAD")
@@ -376,7 +376,11 @@ eventFrame:SetScript("OnEvent", function(_, ev, msg, sender, ...)
       end)
     end
   elseif ev == "CHAT_MSG_LOOT" then
-    local sGUID = select(11, sender, ...)
+    -- CHAT_MSG_LOOT args: text(1) playerName(2) language(3) channelName(4) playerName2(5)
+    --                    specialFlags(6) zoneChannelID(7) channelIndex(8) channelBaseName(9)
+    --                    languageID(10) lineID(11) guid(12) bnSenderID(13)
+    -- In this handler msg=arg1, sender=arg2, so ... starts at arg3; guid is at select(10, ...).
+    local sGUID = select(10, ...)
     NS.OnLoot(msg, sender, sGUID)
   elseif ev == "CHAT_MSG_MONEY" then
     NS.OnMoney(msg)
