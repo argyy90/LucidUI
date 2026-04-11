@@ -91,6 +91,13 @@ local function CreateBar(parent, index)
   name:SetFont(barFont, barFS, "")
   name:SetPoint("LEFT", 4, 0)
   name:SetJustifyH("LEFT")
+  -- Prevent overflow into the value/percent text on the right side.
+  -- WoW auto-truncates FontStrings with SetWordWrap(false) when the frame has
+  -- a bounded width. We bound the name's right edge at render time (below)
+  -- by anchoring it to the left of bar._value, which gives a dynamic shrink
+  -- width that adapts to the current bar size and value length.
+  name:SetWordWrap(false)
+  name:SetNonSpaceWrap(false)
   bar._name = name
 
   local pct = bar:CreateFontString(nil, "OVERLAY")
@@ -1239,9 +1246,16 @@ function DM.UpdateWindowDisplay(w)
           bar._rankFS:Hide()
           bar._name:SetPoint("LEFT", nameOffset, 0)
         end
+        -- Dynamic right bound: anchor the name's right edge to the left of
+        -- the value text so long names (e.g. RealmNames with cyrillic chars)
+        -- truncate automatically instead of overlapping the numbers.
+        bar._name:SetPoint("RIGHT", bar._value, "LEFT", -6, 0)
         bar._name:SetText(srcName or "?")
 
-        bar._name:SetTextColor(tr, tg, tb); bar._name:SetFont(fontPath, fontSize, fontFlags)
+        -- Use Unicode-capable fallback font if the name contains non-ASCII
+        -- (e.g. Cyrillic) — FRIZQT__ has no Cyrillic glyphs on non-ruRU clients.
+        local nameFontPath = NS.GetFontForText and NS.GetFontForText(srcName, fontPath) or fontPath
+        bar._name:SetTextColor(tr, tg, tb); bar._name:SetFont(nameFontPath, fontSize, fontFlags)
         bar._value:SetTextColor(tr, tg, tb); bar._value:SetFont(fontPath, fontSize, fontFlags)
         if fontShadowVal > 0 then
           bar._name:SetShadowOffset(fontShadowVal, -fontShadowVal); bar._name:SetShadowColor(0, 0, 0, 1)
@@ -1457,7 +1471,14 @@ function DM.UpdateWindowDisplay(w)
       -- Name (update every tick in case name becomes un-secret)
       local selfName = selfSrc.name
       if not isSecret(selfName) and selfName then selfName = selfName:match("^([^%-]+)") or selfName end
-      sbar._name:ClearAllPoints(); sbar._name:SetPoint("LEFT", nameOffset, 0)
+      sbar._name:ClearAllPoints()
+      sbar._name:SetPoint("LEFT", nameOffset, 0)
+      sbar._name:SetPoint("RIGHT", sbar._value, "LEFT", -6, 0)
+      sbar._name:SetWordWrap(false)
+      sbar._name:SetNonSpaceWrap(false)
+      -- Unicode-safe font fallback for Cyrillic player names
+      local sNameFontPath = NS.GetFontForText and NS.GetFontForText(selfName, fontPath) or fontPath
+      sbar._name:SetFont(sNameFontPath, fontSize, fontFlags)
       sbar._name:SetText(selfName or "?")
 
       -- Fast update

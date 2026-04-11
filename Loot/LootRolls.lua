@@ -452,11 +452,14 @@ local function BuildItemRow(parent, session, yOffset)
         local cr, cg, cb = CCR(winner.class)
         local rc = ROLL_COLORS[winner.rollType] or ROLL_COLORS.need
         local shortName = winner.name:match("^([^%-]+)") or winner.name
+        -- Switch to Unicode-capable font if name contains non-ASCII (e.g. Cyrillic)
+        statusLbl:SetFont(NS.GetFontForText(shortName, NS.FONT), 11, "")
         statusLbl:SetText(string.format(
           "|TInterface/AddOns/LucidUI/Assets/Star.png:13:13|t |cff%02x%02x%02x%s|r  |cff%02x%02x%02x%d|r",
           math.floor(cr*255), math.floor(cg*255), math.floor(cb*255), shortName,
           math.floor(rc[1]*255), math.floor(rc[2]*255), math.floor(rc[3]*255), winner.val))
       else
+        statusLbl:SetFont(NS.FONT, 11, "")
         statusLbl:SetText("|cff555555"..L["All passed"].."|r")
       end
     else
@@ -467,13 +470,16 @@ local function BuildItemRow(parent, session, yOffset)
       end
       if leader then
         local cr, cg, cb = CCR(leader.class)
+        local shortName = leader.name:match("^([^%-]+)") or leader.name
+        statusLbl:SetFont(NS.GetFontForText(shortName, NS.FONT), 11, "")
         local base = string.format(
           "|cff%02x%02x%02x%s|r |cffFFD700%d|r ",
           math.floor(cr*255), math.floor(cg*255), math.floor(cb*255),
-          leader.name:match("^([^%-]+)") or leader.name, leader.val)
+          shortName, leader.val)
         statusLbl:SetText(base)
         RegisterDotsLabel(statusLbl, base)
       else
+        statusLbl:SetFont(NS.FONT, 11, "")
         RegisterDotsLabel(statusLbl, "|cff555555Waiting")
       end
     end

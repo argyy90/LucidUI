@@ -547,7 +547,7 @@ local function BuildWindow()
 
   -- "M+ Rating" label above score
   local ratingLbl=MP.win:CreateFontString(nil,"OVERLAY"); ratingLbl:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
-  ratingLbl:SetPoint("TOP",MP.win,"TOP",0,-8); ratingLbl:SetTextColor(0.65,0.65,0.75); ratingLbl:SetText("M+ Rating")
+  ratingLbl:SetPoint("TOP",MP.win,"TOP",0,-8); ratingLbl:SetTextColor(0.88,0.88,0.95); ratingLbl:SetText("M+ Rating")
 
   MP.win._scoreLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._scoreLbl:SetFont(STANDARD_TEXT_FONT,26,"OUTLINE")
   MP.win._scoreLbl:SetPoint("TOP",MP.win,"TOP",0,-16); MP.win._scoreLbl:SetTextColor(1,0.84,0)
@@ -1232,7 +1232,9 @@ local function DrawAnalytics(teammates)
     if isAct then row:SetBackdropColor(ar*0.15,ag*0.15,ab*0.15,1) else row:SetBackdropColor(0.03,0.03,0.05,1) end
     local hex=ClassHex(tm.class); local disp=tm.rawName
     if MP._maskNames then local sh=disp:match("^([^%-]+)"); disp=(sh and sh:sub(1,3).."***" or disp) end
-    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,10,"")
+    local nFS=row:CreateFontString(nil,"OVERLAY")
+    -- Use Unicode-capable font fallback for Cyrillic/non-ASCII player names
+    nFS:SetFont(NS.GetFontForText(disp, STANDARD_TEXT_FONT),10,"")
     nFS:SetPoint("LEFT",row,"LEFT",4,0); nFS:SetText("|c"..hex..disp.."|r")
     local cFS=row:CreateFontString(nil,"OVERLAY"); cFS:SetFont(STANDARD_TEXT_FONT,10,"")
     cFS:SetPoint("RIGHT",row,"RIGHT",-4,0); cFS:SetTextColor(0.72,0.72,0.82); cFS:SetText(tostring(tm.count))
@@ -1275,7 +1277,10 @@ local function DrawHistory(runs,bestDates)
     local isBest=bestDates and bestDates[run.date]
     local dTxt=(isBest and "|TInterface/WorldMap/Skull_64:11:11|t " or "")..date("%d.%m.%y %H:%M",run.date)
     local dFS=row:CreateFontString(nil,"OVERLAY"); dFS:SetFont(STANDARD_TEXT_FONT,11,""); dFS:SetPoint("LEFT",row,"LEFT",xc2,0); dFS:SetTextColor(0.50,0.50,0.62); dFS:SetText(dTxt); xc2=xc2+CW[1]
-    local nFS=row:CreateFontString(nil,"OVERLAY"); nFS:SetFont(STANDARD_TEXT_FONT,11,""); nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(run.mapName or "?"); xc2=xc2+CW[2]
+    local mapName=run.mapName or "?"
+    local nFS=row:CreateFontString(nil,"OVERLAY")
+    nFS:SetFont(NS.GetFontForText(mapName, STANDARD_TEXT_FONT),11,"")
+    nFS:SetPoint("LEFT",row,"LEFT",xc2,0); nFS:SetTextColor(0.88,0.88,0.94); nFS:SetText(mapName); xc2=xc2+CW[2]
     local lFS=row:CreateFontString(nil,"OVERLAY"); lFS:SetFont(STANDARD_TEXT_FONT,12,"OUTLINE"); lFS:SetPoint("LEFT",row,"LEFT",xc2,0); lFS:SetTextColor(sr,sg,sb); lFS:SetText("+"..tostring(run.level or 0)); xc2=xc2+CW[3]
     local tFS=row:CreateFontString(nil,"OVERLAY"); tFS:SetFont(STANDARD_TEXT_FONT,11,""); tFS:SetPoint("LEFT",row,"LEFT",xc2,0); tFS:SetTextColor(0.70,0.70,0.82); tFS:SetText(FmtTime(run.timeElapsed)); xc2=xc2+CW[4]
     local stFS=row:CreateFontString(nil,"OVERLAY"); stFS:SetFont(STANDARD_TEXT_FONT,11,"OUTLINE"); stFS:SetPoint("LEFT",row,"LEFT",xc2,0); stFS:SetTextColor(sr,sg,sb); stFS:SetText(ST(run.status)); xc2=xc2+CW[5]
@@ -1297,7 +1302,9 @@ local function DrawDetails(run)
   local sc=MP.win._detSC; ClearFrame(sc)
   local ar,ag,ab=NS.ChatGetAccentRGB(); local yOff=4
   local PAD=8
-  local function FS(txt,size,r,g,b,xi) local f=sc:CreateFontString(nil,"OVERLAY"); f:SetFont(STANDARD_TEXT_FONT,size or 10,"")
+  local function FS(txt,size,r,g,b,xi) local f=sc:CreateFontString(nil,"OVERLAY")
+    -- Unicode-capable font for Cyrillic/non-ASCII names (roster, loot owners, affix names)
+    f:SetFont(NS.GetFontForText(txt, STANDARD_TEXT_FONT), size or 10, "")
     f:SetPoint("TOPLEFT",sc,"TOPLEFT",(xi or PAD),-yOff); f:SetTextColor(r or 0.85,g or 0.85,b or 0.92); f:SetText(txt)
     yOff=yOff+(size or 10)+7; return f end
   -- Mini card: dark bg with left accent bar

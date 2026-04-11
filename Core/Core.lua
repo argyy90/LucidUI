@@ -1260,6 +1260,32 @@ NS.GetFontPath = function(key)
   return _lsmFontMap[key] or NS.FONT
 end
 
+-- Unicode-safe font fallback: FRIZQT__ doesn't ship Cyrillic glyphs on
+-- enUS/deDE/frFR/esES/itIT/ptBR clients, so russian player names render as
+-- empty boxes. ARIALN.TTF is Blizzard's chat font and ships on all clients
+-- with Latin-extended + Cyrillic + Greek coverage.
+-- Returns the fallback font path if the string contains any non-ASCII byte,
+-- otherwise returns the requested font.
+local NON_ASCII_FALLBACK = "Fonts/ARIALN.TTF"
+NS.GetFontForText = function(text, preferredPath)
+  preferredPath = preferredPath or NS.FONT
+  if type(text) ~= "string" then return preferredPath end
+  -- Fast byte scan: any byte >= 0x80 is a multi-byte UTF-8 character.
+  for i = 1, #text do
+    if text:byte(i) >= 0x80 then return NON_ASCII_FALLBACK end
+  end
+  return preferredPath
+end
+
+-- Quick check: does the given string contain non-ASCII characters?
+NS.HasNonAscii = function(text)
+  if type(text) ~= "string" then return false end
+  for i = 1, #text do
+    if text:byte(i) >= 0x80 then return true end
+  end
+  return false
+end
+
 NS.ApplyFontSize = function()
   if not NS.smf then return end
   NS.smf:SetFont(NS.GetFontPath(NS.DB("font")), NS.DB("fontSize"), NS.DB("fontOutline") or "")

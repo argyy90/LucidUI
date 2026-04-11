@@ -114,6 +114,11 @@ local glowHooksSetup = false
 local glowTrackedCDs = {}    -- spellID → wasOnCD (bool)
 local frameSpellMap = setmetatable({}, {__mode = "k"})  -- frame → spellID (persists through restrictions)
 local castPredictions = {}   -- spellID → castTime
+-- Suppress-glow window: any ShowReadyGlow call before this timestamp is dropped.
+-- Bumped forward whenever ADDON_RESTRICTION_STATE_CHANGED fires so that the
+-- reconciliation pass doesn't fire a "wave" of glows for spells that naturally
+-- came off CD during the restricted window (e.g. after a stun).
+local glowSuppressUntil = 0
 
 local cdmEvFrame = nil  -- created once in CD.Enable()
 
@@ -167,6 +172,8 @@ end
 -- Check glow transitions on all CDM frames (called from events)
 local function CheckGlowTransitions()
   if not Opt("readyGlow") then return end
+  local now = GetTime()
+  local suppressed = now < glowSuppressUntil
   for _, viewerName in ipairs(VIEWER_LIST) do
     local viewer = _G[viewerName]
     if viewer and viewer.itemFramePool then
@@ -192,7 +199,16 @@ local function CheckGlowTransitions()
           if onCD ~= nil then
             local wasOnCD = glowTrackedCDs[spellID]
             glowTrackedCDs[spellID] = onCD
-            if wasOnCD and not onCD and frame:IsShown() then
+            -- Fire glow only if:
+            --  1) we're not inside a suppress window (prevents wave of glows
+            --     when ADDON_RESTRICTION_STATE_CHANGED reconciles after a stun)
+            --  2) the player actually cast this spell at some point
+            --     (castPredictions entry exists — excludes passive CDs,
+            --     group-buff procs, and phantom transitions from secret-value flips)
+            if wasOnCD and not onCD and frame:IsShown()
+               and not suppressed
+               and castPredictions[spellID]
+            then
               ShowReadyGlow(frame)
             end
           end
@@ -226,11 +242,18 @@ local function SetupGlowHooks()
 
     elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
       local _, state = ...
+      -- Suppress glows around every state transition for 1.5s. This prevents
+      -- the "wave of glows after a stun" bug: during a restriction window,
+      -- multiple spells may have naturally come off CD. When reconcile runs,
+      -- all of them would transition true→false simultaneously and glow.
+      -- Silently refresh state during the suppress window instead.
+      glowSuppressUntil = GetTime() + 1.5
       if state == 1 then
         -- Activating: snapshot before values become secret
         SnapshotCooldownStates()
       elseif state == 0 then
-        -- Inactive: restrictions lifted, reconcile with now-readable values
+        -- Inactive: restrictions lifted, reconcile with now-readable values.
+        -- The suppress window above silences any glow triggers here.
         CheckGlowTransitions()
         -- Clean up old cast predictions (> 5 min)
         local now = GetTime()

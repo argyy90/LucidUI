@@ -899,11 +899,12 @@ function GT.RefreshWindow()
     hdrDate:SetTextColor(ar, ag, ab, 0.9); hdrDate:SetText("> "..timeStr)
 
     local hdrPart = card:CreateFontString(nil, "OVERLAY")
-    hdrPart:SetFont(NS.FONT, 10, "")
+    local partnerName = entry.partner or "Unknown"
+    hdrPart:SetFont(NS.GetFontForText(partnerName, NS.FONT), 10, "")
     hdrPart:SetPoint("TOPLEFT", hdrDate, "TOPRIGHT", 8, 0)
     hdrPart:SetPoint("TOPRIGHT", card, "TOPRIGHT", -14, -cy)
     hdrPart:SetJustifyH("LEFT")
-    hdrPart:SetTextColor(0.80, 0.80, 0.90); hdrPart:SetText(entry.partner or "Unknown")
+    hdrPart:SetTextColor(0.80, 0.80, 0.90); hdrPart:SetText(partnerName)
     cy = cy + HEADER_ROW
 
     -- Separator
