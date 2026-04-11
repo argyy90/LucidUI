@@ -1767,11 +1767,11 @@ NS.ChatShowCopyWindow = function()
   local BD = NS.BACKDROP
 
   local frame = CreateFrame("Frame", "LTChatCopyFrame", UIParent, "BackdropTemplate")
-  frame:SetSize(500, 400)
+  frame:SetSize(1000, 400)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("FULLSCREEN_DIALOG")
   frame:SetMovable(true); frame:SetResizable(true)
-  frame:SetResizeBounds(300, 200, 900, 800)
+  frame:SetResizeBounds(300, 200, 1800, 800)
   frame:SetClampedToScreen(true)
   frame:RegisterForDrag("LeftButton")
   frame:SetScript("OnDragStart", function() frame:StartMoving() end)

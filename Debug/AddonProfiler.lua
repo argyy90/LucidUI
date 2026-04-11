@@ -32,13 +32,34 @@ local function FormatCPU(ms)
   end
 end
 
--- 12.x: GetAddOnMemoryUsage / GetAddOnCPUUsage / UpdateAddOn* globals are removed.
--- C_AddOnProfiler exposes per-addon timing metrics; there is no per-addon memory API yet.
--- We fall back to Lua's total gc count for a single system-wide memory reading.
+-- 12.x: memory functions live under C_AddOns namespace; legacy globals are
+-- kept as a fallback for older clients. CPU comes from C_AddOnProfiler.
+local function _UpdateMem()
+  if C_AddOns and C_AddOns.UpdateAddOnMemoryUsage then
+    pcall(C_AddOns.UpdateAddOnMemoryUsage)
+  elseif UpdateAddOnMemoryUsage then
+    pcall(UpdateAddOnMemoryUsage)
+  end
+end
+
+local function _GetMem(name)
+  if C_AddOns and C_AddOns.GetAddOnMemoryUsage then
+    local ok, v = pcall(C_AddOns.GetAddOnMemoryUsage, name)
+    if ok and type(v) == "number" then return v end
+  end
+  if GetAddOnMemoryUsage then
+    local ok, v = pcall(GetAddOnMemoryUsage, name)
+    if ok and type(v) == "number" then return v end
+  end
+  return 0
+end
+
 local function GetAddonData()
   local data = {}
   local totalMem = 0
   local totalCPU = 0
+
+  _UpdateMem()  -- refresh per-addon memory snapshot
 
   local profiler = C_AddOnProfiler
   local METRIC_AVG = Enum and Enum.AddOnProfilerMetric and Enum.AddOnProfilerMetric.RecentAverageTime
@@ -46,21 +67,20 @@ local function GetAddonData()
   for i = 1, C_AddOns.GetNumAddOns() do
     local name, _, _, enabled = C_AddOns.GetAddOnInfo(i)
     if enabled and name then
+      local mem = _GetMem(name)
       local cpu = 0
       if cpuEnabled and profiler and profiler.GetAddOnMetric and METRIC_AVG then
         local ok, v = pcall(profiler.GetAddOnMetric, name, METRIC_AVG)
         if ok and type(v) == "number" then cpu = v end
       end
+      totalMem = totalMem + mem
       totalCPU = totalCPU + cpu
-      table.insert(data, {name = name, memory = 0, cpu = cpu})
+      table.insert(data, {name = name, memory = mem, cpu = cpu})
     end
   end
 
-  -- System-wide Lua memory (no per-addon breakdown in 12.x)
-  totalMem = collectgarbage("count")
-
   if sortMode == "memory" then
-    table.sort(data, function(a, b) return (a.name or "") < (b.name or "") end)
+    table.sort(data, function(a, b) return a.memory > b.memory end)
   else
     table.sort(data, function(a, b) return a.cpu > b.cpu end)
   end
