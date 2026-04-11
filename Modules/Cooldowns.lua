@@ -4,6 +4,7 @@
 -- Uses per-frame SetPoint interception to prevent Blizzard layout override.
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.Cooldowns = NS.Cooldowns or {}
 local CD = NS.Cooldowns
 
@@ -475,8 +476,32 @@ local function MarkLayoutDirty(viewerName)
   layoutDirty[viewerName] = true
 end
 
+-- ── World transition guard ─────────────────────────────────────────────
+-- Resizing our container cascades into SetPoint on the anchored Blizzard
+-- viewer, which is a protected op during combat OR world transitions
+-- (leaving a raid, loading screens). Track the load state and defer.
+local worldLoaded = true
+local worldGuardFrame = CreateFrame("Frame")
+worldGuardFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
+worldGuardFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+worldGuardFrame:SetScript("OnEvent", function(_, ev)
+  if ev == "PLAYER_LEAVING_WORLD" then
+    worldLoaded = false
+  elseif ev == "PLAYER_ENTERING_WORLD" then
+    -- Mark loaded after a short delay so any pending protected actions settle
+    C_Timer.After(1.5, function() worldLoaded = true end)
+  end
+end)
+
 -- ── Layout a viewer's frames ────────────────────────────────────────────
 local function LayoutViewer(viewerName)
+  -- Never run layout during combat lockdown OR world transitions:
+  -- resizing our container implicitly reframes the managed Blizzard viewer
+  -- (anchored to us), triggering ADDON_ACTION_BLOCKED.
+  if InCombatLockdown() or not worldLoaded then
+    combatDirty[viewerName] = true
+    return
+  end
   layoutDirty[viewerName] = nil  -- clear dirty flag
   local viewer = _G[viewerName]
   if not viewer or not viewer.itemFramePool then return end
@@ -639,8 +664,17 @@ local function SetupViewerHooks(viewerName)
     hookedLayouts[viewerName .. "_l"] = true
     hooksecurefunc(viewer, "Layout", function()
       if not NS.IsCDMEnabled() then return end
-      if InCombatLockdown() then combatDirty[viewerName] = true; return end
+      if InCombatLockdown() or not worldLoaded then combatDirty[viewerName] = true; return end
       C_Timer.After(0, function()
+        -- Re-check at fire time: combat may have ended mid-transition
+        -- (e.g., teleported out of raid during boss fight), OR a world
+        -- transition may have started. LayoutViewer also guards internally
+        -- but we double-check here to avoid triggering ForceReanchor's
+        -- rawClearAllPoints on the managed viewer.
+        if InCombatLockdown() or not worldLoaded then
+          combatDirty[viewerName] = true
+          return
+        end
         ForceReanchor(viewerName)
         LayoutViewer(viewerName)
       end)
@@ -654,7 +688,7 @@ local function SetupViewerHooks(viewerName)
       if not NS.IsCDMEnabled() then return end
       local container = containers[viewerName]
       if not container or relativeTo == container then return end
-      if InCombatLockdown() then return end
+      if InCombatLockdown() or not worldLoaded then return end
       rawClearAllPoints(viewer)
       rawSetPoint(viewer, "TOPLEFT", container, "TOPLEFT", 0, 0)
       rawSetPoint(viewer, "BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
@@ -968,12 +1002,12 @@ function CD.SetupSettings(parent)
   end
 
   -- General card
-  local cGen = MakeCard(sc, "General")
+  local cGen = MakeCard(sc, L["General"])
   local enRow = CreateFrame("Frame", nil, cGen.inner); enRow:SetHeight(26)
   -- Reset button
   local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText(L["Reset"])
   resetBtn:SetScript("OnClick", function()
     OptSet("essPos", nil); OptSet("utilPos", nil)
     local essC = containers[VIEWERS.ESSENTIAL]
@@ -993,11 +1027,11 @@ function CD.SetupSettings(parent)
   -- Unlock button
   local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
   lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont("Fonts/FRIZQT__.TTF", 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText(L["Unlock"])
   local unlocked = false
   lockBtn:SetScript("OnClick", function()
     unlocked = not unlocked
-    lockFS:SetText(unlocked and "Lock" or "Unlock")
+    lockFS:SetText(unlocked and "Lock" or L["Unlock"])
     local r, g, b = NS.ChatGetAccentRGB()
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
     for _, vn in ipairs(VIEWER_LIST) do
@@ -1043,7 +1077,7 @@ function CD.SetupSettings(parent)
   cGen:Finish(); Append(cGen, cGen:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- Essential card
-  local cEss = MakeCard(sc, "Essential Cooldowns")
+  local cEss = MakeCard(sc, L["Essential Cooldowns"])
   Slider(cEss, "Width", "essWidth", 20, 80, "%spx", 46)
   Slider(cEss, "Height", "essHeight", 20, 80, "%spx", 40)
   Slider(cEss, "Spacing", "essSpacing", 0, 10, "%spx", 2)
@@ -1052,7 +1086,7 @@ function CD.SetupSettings(parent)
   cEss:Finish(); Append(cEss, cEss:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- Utility card
-  local cUtil = MakeCard(sc, "Utility Cooldowns")
+  local cUtil = MakeCard(sc, L["Utility Cooldowns"])
   Slider(cUtil, "Width", "utilWidth", 20, 80, "%spx", 46)
   Slider(cUtil, "Height", "utilHeight", 20, 80, "%spx", 40)
   Slider(cUtil, "Spacing", "utilSpacing", 0, 10, "%spx", 2)
@@ -1061,14 +1095,14 @@ function CD.SetupSettings(parent)
   cUtil:Finish(); Append(cUtil, cUtil:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- Appearance card
-  local cApp = MakeCard(sc, "Appearance")
+  local cApp = MakeCard(sc, L["Appearance"])
   local barTexNames = {}
   local rawBars = NS.GetLSMStatusBars and NS.GetLSMStatusBars() or {}
   for _, b in ipairs(rawBars) do barTexNames[#barTexNames+1] = b.label end
   if #barTexNames == 0 then barTexNames = {"Flat"} end
   local fontNames, fontValues = {"Default"}, {"default"}
   for _, ft in ipairs(NS.GetLSMFonts()) do fontNames[#fontNames+1] = ft.label; fontValues[#fontValues+1] = ft.label end
-  DropdownPair(cApp, "Background", barTexNames, barTexNames, "bgTexture", "Flat",
+  DropdownPair(cApp, L["Background"], barTexNames, barTexNames, "bgTexture", "Flat",
     "Font", fontNames, fontValues, "font", "default", 200)
   Dropdown(cApp, "Font Outline", {"None", "Outline", "Thick Outline"}, {"", "OUTLINE", "THICKOUTLINE"}, "fontOutline", "OUTLINE")
   Slider(cApp, "Font Size", "fontSize", 6, 20, "%spx", 12)
@@ -1091,7 +1125,7 @@ function CD.SetupSettings(parent)
   end
   ColorRow(cApp, "Text Color:", "textColor")
   ColorRow(cApp, "Border Color:", "borderColor")
-  local glowCB = NS.ChatGetCheckbox(cApp.inner, "Ready Glow", 26, function(s) OptSet("readyGlow", s) end, "Glow when spell comes off cooldown")
+  local glowCB = NS.ChatGetCheckbox(cApp.inner, L["Ready Glow"], 26, function(s) OptSet("readyGlow", s) end, "Glow when spell comes off cooldown")
   glowCB:SetValue(Opt("readyGlow") ~= false); R(cApp, glowCB, 26)
   Dropdown(cApp, "Glow Type", {"Pixel", "Autocast", "Button", "Proc"}, {"pixel", "autocast", "button", "proc"}, "readyGlowType", "pixel")
   Slider(cApp, "Glow Duration", "readyGlowDuration", 1, 5, "%ss", 2)

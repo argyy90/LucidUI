@@ -10,7 +10,7 @@ local chatOptWin = nil
 
 -- Reload popup
 StaticPopupDialogs["LUCIDUI_CHAT_RELOAD"] = {
-  text = "Reload UI to apply changes?",
+  text = L["popup_reload_apply"],
   button1 = ACCEPT, button2 = CANCEL,
   OnAccept = function() ReloadUI() end,
   timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
@@ -85,49 +85,102 @@ local function LBracket(parent,corner,size,a)
   for _,t in ipairs({h,v}) do table.insert(NS.chatOptAccentTextures,{tex=t,alpha=a or 0.65}) end
 end
 
--- MakeCard: cyberpunk card with L-brackets, double bar, diamond title
+-- MakeCard: branches on layout style
+--  classic → cyberpunk boxy card (L-brackets, double left bar, diamond title)
+--  icons   → flat "data section" (no box, title row with accent rule)
 local function MakeCard(sc,title)
-  local TPAD = title and 26 or 10; local BPAD=10; local IPAD=10
-  local card = CreateFrame("Frame",nil,sc,"BackdropTemplate")
-  card:SetBackdrop(BD)
-  card:SetBackdropColor(0.034,0.034,0.056,1)
-  card:SetBackdropBorderColor(0.08,0.08,0.13,1)
+  local styleClassic = ((NS.DB and NS.DB("settingsSidebarStyle")) or "icons") == "classic"
   local ar,ag,ab = NS.ChatGetAccentRGB()
+  local TPAD, BPAD, IPAD
+  local card
 
-  -- Double left accent bar (main 3px + thin shadow 1px offset)
-  local bar=card:CreateTexture(nil,"OVERLAY",nil,5); bar:SetWidth(3)
-  bar:SetPoint("TOPLEFT",   card,"TOPLEFT",   0,-5)
-  bar:SetPoint("BOTTOMLEFT",card,"BOTTOMLEFT",0, 5)
-  bar:SetColorTexture(ar,ag,ab,1); card._bar=bar
-  table.insert(NS.chatOptAccentTextures,{tex=bar,alpha=1})
-  local bar2=card:CreateTexture(nil,"OVERLAY",nil,4); bar2:SetWidth(1)
-  bar2:SetPoint("TOPLEFT",   card,"TOPLEFT",   4,-8)
-  bar2:SetPoint("BOTTOMLEFT",card,"BOTTOMLEFT",4, 8)
-  bar2:SetColorTexture(ar,ag,ab,0.30)
-  table.insert(NS.chatOptAccentTextures,{tex=bar2,alpha=0.30})
+  if styleClassic then
+    -- ── Classic: boxed cyberpunk card ────────────────────────────────
+    TPAD = title and 26 or 10; BPAD = 10; IPAD = 10
+    card = CreateFrame("Frame",nil,sc,"BackdropTemplate")
+    card:SetBackdrop(BD)
+    card:SetBackdropColor(0.034,0.034,0.056,1)
+    card:SetBackdropBorderColor(0.08,0.08,0.13,1)
 
-  -- L-brackets on top-right and bottom-right
-  LBracket(card,"TR",14,0.55); LBracket(card,"BR",10,0.30)
+    -- Double left accent bar (main 3px + thin shadow 1px offset)
+    local bar=card:CreateTexture(nil,"OVERLAY",nil,5); bar:SetWidth(3)
+    bar:SetPoint("TOPLEFT",   card,"TOPLEFT",   0,-5)
+    bar:SetPoint("BOTTOMLEFT",card,"BOTTOMLEFT",0, 5)
+    bar:SetColorTexture(ar,ag,ab,1); card._bar=bar
+    table.insert(NS.chatOptAccentTextures,{tex=bar,alpha=1})
+    local bar2=card:CreateTexture(nil,"OVERLAY",nil,4); bar2:SetWidth(1)
+    bar2:SetPoint("TOPLEFT",   card,"TOPLEFT",   4,-8)
+    bar2:SetPoint("BOTTOMLEFT",card,"BOTTOMLEFT",4, 8)
+    bar2:SetColorTexture(ar,ag,ab,0.30)
+    table.insert(NS.chatOptAccentTextures,{tex=bar2,alpha=0.30})
 
-  -- Tiny staircase diagonal on top-right corner (inside the bracket)
-  for i=0,3 do
-    local st=card:CreateTexture(nil,"OVERLAY",nil,4); st:SetSize(4-i,1)
-    st:SetPoint("TOPRIGHT",card,"TOPRIGHT",-(15+i*5),-(3+i*2))
-    st:SetColorTexture(ar,ag,ab,0.20-i*0.04)
-    table.insert(NS.chatOptAccentTextures,{tex=st,alpha=0.20-i*0.04})
-  end
+    -- L-brackets on top-right and bottom-right
+    LBracket(card,"TR",14,0.55); LBracket(card,"BR",10,0.30)
 
-  if title then
-    -- Diamond bullet + title
-    local fs=card:CreateFontString(nil,"OVERLAY")
-    fs:SetFont(NS.FONT,9,"OUTLINE")
-    fs:SetPoint("TOPLEFT",10,-7)
-    fs:SetTextColor(ar,ag,ab,1)
-    fs:SetText("> "..title:upper())
-    card._titleFS = fs
-    table.insert(NS.chatOptAccentTextures,{tex=fs,isFS=true,alpha=1})
-    -- Dashed separator after title (4 segments)
-    DashRow(card,"OVERLAY",12,20, 18,6,5, 0.18)
+    -- Tiny staircase diagonal on top-right corner
+    for i=0,3 do
+      local st=card:CreateTexture(nil,"OVERLAY",nil,4); st:SetSize(4-i,1)
+      st:SetPoint("TOPRIGHT",card,"TOPRIGHT",-(15+i*5),-(3+i*2))
+      st:SetColorTexture(ar,ag,ab,0.20-i*0.04)
+      table.insert(NS.chatOptAccentTextures,{tex=st,alpha=0.20-i*0.04})
+    end
+
+    if title then
+      local fs=card:CreateFontString(nil,"OVERLAY")
+      fs:SetFont(NS.FONT,9,"OUTLINE")
+      fs:SetPoint("TOPLEFT",10,-7)
+      fs:SetTextColor(ar,ag,ab,1)
+      fs:SetText("> "..title:upper())
+      card._titleFS = fs
+      table.insert(NS.chatOptAccentTextures,{tex=fs,isFS=true,alpha=1})
+      DashRow(card,"OVERLAY",12,20, 18,6,5, 0.18)
+    end
+  else
+    -- ── Command Deck: flat "data section" ────────────────────────────
+    TPAD = title and 22 or 4; BPAD = 4; IPAD = 14
+    card = CreateFrame("Frame",nil,sc)
+
+    if title then
+      local dot = card:CreateTexture(nil,"OVERLAY",nil,5)
+      dot:SetSize(3,3)
+      dot:SetPoint("TOPLEFT",card,"TOPLEFT",4,-8)
+      dot:SetColorTexture(ar,ag,ab,1)
+      table.insert(NS.chatOptAccentTextures,{tex=dot,alpha=1})
+
+      local leadLine = card:CreateTexture(nil,"OVERLAY",nil,4)
+      leadLine:SetSize(6,1)
+      leadLine:SetPoint("LEFT",dot,"RIGHT",2,0)
+      leadLine:SetColorTexture(ar,ag,ab,0.55)
+      table.insert(NS.chatOptAccentTextures,{tex=leadLine,alpha=0.55})
+
+      local fs = card:CreateFontString(nil,"OVERLAY")
+      fs:SetFont(NS.FONT,10,"OUTLINE")
+      fs:SetPoint("LEFT",leadLine,"RIGHT",6,1)
+      fs:SetTextColor(0.92,0.92,0.98,1)
+      fs:SetText(title:upper())
+      card._titleFS = fs
+
+      local rule = card:CreateTexture(nil,"OVERLAY",nil,4)
+      rule:SetHeight(1)
+      rule:SetPoint("LEFT",fs,"RIGHT",10,0)
+      rule:SetPoint("RIGHT",card,"RIGHT",-12,0)
+      rule:SetColorTexture(ar,ag,ab,0.28)
+      table.insert(NS.chatOptAccentTextures,{tex=rule,alpha=0.28})
+
+      local endTick = card:CreateTexture(nil,"OVERLAY",nil,5)
+      endTick:SetSize(1,5)
+      endTick:SetPoint("RIGHT",card,"RIGHT",-12,0)
+      endTick:SetColorTexture(ar,ag,ab,0.85)
+      table.insert(NS.chatOptAccentTextures,{tex=endTick,alpha=0.85})
+
+      for i=0,2 do
+        local d = card:CreateTexture(nil,"OVERLAY",nil,3)
+        d:SetSize(3,1)
+        d:SetPoint("RIGHT",card,"RIGHT",-4 - i*5, 0)
+        d:SetColorTexture(ar,ag,ab,0.32 - i*0.08)
+        table.insert(NS.chatOptAccentTextures,{tex=d,alpha=0.32-i*0.08})
+      end
+    end
   end
 
   local inner=CreateFrame("Frame",nil,card)
@@ -169,6 +222,25 @@ NS._SSep       = Sep
 NS._SR         = R
 NS._SBD        = BD
 
+-- Apply PCB color to all tracked PCB textures in the settings window.
+-- If settingsPcbColor is nil, falls back to the current accent color.
+-- Called after initial PCB build, from the color picker, and from the accent refresh hook.
+NS.ApplyPcbColor = function()
+  if not NS.chatOptWin or not NS.chatOptWin._pcbTextures then return end
+  local stored = NS.DB and NS.DB("settingsPcbColor")
+  local r, g, b
+  if stored and type(stored) == "table" then
+    if stored.r then r, g, b = stored.r, stored.g, stored.b
+    elseif stored[1] then r, g, b = stored[1], stored[2], stored[3] end
+  end
+  if not r then
+    r, g, b = NS.ChatGetAccentRGB()
+  end
+  for _, e in ipairs(NS.chatOptWin._pcbTextures) do
+    e.tex:SetColorTexture(r, g, b, e.alpha or 0.10)
+  end
+end
+
 
 -- ═══════════════════════════════════════════════════════════════════════
 --  TAB 1: DISPLAY
@@ -207,7 +279,7 @@ local function SetupDisplay(parent)
     table.insert(allFrames, w1); table.insert(allFrames, w2)
     return w1, w2
   end
-  local c3=MakeCard(sc,"Custom Chat System")
+  local c3=MakeCard(sc,L["Custom Chat System"])
   local chatEnableCB = NS.ChatGetCheckbox(c3.inner, L["Enable Custom Chat"].."  |cff555555(reload)|r", 26, function(s)
     DBSet("chatEnabled", s)
     StaticPopup_Show("LUCIDUI_CHAT_RELOAD")
@@ -215,20 +287,28 @@ local function SetupDisplay(parent)
   chatEnableCB.option = "chatEnabled"
   R(c3, chatEnableCB, 26)
   table.insert(allFrames, chatEnableCB)
-  c3:Finish(); Add(c3); Add(Sep(sc),9)  local c1=MakeCard(sc,"Messages")
-  CB2(c1,"Show vertical separator","chatShowSeparator",function(s) DBSet("chatShowSeparator",s); if NS.chatRedraw then NS.chatRedraw() end; if NS.RedrawMessages then NS.RedrawMessages() end end,"Separator",
-      "Show tab separator","chatTabSeparator",function(s) DBSet("chatTabSeparator",s); if NS.chatRefreshTabs then NS.chatRefreshTabs() end end,"Accent line on tab edge")
-  CB2(c1,"Combat Log tab","chatCombatLog",function(s) DBSet("chatCombatLog",s); if s then if NS.EnsureCombatLogTab then NS.EnsureCombatLogTab() end else if NS.RemoveCombatLogTab then NS.RemoveCombatLogTab() end end end,"Embed native combat log",
-      "Show minimap button","chatShowMinimap",function(s) DBSet("chatShowMinimap",s); if NS.UpdateMinimapButton then NS.UpdateMinimapButton() end end,"Minimap quick-access icon")
-  c1:Finish(); Add(c1); Add(Sep(sc),9)  local c2=MakeCard(sc,"Behavior")
+  c3:Finish(); Add(c3); Add(Sep(sc),9)  local c1=MakeCard(sc,L["Messages"])
+  CB2(c1,L["Show vertical separator"],"chatShowSeparator",function(s) DBSet("chatShowSeparator",s); if NS.chatRedraw then NS.chatRedraw() end; if NS.RedrawMessages then NS.RedrawMessages() end end,"Separator",
+      L["Show tab separator"],"chatTabSeparator",function(s) DBSet("chatTabSeparator",s); if NS.chatRefreshTabs then NS.chatRefreshTabs() end end,"Accent line on tab edge")
+  CB2(c1,L["Combat Log tab"],"chatCombatLog",function(s) DBSet("chatCombatLog",s); if s then if NS.EnsureCombatLogTab then NS.EnsureCombatLogTab() end else if NS.RemoveCombatLogTab then NS.RemoveCombatLogTab() end end end,"Embed native combat log",
+      L["Show minimap button"],"chatShowMinimap",function(s) DBSet("chatShowMinimap",s); if NS.UpdateMinimapButton then NS.UpdateMinimapButton() end end,"Minimap quick-access icon")
+  c1:Finish(); Add(c1); Add(Sep(sc),9)  local c2=MakeCard(sc,L["Behavior"])
   DD(c2,"Timestamp",function(v) if v=="none" then return DB("chatTimestamps")==false end; return DB("chatTimestamps")~=false and DB("chatTimestampFormat")==v end,function(v) if v=="none" then DBSet("chatTimestamps",false) else DBSet("chatTimestamps",true); DBSet("chatTimestampFormat",v) end; if NS.chatDisplay and NS.chatDisplay.RecomputeTimestampWidth then NS.chatDisplay:RecomputeTimestampWidth() end; if NS.chatRedraw then NS.chatRedraw() end; if NS.RedrawMessages then NS.RedrawMessages() end end,{"None","HH:MM","HH:MM:SS","HH:MM AM/PM","HH:MM:SS AM/PM"},{"none","%H:%M","%X","%I:%M %p","%I:%M:%S %p"})
   DD(c2,"Channel format",function(v) return (DB("chatShortenFormat") or "none")==v end,function(v) DBSet("chatShortenFormat",v) end,{"Full  [1. General]","Short  (1)(S)","Minimal  1 S"},{"none","bracket","minimal"})
-  DD(c2,"Flash tabs on",function(v) return (DB("chatTabFlash") or "all")==v end,function(v) DBSet("chatTabFlash",v) end,{"Never","All messages","Whispers only"},{"never","all","whisper"})
+  DD(c2,"Flash tabs on",function(v) return (DB("chatTabFlash") or "all")==v end,function(v) DBSet("chatTabFlash",v) end,{L["Never"],"All messages","Whispers only"},{"never","all","whisper"})
   CB2(c2,"New whispers open tab","chatWhisperTab",function(s) DBSet("chatWhisperTab",s) end,"New tab per whisper",
       "Show realm name","chatShowRealm",function(s) DBSet("chatShowRealm",s) end,"Show server name after player")
   CB2(c2,"Store messages","chatStoreMessages",function(s) DBSet("chatStoreMessages",s) end,"Remember between sessions",
       "Remove old messages","chatRemoveOldMessages",function(s) DBSet("chatRemoveOldMessages",s) end,"Delete oldest at limit")
-  c2:Finish(); Add(c2)
+  c2:Finish(); Add(c2); Add(Sep(sc),9)
+
+  local c4=MakeCard(sc,L["Settings Window"])
+  DD(c4,L["Layout style"].."  |cff555555(reload)|r",
+    function(v) return (DB("settingsSidebarStyle") or "icons")==v end,
+    function(v) DBSet("settingsSidebarStyle",v); StaticPopup_Show("LUCIDUI_CHAT_RELOAD") end,
+    {L["Command Deck"],L["Classic (sidebar)"]},
+    {"icons","classic"})
+  c4:Finish(); Add(c4)
   return container
 end
 
@@ -246,7 +326,7 @@ local function SetupAppearance(parent)
   local ANIM_SPD=320
 
   -- ── Card: Theme ─────────────────────────────────────────────────────
-  local cTheme=MakeCard(sc,"Theme")
+  local cTheme=MakeCard(sc,L["Theme"])
 
   local btnRow=CreateFrame("Frame",nil,cTheme.inner); btnRow:SetHeight(28)
   local function MakeThemeBtn(lbl,key,anchorPt,xOff)
@@ -281,6 +361,7 @@ local function SetupAppearance(parent)
     {"Edit Box","chatEditBoxColor","Input box background"},
     {"Icon Color","chatIconColor","Toolbar icon tint"},
     {"Timestamp Color","chatTimestampColor","Timestamp text color"},
+    {L["PCB Lines"],"settingsPcbColor",L["pcb_color_tt"]},
   }
   local ROW_H=26; local FULL_H=#COLOR_ROWS*ROW_H+14
 
@@ -302,6 +383,9 @@ local function SetupAppearance(parent)
     local stored=DB(dbKey); local cr2,cg2,cb2=0,0,0
     if stored and type(stored)=="table" then
       if stored.r then cr2,cg2,cb2=stored.r,stored.g,stored.b elseif stored[1] then cr2,cg2,cb2=stored[1],stored[2],stored[3] end
+    elseif dbKey=="settingsPcbColor" then
+      -- Nil = follow accent; seed swatch with current accent color
+      cr2,cg2,cb2 = NS.ChatGetAccentRGB()
     end
     local capturedKey=dbKey
     local colorRow=NS.ChatGetColorRow(slide,rowLabel,cr2,cg2,cb2,rowTip,function(r,g,b)
@@ -324,6 +408,14 @@ local function SetupAppearance(parent)
         if NS.UpdateChatBarAccent then NS.UpdateChatBarAccent() end; NS.ApplyTheme(DB("theme"))
       elseif capturedKey=="chatTimestampColor" then
         if NS.chatRedraw then NS.chatRedraw(true) end; if NS.RedrawMessages then NS.RedrawMessages() end
+      elseif capturedKey=="settingsPcbColor" then
+        -- If the chosen color matches the current accent, clear the override
+        -- so PCB follows accent again (fixes cancel/revert stickiness).
+        local ar2, ag2, ab2 = NS.ChatGetAccentRGB()
+        if math.abs(r-ar2) < 0.002 and math.abs(g-ag2) < 0.002 and math.abs(b-ab2) < 0.002 then
+          DBSet(capturedKey, nil)
+        end
+        if NS.ApplyPcbColor then NS.ApplyPcbColor() end
       end
     end)
     colorRow:SetPoint("TOPLEFT", slide,"TOPLEFT", 0,iy2)
@@ -364,7 +456,23 @@ local function SetupAppearance(parent)
     else AnimateSlide(0,function() slide:Hide() end) end
   end
 
+  -- If stored PCB color equals the current (pre-switch) accent, clear it so
+  -- it follows the new accent after a theme change.
+  local function MaybeClearImplicitPcbColor()
+    local stored = DB("settingsPcbColor")
+    if not (stored and type(stored)=="table") then return end
+    local sr, sg, sb
+    if stored.r then sr,sg,sb = stored.r, stored.g, stored.b
+    elseif stored[1] then sr,sg,sb = stored[1], stored[2], stored[3] end
+    if not sr then return end
+    local ar3,ag3,ab3 = NS.ChatGetAccentRGB()
+    if math.abs(sr-ar3)<0.002 and math.abs(sg-ag3)<0.002 and math.abs(sb-ab3)<0.002 then
+      DBSet("settingsPcbColor", nil)
+    end
+  end
+
   defaultBtn:SetScript("OnClick",function()
+    MaybeClearImplicitPcbColor()
     isCustom=false; DBSet("theme","default")
     NS.CYAN[1],NS.CYAN[2],NS.CYAN[3]=59/255,210/255,237/255
     NS.DARK_THEME.tilders={59/255,210/255,237/255,1}
@@ -379,6 +487,7 @@ local function SetupAppearance(parent)
     RefreshCustom()
   end)
   customBtn:SetScript("OnClick",function()
+    MaybeClearImplicitPcbColor()
     isCustom=true; DBSet("theme","custom")
     local s=DB("customTilders")
     if s and type(s)=="table" then
@@ -405,7 +514,7 @@ local function SetupAppearance(parent)
   cTheme:SetPoint("TOPRIGHT", sc, "TOPRIGHT", -12, -14)
 
   -- ── Card: Visibility ───────────────────────────────────────────────
-  local cVis=MakeCard(sc,"Visibility"); local visCBs={}
+  local cVis=MakeCard(sc,L["Visibility"]); local visCBs={}
   local function VCB(lbl,key,cb,tip) local w=NS.ChatGetCheckbox(cVis.inner,lbl,26,cb,tip); w.option=key; R(cVis,w,26); table.insert(visCBs,w) end
   local function VCB2(lbl1,key1,cb1,tip1,lbl2,key2,cb2,tip2)
     local holder = CreateFrame("Frame",nil,cVis.inner); holder:SetHeight(26)
@@ -416,24 +525,32 @@ local function SetupAppearance(parent)
     local w1=NS.ChatGetCheckbox(lh,lbl1,26,cb1,tip1); w1:ClearAllPoints(); w1:SetAllPoints(lh); w1.option=key1; table.insert(visCBs,w1)
     local w2=NS.ChatGetCheckbox(rh,lbl2,26,cb2,tip2); w2:ClearAllPoints(); w2:SetAllPoints(rh); w2.option=key2; table.insert(visCBs,w2)
   end
-  VCB2("Tab highlight background","chatTabHighlightBg",function(s) DBSet("chatTabHighlightBg",s); if NS.chatRefreshTabs then NS.chatRefreshTabs() end end,"Colored bg on active tab",
-       "Editbox accent border","chatEditBoxAccentBorder",function(s) DBSet("chatEditBoxAccentBorder",s); if NS.chatEditContainer then local cr,cg,cb=NS.ChatGetAccentRGB(); NS.chatEditContainer:SetBackdropBorderColor(s and cr or 0.15,s and cg or 0.15,s and cb or 0.15,1) end end,"Accent border on input box")
-  VCB("Chat accent line","chatAccentLine",function(s)
-    DBSet("chatAccentLine",s)
-    if NS.chatBg and NS.chatBg._chatAccentLine then NS.chatBg._chatAccentLine:SetShown(s) end
-  end,"Accent line at top of chat area")
+  VCB2(L["Tab highlight background"],"chatTabHighlightBg",function(s) DBSet("chatTabHighlightBg",s); if NS.chatRefreshTabs then NS.chatRefreshTabs() end end,"Colored bg on active tab",
+       L["Editbox accent border"],"chatEditBoxAccentBorder",function(s) DBSet("chatEditBoxAccentBorder",s); if NS.chatEditContainer then local cr,cg,cb=NS.ChatGetAccentRGB(); NS.chatEditContainer:SetBackdropBorderColor(s and cr or 0.15,s and cg or 0.15,s and cb or 0.15,1) end end,"Accent border on input box")
+  VCB2(L["Chat accent line"],"chatAccentLine",function(s)
+        DBSet("chatAccentLine",s)
+        if NS.chatBg and NS.chatBg._chatAccentLine then NS.chatBg._chatAccentLine:SetShown(s) end
+       end,"Accent line at top of chat area",
+       L["PCB Lines"],"settingsPcbLines",function(s)
+        DBSet("settingsPcbLines",s)
+        if NS.chatOptWin and NS.chatOptWin._pcbTextures then
+          for _,e in ipairs(NS.chatOptWin._pcbTextures) do
+            if s then e.tex:Show() else e.tex:Hide() end
+          end
+        end
+       end,L["pcb_lines_tt"])
   cVis:Finish()
   cVis:ClearAllPoints()
   cVis:SetPoint("TOPLEFT",  cTheme, "BOTTOMLEFT",  0, -8)
   cVis:SetPoint("TOPRIGHT", cTheme, "BOTTOMRIGHT", 0, -8)
 
   -- ── Card: Transparency ─────────────────────────────────────────────
-  local cAlpha=MakeCard(sc,"Transparency")
+  local cAlpha=MakeCard(sc,L["Transparency"])
   local chatTrans,tabTrans
-  chatTrans=NS.ChatGetSlider(cAlpha.inner,"Chat background",0,100,"%d%%",function()
+  chatTrans=NS.ChatGetSlider(cAlpha.inner,L["Chat background"],0,100,"%d%%",function()
     DBSet("chatBgAlpha",chatTrans:GetValue()/100); if NS.ApplyChatTransparency then NS.ApplyChatTransparency() end
   end); chatTrans.option="chatBgAlpha"; chatTrans._isPercent=true; R(cAlpha,chatTrans,40)
-  tabTrans=NS.ChatGetSlider(cAlpha.inner,"Tab bar",0,100,"%d%%",function()
+  tabTrans=NS.ChatGetSlider(cAlpha.inner,L["Tab bar"],0,100,"%d%%",function()
     DBSet("chatTabBarAlpha",tabTrans:GetValue()/100); if NS.ApplyChatTransparency then NS.ApplyChatTransparency() end
   end); tabTrans.option="chatTabBarAlpha"; tabTrans._isPercent=true; R(cAlpha,tabTrans,40)
   cAlpha:Finish()
@@ -469,6 +586,8 @@ local function SetupAppearance(parent)
       local s2=DB(row2[2]); local cr4,cg4,cb4=0,0,0
       if s2 and type(s2)=="table" then
         if s2.r then cr4,cg4,cb4=s2.r,s2.g,s2.b elseif s2[1] then cr4,cg4,cb4=s2[1],s2[2],s2[3] end
+      elseif row2[2]=="settingsPcbColor" then
+        cr4,cg4,cb4 = NS.ChatGetAccentRGB()
       end
       if colorSwatches[i] then colorSwatches[i]:SetBackdropColor(cr4,cg4,cb4,1) end
     end
@@ -498,26 +617,26 @@ local function SetupText(parent)
     if NS.smf then NS.smf:SetFont(font,size,outline) end
     if NS.chatRebuildTabs then NS.chatRebuildTabs() end
   end
-  local cFont=MakeCard(sc,"Chat Font")
-  local fontDD=NS.ChatGetDropdown(cFont.inner,"Message Font"); R(cFont,fontDD,50); table.insert(all,fontDD)
-  local fontSize; fontSize=NS.ChatGetSlider(cFont.inner,"Font Size",2,40,"%spx",function() DBSet("chatFontSize",fontSize:GetValue()); ApplyFontLive() end); fontSize.option="chatFontSize"; R(cFont,fontSize,40); table.insert(all,fontSize)
-  local msgSpacing; msgSpacing=NS.ChatGetSlider(cFont.inner,"Spacing",0,60,"%spx",function() DBSet("chatMessageSpacing",msgSpacing:GetValue()); if NS.chatDisplay and NS.chatDisplay.SetSpacing then NS.chatDisplay:SetSpacing(msgSpacing:GetValue()) end; if NS.smf then NS.smf:SetSpacing(msgSpacing:GetValue()) end end); msgSpacing.option="chatMessageSpacing"; R(cFont,msgSpacing,40); table.insert(all,msgSpacing)
-  local outlineDD=NS.ChatGetDropdown(cFont.inner,"Outline",function(v) return (DB("chatFontOutline") or "")==v end,function(v) DBSet("chatFontOutline",v); ApplyFontLive() end); outlineDD:Init({"None","Outline","Thick"},{"","OUTLINE","THICKOUTLINE"}); R(cFont,outlineDD,50); table.insert(all,outlineDD)
-  local fontShadow=NS.ChatGetCheckbox(cFont.inner,"Font Shadow",26,function(s) DBSet("chatFontShadow",s); ApplyFontLive() end,"Drop shadow behind text"); fontShadow.option="chatFontShadow"; R(cFont,fontShadow,26); table.insert(all,fontShadow)
-  cFont:Finish(); Add(cFont); Add(Sep(sc),9)  local cFade=MakeCard(sc,"Fade")
+  local cFont=MakeCard(sc,L["Chat Font"])
+  local fontDD=NS.ChatGetDropdown(cFont.inner,L["Message Font"]); R(cFont,fontDD,50); table.insert(all,fontDD)
+  local fontSize; fontSize=NS.ChatGetSlider(cFont.inner,L["Font Size"],2,40,"%spx",function() DBSet("chatFontSize",fontSize:GetValue()); ApplyFontLive() end); fontSize.option="chatFontSize"; R(cFont,fontSize,40); table.insert(all,fontSize)
+  local msgSpacing; msgSpacing=NS.ChatGetSlider(cFont.inner,L["Spacing"],0,60,"%spx",function() DBSet("chatMessageSpacing",msgSpacing:GetValue()); if NS.chatDisplay and NS.chatDisplay.SetSpacing then NS.chatDisplay:SetSpacing(msgSpacing:GetValue()) end; if NS.smf then NS.smf:SetSpacing(msgSpacing:GetValue()) end end); msgSpacing.option="chatMessageSpacing"; R(cFont,msgSpacing,40); table.insert(all,msgSpacing)
+  local outlineDD=NS.ChatGetDropdown(cFont.inner,L["Outline"],function(v) return (DB("chatFontOutline") or "")==v end,function(v) DBSet("chatFontOutline",v); ApplyFontLive() end); outlineDD:Init({L["None"],L["Outline"],L["Thick"]},{"","OUTLINE","THICKOUTLINE"}); R(cFont,outlineDD,50); table.insert(all,outlineDD)
+  local fontShadow=NS.ChatGetCheckbox(cFont.inner,L["Font Shadow"],26,function(s) DBSet("chatFontShadow",s); ApplyFontLive() end,"Drop shadow behind text"); fontShadow.option="chatFontShadow"; R(cFont,fontShadow,26); table.insert(all,fontShadow)
+  cFont:Finish(); Add(cFont); Add(Sep(sc),9)  local cFade=MakeCard(sc,L["Fade"])
   -- Enable toggles side by side
   local fadeEnableHolder=CreateFrame("Frame",nil,cFade.inner); fadeEnableHolder:SetHeight(26)
   cFade:Row(fadeEnableHolder,26)
   fadeEnableHolder:SetPoint("LEFT",cFade.inner,"LEFT",0,0); fadeEnableHolder:SetPoint("RIGHT",cFade.inner,"RIGHT",0,0)
   local flh=CreateFrame("Frame",nil,fadeEnableHolder); flh:SetPoint("TOPLEFT",fadeEnableHolder,"TOPLEFT",0,0); flh:SetPoint("BOTTOMRIGHT",fadeEnableHolder,"BOTTOM",-2,0)
   local frh=CreateFrame("Frame",nil,fadeEnableHolder); frh:SetPoint("TOPLEFT",fadeEnableHolder,"TOP",2,0); frh:SetPoint("BOTTOMRIGHT",fadeEnableHolder,"BOTTOMRIGHT",0,0)
-  local enableFade=NS.ChatGetCheckbox(flh,"Enable Message Fade",26,function(s) DBSet("chatMessageFade",s); if NS.chatDisplay and NS.chatDisplay.SetFading then NS.chatDisplay:SetFading(s) end end,"Fade out old messages")
+  local enableFade=NS.ChatGetCheckbox(flh,L["Enable Message Fade"],26,function(s) DBSet("chatMessageFade",s); if NS.chatDisplay and NS.chatDisplay.SetFading then NS.chatDisplay:SetFading(s) end end,"Fade out old messages")
   enableFade:ClearAllPoints(); enableFade:SetAllPoints(flh); enableFade.option="chatMessageFade"; table.insert(all,enableFade)
-  local enableLootFade=NS.ChatGetCheckbox(frh,"Enable Loot Fade",26,function(s) DBSet("enableFade",s); NS.ApplyFade() end,"Fade LootTracker messages")
+  local enableLootFade=NS.ChatGetCheckbox(frh,L["Enable Loot Fade"],26,function(s) DBSet("enableFade",s); NS.ApplyFade() end,"Fade LootTracker messages")
   enableLootFade:ClearAllPoints(); enableLootFade:SetAllPoints(frh); enableLootFade.option="enableFade"; table.insert(all,enableLootFade)
   -- Time sliders
-  local fadeTime; fadeTime=NS.ChatGetSlider(cFade.inner,"Message Fade Time",5,240,"%ss",function() DBSet("chatFadeTime",fadeTime:GetValue()); if NS.chatDisplay and NS.chatDisplay.SetTimeVisible then NS.chatDisplay:SetTimeVisible(fadeTime:GetValue()) end end); fadeTime.option="chatFadeTime"; R(cFade,fadeTime,40); table.insert(all,fadeTime)
-  local lootFadeTime; lootFadeTime=NS.ChatGetSlider(cFade.inner,"Loot Fade Time",5,240,"%ss",function() DBSet("fadeTime",lootFadeTime:GetValue()); NS.ApplyFade() end); lootFadeTime.option="fadeTime"; R(cFade,lootFadeTime,40); table.insert(all,lootFadeTime)
+  local fadeTime; fadeTime=NS.ChatGetSlider(cFade.inner,L["Message Fade Time"],5,240,"%ss",function() DBSet("chatFadeTime",fadeTime:GetValue()); if NS.chatDisplay and NS.chatDisplay.SetTimeVisible then NS.chatDisplay:SetTimeVisible(fadeTime:GetValue()) end end); fadeTime.option="chatFadeTime"; R(cFade,fadeTime,40); table.insert(all,fadeTime)
+  local lootFadeTime; lootFadeTime=NS.ChatGetSlider(cFade.inner,L["Loot Fade Time"],5,240,"%ss",function() DBSet("fadeTime",lootFadeTime:GetValue()); NS.ApplyFade() end); lootFadeTime.option="fadeTime"; R(cFade,lootFadeTime,40); table.insert(all,lootFadeTime)
   cFade:Finish(); Add(cFade)
   container:SetScript("OnShow",function()
     NS.InvalidateLSMCache()
@@ -548,7 +667,7 @@ local function SetupAdvanced(parent)
   local allLayout={}
 
   -- ── Card: Profiles ─────────────────────────────────────────────────
-  local cProf=MakeCard(sc,"Profiles")
+  local cProf=MakeCard(sc,L["Profiles"])
   local profileRow=CreateFrame("Frame",nil,cProf.inner); profileRow:SetHeight(26)
 
   profileRow:SetPoint("RIGHT", -50, 0)
@@ -999,19 +1118,19 @@ local function SetupAdvanced(parent)
 
   cProf:Row(profileRow,26); cProf:Finish(); Add(cProf); Add(Sep(sc),9)
   -- ── Card: Layout ───────────────────────────────────────────────────
-  local cLayout=MakeCard(sc,"Layout")
+  local cLayout=MakeCard(sc,L["Layout"])
   local function LDD(lbl,isCb,onCb,labels,vals)
     local w=NS.ChatGetDropdown(cLayout.inner,lbl,isCb,onCb); w:Init(labels,vals); R(cLayout,w,50); table.insert(allLayout,w); return w
   end
   local function LCB(lbl,key,cb,tip)
     local w=NS.ChatGetCheckbox(cLayout.inner,lbl,26,cb,tip); w.option=key; R(cLayout,w,26); table.insert(allLayout,w)
   end
-  LDD("Show tabs",function(v) return (DB("chatTabVisibility") or "always")==v end,function(v) DBSet("chatTabVisibility",v); local bar=_G["LUIChatTabBar"]; if bar then bar:SetAlpha(v=="always" and 1 or 0) end end,{"Always","Mouseover"},{"always","mouseover"}).option="chatTabVisibility"
-  LDD("Show buttons",function(v) return (DB("chatBarVisibility") or "always")==v end,function(v) DBSet("chatBarVisibility",v); if NS.chatBarRef then if v=="never" then NS.chatBarRef:SetAlpha(0); NS.chatBarRef:EnableMouse(false) elseif v=="mouseover" then NS.chatBarRef:SetAlpha(0); NS.chatBarRef:EnableMouse(true) else NS.chatBarRef:SetAlpha(1); NS.chatBarRef:EnableMouse(true) end end end,{"Always","Mouseover"},{"always","mouseover"}).option="chatBarVisibility"
-  LDD("Button position",function(v) return (DB("chatBarPosition") or "outside_right")==v end,function(v) DBSet("chatBarPosition",v); if NS.RepositionChatBar then NS.RepositionChatBar() end end,{"Left Outside","Left Inside","Right Outside","Right Inside"},{"outside_left","inside_left","outside_right","inside_right"}).option="chatBarPosition"
-  local iconsPerRow; iconsPerRow=NS.ChatGetSlider(cLayout.inner,"Icons per row",1,10,"%s",function() DBSet("chatBarIconsPerRow",iconsPerRow:GetValue()); if NS.LayoutBarButtons then NS.LayoutBarButtons() end end); iconsPerRow.option="chatBarIconsPerRow"; R(cLayout,iconsPerRow,40); table.insert(allLayout,iconsPerRow)
+  LDD(L["Show tabs"],function(v) return (DB("chatTabVisibility") or "always")==v end,function(v) DBSet("chatTabVisibility",v); local bar=_G["LUIChatTabBar"]; if bar then bar:SetAlpha(v=="always" and 1 or 0) end end,{"Always",L["Mouseover"]},{"always","mouseover"}).option="chatTabVisibility"
+  LDD(L["Show buttons"],function(v) return (DB("chatBarVisibility") or "always")==v end,function(v) DBSet("chatBarVisibility",v); if NS.chatBarRef then if v=="never" then NS.chatBarRef:SetAlpha(0); NS.chatBarRef:EnableMouse(false) elseif v=="mouseover" then NS.chatBarRef:SetAlpha(0); NS.chatBarRef:EnableMouse(true) else NS.chatBarRef:SetAlpha(1); NS.chatBarRef:EnableMouse(true) end end end,{"Always",L["Mouseover"]},{"always","mouseover"}).option="chatBarVisibility"
+  LDD(L["Button position"],function(v) return (DB("chatBarPosition") or "outside_right")==v end,function(v) DBSet("chatBarPosition",v); if NS.RepositionChatBar then NS.RepositionChatBar() end end,{"Left Outside","Left Inside","Right Outside","Right Inside"},{"outside_left","inside_left","outside_right","inside_right"}).option="chatBarPosition"
+  local iconsPerRow; iconsPerRow=NS.ChatGetSlider(cLayout.inner,L["Icons per row"],1,10,"%s",function() DBSet("chatBarIconsPerRow",iconsPerRow:GetValue()); if NS.LayoutBarButtons then NS.LayoutBarButtons() end end); iconsPerRow.option="chatBarIconsPerRow"; R(cLayout,iconsPerRow,40); table.insert(allLayout,iconsPerRow)
   LDD("Edit box position",function(v) return (DB("chatEditBoxPos") or "bottom")==v end,function(v) DBSet("chatEditBoxPos",v); if NS.chatEditContainer and NS.chatBg then NS.chatEditContainer:ClearAllPoints(); if v=="top" then NS.chatEditContainer:SetPoint("TOPLEFT",NS.chatBg,"TOPLEFT",0,0); NS.chatEditContainer:SetPoint("TOPRIGHT",NS.chatBg,"TOPRIGHT",0,0) else NS.chatEditContainer:SetPoint("TOPLEFT",NS.chatBg,"BOTTOMLEFT",0,-1); NS.chatEditContainer:SetPoint("TOPRIGHT",NS.chatBg,"BOTTOMRIGHT",0,-1) end end end,{"Bottom","Top"},{"bottom","top"}).option="chatEditBoxPos"
-  LCB("Keep edit box visible","chatEditBoxVisible",function(s) DBSet("chatEditBoxVisible",s); if NS.chatEditContainer then if s then NS.chatEditContainer:Show() else NS.chatEditContainer:Hide() end end end,"Always show the chat input box")
+  LCB(L["Keep edit box visible"],"chatEditBoxVisible",function(s) DBSet("chatEditBoxVisible",s); if NS.chatEditContainer then if s then NS.chatEditContainer:Show() else NS.chatEditContainer:Hide() end end end,"Always show the chat input box")
   cLayout:Finish(); Add(cLayout); Add(Sep(sc),9)
   -- ── Card: Button Order (collapsible) ────────────────────────────────
   local ORDER_LABELS = {
@@ -1030,7 +1149,7 @@ local function SetupAdvanced(parent)
     mplus="mpEnabled", coin="gtEnabled",
   }
   local ORDER_DEFAULT = {"social","settings","copy","rolls","stats","mplus","coin","voicechat"}
-  local cOrder = MakeCard(sc,"Button Order")
+  local cOrder = MakeCard(sc,L["Button Order"])
   local orderRows = {}
   local orderHolder = CreateFrame("Frame",nil,cOrder.inner)
   orderHolder:SetPoint("LEFT",cOrder.inner,"LEFT",0,0)
@@ -1418,10 +1537,10 @@ local function SetupLoot(parent)
   local sc,Add = MakePage(container)
 
   -- Card: LootTracker Mode
-  local cMode = MakeCard(sc,"LootTracker Mode")
+  local cMode = MakeCard(sc,L["LootTracker Mode"])
   local ownWinCB  -- forward
 
-  local enableLoot = NS.ChatGetCheckbox(cMode.inner,"LootTracker in Chat Tab",28,function(state)
+  local enableLoot = NS.ChatGetCheckbox(cMode.inner,L["LootTracker in Chat Tab"],28,function(state)
     DBSet("lootInChatTab",state)
     if state then
       DBSet("lootOwnWindow",false)
@@ -1455,7 +1574,7 @@ local function SetupLoot(parent)
   local mlh=CreateFrame("Frame",nil,modeHolder); mlh:SetPoint("TOPLEFT",modeHolder,"TOPLEFT",0,0); mlh:SetPoint("BOTTOMRIGHT",modeHolder,"BOTTOM",-2,0)
   local mrh=CreateFrame("Frame",nil,modeHolder); mrh:SetPoint("TOPLEFT",modeHolder,"TOP",2,0); mrh:SetPoint("BOTTOMRIGHT",modeHolder,"BOTTOMRIGHT",0,0)
   enableLoot:SetParent(mrh); enableLoot:ClearAllPoints(); enableLoot:SetAllPoints(mrh); enableLoot.option="lootInChatTab"
-  ownWinCB = NS.ChatGetCheckbox(mlh,"LootTracker in own Window",28,function(state)
+  ownWinCB = NS.ChatGetCheckbox(mlh,L["LootTracker in own Window"],28,function(state)
     DBSet("lootOwnWindow",state)
     if state then
       DBSet("lootInChatTab",false); enableLoot:SetValue(false)
@@ -1475,7 +1594,7 @@ local function SetupLoot(parent)
 
   -- Loot window transparency slider (only visible when own window active)
   local lootTrans
-  lootTrans = NS.ChatGetSlider(cMode.inner,"Loot window transparency",0,100,"%d%%",function()
+  lootTrans = NS.ChatGetSlider(cMode.inner,L["Loot window transparency"],0,100,"%d%%",function()
     DBSet("lootWinTransparency",lootTrans:GetValue()/100); NS.ApplyAlpha()
   end)
   lootTrans.option="lootWinTransparency"; lootTrans._isPercent=true; R(cMode,lootTrans,40)
@@ -1495,7 +1614,7 @@ local function SetupLoot(parent)
 
   cMode:Finish(); Add(cMode); Add(Sep(sc),9)
   -- Card: Windows
-  local cWin = MakeCard(sc,"Windows")
+  local cWin = MakeCard(sc,L["Windows"])
 
   -- Enable toggles side by side
   local winEnHolder=CreateFrame("Frame",nil,cWin.inner); winEnHolder:SetHeight(26)
@@ -1503,22 +1622,22 @@ local function SetupLoot(parent)
   winEnHolder:SetPoint("LEFT",cWin.inner,"LEFT",0,0); winEnHolder:SetPoint("RIGHT",cWin.inner,"RIGHT",0,0)
   local welh=CreateFrame("Frame",nil,winEnHolder); welh:SetPoint("TOPLEFT",winEnHolder,"TOPLEFT",0,0); welh:SetPoint("BOTTOMRIGHT",winEnHolder,"BOTTOM",-2,0)
   local werh=CreateFrame("Frame",nil,winEnHolder); werh:SetPoint("TOPLEFT",winEnHolder,"TOP",2,0); werh:SetPoint("BOTTOMRIGHT",winEnHolder,"BOTTOMRIGHT",0,0)
-  local rollsWin=NS.ChatGetCheckbox(welh,"Enable Loot Rolls",28,function(s) DBSet("showRollsBtn",s); if not s and NS.rollWin then NS.rollWin:Hide() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Show loot rolls tracking window")
+  local rollsWin=NS.ChatGetCheckbox(welh,L["Enable Loot Rolls"],28,function(s) DBSet("showRollsBtn",s); if not s and NS.rollWin then NS.rollWin:Hide() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Show loot rolls tracking window")
   rollsWin:ClearAllPoints(); rollsWin:SetAllPoints(welh); rollsWin.option="showRollsBtn"
-  local statsWin=NS.ChatGetCheckbox(werh,"Enable Session Stats",28,function(s) DBSet("showStatsBtn",s); if not s and NS.statsWin then NS.statsWin:Hide() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Show session statistics window")
+  local statsWin=NS.ChatGetCheckbox(werh,L["Enable Session Stats"],28,function(s) DBSet("showStatsBtn",s); if not s and NS.statsWin then NS.statsWin:Hide() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Show session statistics window")
   statsWin:ClearAllPoints(); statsWin:SetAllPoints(werh); statsWin.option="showStatsBtn"
 
-  local statsTrans; statsTrans=NS.ChatGetSlider(cWin.inner,"Stats transparency",0,100,"%d%%",function() DBSet("statsTransparency",statsTrans:GetValue()/100); NS.ApplyAlpha() end)
+  local statsTrans; statsTrans=NS.ChatGetSlider(cWin.inner,L["Stats transparency"],0,100,"%d%%",function() DBSet("statsTransparency",statsTrans:GetValue()/100); NS.ApplyAlpha() end)
   statsTrans.option="statsTransparency"; statsTrans._isPercent=true; R(cWin,statsTrans,40)
 
-  local rollsTrans; rollsTrans=NS.ChatGetSlider(cWin.inner,"Rolls transparency",0,100,"%d%%",function() DBSet("rollsTransparency",rollsTrans:GetValue()/100); NS.ApplyAlpha() end)
+  local rollsTrans; rollsTrans=NS.ChatGetSlider(cWin.inner,L["Rolls transparency"],0,100,"%d%%",function() DBSet("rollsTransparency",rollsTrans:GetValue()/100); NS.ApplyAlpha() end)
   rollsTrans.option="rollsTransparency"; rollsTrans._isPercent=true; R(cWin,rollsTrans,40)
 
   -- Warning text when loottracker disabled
   local warnFS = cWin.inner:CreateFontString(nil, "OVERLAY")
   warnFS:SetFont(NS.FONT, 10, "")
   warnFS:SetTextColor(1, 0.82, 0, 0.9)
-  warnFS:SetText("Requires LootTracker in own Window or Chat Tab")
+  warnFS:SetText(L["loot_requires_window"])
   warnFS:Hide()
   local warnHolder = CreateFrame("Frame", nil, cWin.inner); warnHolder:SetHeight(20)
   warnFS:SetParent(warnHolder); warnFS:SetPoint("LEFT", 4, 0)
@@ -1563,12 +1682,12 @@ local function SetupLoot(parent)
 
   cWin:Finish(); Add(cWin); Add(Sep(sc),9)
   -- Card: Rolls config
-  local cRolls = MakeCard(sc,"Loot Rolls")
+  local cRolls = MakeCard(sc,L["Loot Rolls"])
 
   local rollCloseMode = NS.ChatGetDropdown(cRolls.inner,"Roll close mode",
     function(v) return (DB("rollCloseMode") or "timer")==v end,
     function(v) DBSet("rollCloseMode",v) end)
-  rollCloseMode:Init({"Auto (Timer)","Manual"},{"timer","manual"})
+  rollCloseMode:Init({L["Auto (Timer)"],L["Manual"]},{"timer","manual"})
   R(cRolls,rollCloseMode,50)
 
   local rollDelay
@@ -1579,7 +1698,7 @@ local function SetupLoot(parent)
 
   cRolls:Finish(); Add(cRolls); Add(Sep(sc),9)
   -- Card: Loot settings
-  local cLoot = MakeCard(sc,"Loot Settings")
+  local cLoot = MakeCard(sc,L["Loot Settings"])
 
   local clearDD = NS.ChatGetDropdown(cLoot.inner,"Clear loot history",
     function(v)
@@ -1588,7 +1707,7 @@ local function SetupLoot(parent)
       else return not DB("clearOnReload") and not DB("clearOnLogin") end
     end,
     function(v) DBSet("clearOnReload",v=="reload"); DBSet("clearOnLogin",v=="login") end)
-  clearDD:Init({"Never","On reload","On login"},{"never","reload","login"})
+  clearDD:Init({L["Never"],L["On reload"],L["On login"]},{"never","reload","login"})
   R(cLoot,clearDD,50)
 
   local function LootCB2(lbl1,key1,cb1,tip1, lbl2,key2,cb2,tip2)
@@ -1733,7 +1852,7 @@ local function SetupQoL(parent)
   end
 
   -- ── Card: System Optimization ──────────────────────────────────────
-  local cSys = MakeCard(sc,"System Optimization")
+  local cSys = MakeCard(sc,L["System Optimization"])
   local sysRow = CreateFrame("Frame",nil,cSys.inner); sysRow:SetHeight(26)
   local fpsBtn = SBtn(sysRow,"Optimal FPS Settings",160)
   fpsBtn:SetPoint("LEFT",sysRow,"LEFT",0,0)
@@ -1832,9 +1951,9 @@ local function SetupQoL(parent)
   end
 
   -- ── Card: Mouse Ring ──────────────────────────────────────────────────────
-  local cRing=MakeCard(sc,"Mouse Ring"); local ringFrames={}; local ringColorRow; local ringShapeDD
-  QCB2(cRing,ringFrames,"Enable Mouse Ring","qolMouseRing",function(s) DBSet("qolMouseRing",s); if s then if NS.QoL.EnableMouseRing then NS.QoL.EnableMouseRing() end else if NS.QoL.DisableMouseRing then NS.QoL.DisableMouseRing() end end end,nil,
-       "Hide on right click","qolMouseRingHideRMB",function(s) DBSet("qolMouseRingHideRMB",s) end,nil)
+  local cRing=MakeCard(sc,L["Mouse Ring"]); local ringFrames={}; local ringColorRow; local ringShapeDD
+  QCB2(cRing,ringFrames,L["Enable Mouse Ring"],"qolMouseRing",function(s) DBSet("qolMouseRing",s); if s then if NS.QoL.EnableMouseRing then NS.QoL.EnableMouseRing() end else if NS.QoL.DisableMouseRing then NS.QoL.DisableMouseRing() end end end,nil,
+       L["Hide on right click"],"qolMouseRingHideRMB",function(s) DBSet("qolMouseRingHideRMB",s) end,nil)
   local ringOOC=CB(cRing,"Show out of combat","qolMouseRingShowOOC",function(s) DBSet("qolMouseRingShowOOC",s) end); table.insert(ringFrames,ringOOC)
   local ringSz=SL(cRing,"Size",24,128,"%spx",function(v) DBSet("qolMouseRingSize",v); if NS.QoL.RefreshMouseRing then NS.QoL.RefreshMouseRing() end end); ringSz.option="qolMouseRingSize"
   local ringOp=SL(cRing,"Opacity",0,100,"%d%%",function(v) DBSet("qolMouseRingOpacity",v/100); if NS.QoL.RefreshMouseRing then NS.QoL.RefreshMouseRing() end end); ringOp.option="qolMouseRingOpacity"; ringOp._isPercent=true
@@ -1842,7 +1961,7 @@ local function SetupQoL(parent)
   ringShapeDD=NS.ChatGetDropdown(cRing.inner,"Shape",
     function(v) return (DB("qolMouseRingShape") or "ring.tga")==v end,
     function(v) DBSet("qolMouseRingShape",v); if NS.QoL.RefreshMouseRing then NS.QoL.RefreshMouseRing() end end)
-  ringShapeDD:Init({"Ring","Thin Ring","Thick Ring","Soft Ring","Glow","Circle"},{"ring.tga","thin_ring.tga","thick_ring.tga","ring_soft1.tga","glow.tga","circle.tga"})
+  ringShapeDD:Init({L["Ring"],L["Thin Ring"],L["Thick Ring"],L["Soft Ring"],L["Glow"],L["Circle"]},{"ring.tga","thin_ring.tga","thick_ring.tga","ring_soft1.tga","glow.tga","circle.tga"})
   R(cRing,ringShapeDD,50); ringShapeDD.option="qolMouseRingShape"
   -- Ring color
   ringColorRow=NS.ChatGetColorRow(cRing.inner,"Ring Color",
@@ -1856,12 +1975,12 @@ local function SetupQoL(parent)
   for _,w in ipairs({ringOOC,ringSz,ringOp}) do table.insert(ringFrames,w) end
   cRing:Finish(); Add(cRing); Add(Sep(sc),9)
   -- ── Card: Combat Timer ───────────────────────────────────────────────────
-  local cTimer=MakeCard(sc,"Combat Timer"); local timerFrames={}; local timerColorRow
-  QCB2(cTimer,timerFrames,"Enable Combat Timer","qolCombatTimer",function(s) DBSet("qolCombatTimer",s) end,nil,
-       "Instance only","qolCombatTimerInstance",function(s) DBSet("qolCombatTimerInstance",s) end,nil)
-  QCB2(cTimer,timerFrames,"Hide prefix text","qolCombatTimerHidePrefix",function(s) DBSet("qolCombatTimerHidePrefix",s); if NS.QoL.CombatTimer and NS.QoL.CombatTimer.RefreshSettings then NS.QoL.CombatTimer.RefreshSettings() end end,nil,
-       "Show background","qolCombatTimerShowBg",function(s) DBSet("qolCombatTimerShowBg",s); if NS.QoL.CombatTimer and NS.QoL.CombatTimer.RefreshSettings then NS.QoL.CombatTimer.RefreshSettings() end end,nil)
-  local tSz=SL(cTimer,"Font size",8,64,"%spx",function(v)
+  local cTimer=MakeCard(sc,L["Combat Timer"]); local timerFrames={}; local timerColorRow
+  QCB2(cTimer,timerFrames,L["Enable Combat Timer"],"qolCombatTimer",function(s) DBSet("qolCombatTimer",s) end,nil,
+       L["Instance only"],"qolCombatTimerInstance",function(s) DBSet("qolCombatTimerInstance",s) end,nil)
+  QCB2(cTimer,timerFrames,L["Hide prefix text"],"qolCombatTimerHidePrefix",function(s) DBSet("qolCombatTimerHidePrefix",s); if NS.QoL.CombatTimer and NS.QoL.CombatTimer.RefreshSettings then NS.QoL.CombatTimer.RefreshSettings() end end,nil,
+       L["Show background"],"qolCombatTimerShowBg",function(s) DBSet("qolCombatTimerShowBg",s); if NS.QoL.CombatTimer and NS.QoL.CombatTimer.RefreshSettings then NS.QoL.CombatTimer.RefreshSettings() end end,nil)
+  local tSz=SL(cTimer,L["Font size"],8,64,"%spx",function(v)
     DBSet("qolTimerFontSize",v)
     if NS.QoL.CombatTimer and NS.QoL.CombatTimer.RefreshSettings then NS.QoL.CombatTimer.RefreshSettings() end
   end); tSz.option="qolTimerFontSize"
@@ -1933,7 +2052,7 @@ local function SetupQoL(parent)
   table.insert(timerFrames,tSz)
   cTimer:Finish(); Add(cTimer); Add(Sep(sc),9)
   -- ── Card: Combat Alert ───────────────────────────────────────────────────
-  local cAlert=MakeCard(sc,"Combat Alert"); local alertFrames={}
+  local cAlert=MakeCard(sc,L["Combat Alert"]); local alertFrames={}
   local alertEnterColorRow, alertLeaveColorRow, enterTextRow, leaveTextRow
   -- Enable CB (left) + Unlock button (right) in one row
   local aEn, aSz
@@ -1962,10 +2081,10 @@ local function SetupQoL(parent)
     local cbHolder = CreateFrame("Frame",nil,alertEnRow)
     cbHolder:SetPoint("TOPLEFT",alertEnRow,"TOPLEFT",0,0)
     cbHolder:SetPoint("BOTTOMRIGHT",alertUnlockBtn,"BOTTOMLEFT",-6,0)
-    aEn = NS.ChatGetCheckbox(cbHolder,"Enable Combat Alert",26,function(s) DBSet("qolCombatAlert",s) end)
+    aEn = NS.ChatGetCheckbox(cbHolder,L["Enable Combat Alert"],26,function(s) DBSet("qolCombatAlert",s) end)
     aEn:ClearAllPoints(); aEn:SetAllPoints(cbHolder); aEn.option="qolCombatAlert"
   end
-  aSz=SL(cAlert,"Font size",8,64,"%spx",function(v)
+  aSz=SL(cAlert,L["Font size"],8,64,"%spx",function(v)
     DBSet("qolAlertFontSize",v)
     if NS.QoL.CombatAlert and NS.QoL.CombatAlert.RefreshSettings then NS.QoL.CombatAlert.RefreshSettings() end
   end); aSz.option="qolAlertFontSize"
@@ -2045,16 +2164,16 @@ local function SetupQoL(parent)
   for _,w in ipairs({aEn,aSz}) do table.insert(alertFrames,w) end
   cAlert:Finish(); Add(cAlert); Add(Sep(sc),9)
   -- ── Card: Misc QoL ───────────────────────────────────────────────────────
-  local cMisc=MakeCard(sc,"Misc"); local miscFrames={}; local repairModeDD
-  QCB2(cMisc,miscFrames,"Faster Loot","qolFasterLoot",function(s) DBSet("qolFasterLoot",s) end,nil,"Auto Sell Grey","qolAutoSellGrey",function(s) DBSet("qolAutoSellGrey",s) end,nil)
-  QCB2(cMisc,miscFrames,"Auto Repair","qolAutoRepair",function(s) DBSet("qolAutoRepair",s) end,nil,"Skip Cinematics","qolSkipCinematics",function(s) DBSet("qolSkipCinematics",s) end,nil)
-  QCB2(cMisc,miscFrames,"Easy Destroy","qolEasyDestroy",function(s) DBSet("qolEasyDestroy",s) end,nil,"Auto Keystone","qolAutoKeystone",function(s) DBSet("qolAutoKeystone",s) end,nil)
-  local wSuppWarn=CB(cMisc,"Suppress Warnings","qolSuppressWarnings",function(s) DBSet("qolSuppressWarnings",s) end); table.insert(miscFrames,wSuppWarn)
+  local cMisc=MakeCard(sc,L["Misc"]); local miscFrames={}; local repairModeDD
+  QCB2(cMisc,miscFrames,L["Faster Loot"],"qolFasterLoot",function(s) DBSet("qolFasterLoot",s) end,nil,L["Auto Sell Grey"],"qolAutoSellGrey",function(s) DBSet("qolAutoSellGrey",s) end,nil)
+  QCB2(cMisc,miscFrames,L["Auto Repair"],"qolAutoRepair",function(s) DBSet("qolAutoRepair",s) end,nil,L["Skip Cinematics"],"qolSkipCinematics",function(s) DBSet("qolSkipCinematics",s) end,nil)
+  QCB2(cMisc,miscFrames,L["Easy Destroy"],"qolEasyDestroy",function(s) DBSet("qolEasyDestroy",s) end,nil,L["Auto Keystone"],"qolAutoKeystone",function(s) DBSet("qolAutoKeystone",s) end,nil)
+  local wSuppWarn=CB(cMisc,L["Suppress Warnings"],"qolSuppressWarnings",function(s) DBSet("qolSuppressWarnings",s) end); table.insert(miscFrames,wSuppWarn)
   -- Auto repair mode: guild bank vs own gold
   repairModeDD=NS.ChatGetDropdown(cMisc.inner,"Repair with",
     function(v) return (DB("qolAutoRepairMode") or "guild")==v end,
     function(v) DBSet("qolAutoRepairMode",v) end)
-  repairModeDD:Init({"Guild Bank","Own Gold"},{"guild","gold"})
+  repairModeDD:Init({L["Guild Bank"],L["Own Gold"]},{"guild","gold"})
   R(cMisc,repairModeDD,50); repairModeDD.option="qolAutoRepairMode"
   cMisc:Finish(); Add(cMisc)
 
@@ -2091,7 +2210,7 @@ local function SetupTabSettings(parent)
   local builtUI   = false
   local currentTabIdx = 1
 
-  local headerCard = MakeCard(sc, "Message Types")
+  local headerCard = MakeCard(sc, L["Message Types"])
 
   local function UpdateHeader()
     local tData = NS.chatTabData and NS.chatTabData()
@@ -2200,7 +2319,7 @@ local function SetupTabSettings(parent)
   end
 
   local function MakeChannelsDropdown()
-    local dd = NS.ChatGetDropdown(headerCard.inner, "Channels")
+    local dd = NS.ChatGetDropdown(headerCard.inner, L["Channels"])
     dd.DropDown:SetDefaultText("|cff808080All|r")
     headerCard:Row(dd, 50)
     table.insert(dropdowns, dd)
@@ -2468,7 +2587,7 @@ local function SetupLucidCDMTab(parent)
 
   -- ── Enable Card ────────────────────────────────────────────────────────
   local MakeCard = NS._SMakeCard
-  local cEnable = MakeCard(container, "LucidCDM")
+  local cEnable = MakeCard(container, L["LucidCDM"])
   -- Enable checkbox + Per-Spec dropdown on same row
   local enRow = CreateFrame("Frame", nil, cEnable.inner); enRow:SetHeight(26)
   local enCb; enCb = NS.ChatGetCheckbox(enRow,
@@ -2504,7 +2623,7 @@ local function SetupLucidCDMTab(parent)
     return "Current Spec"
   end
   local function RefreshSpecDD()
-    specDD:Init({"All Specs", GetSpecLabel()}, {"all", "current"})
+    specDD:Init({L["All Specs"], GetSpecLabel()}, {"all", "current"})
   end
   RefreshSpecDD()
   local specEvF = CreateFrame("Frame")
@@ -2684,8 +2803,14 @@ NS.BuildChatOptionsWindow = function()
   if NS.chatOptAccentTextures then wipe(NS.chatOptAccentTextures) end
 
   local ar,ag,ab = NS.ChatGetAccentRGB()
-  local WIN_W=860; local WIN_H=600
-  local HEADER_H=42; local SIDEBAR_W=152; local CONT_Y=HEADER_H+2
+  local sidebarStyle = DB("settingsSidebarStyle") or "icons"
+  local styleClassic = (sidebarStyle == "classic")
+  local WIN_W = styleClassic and 940 or 940
+  local WIN_H = styleClassic and 656 or 656
+  local HEADER_H = styleClassic and 42 or 62
+  local NAV_DOCK_H = styleClassic and 0 or 60
+  local SIDEBAR_W = styleClassic and 152 or 0
+  local CONT_Y=HEADER_H+2
 
   -- ── Root window ────────────────────────────────────────────────────
   chatOptWin = CreateFrame("Frame","LUIChatSettingsDialog",UIParent,"BackdropTemplate")
@@ -2714,8 +2839,10 @@ NS.BuildChatOptionsWindow = function()
   chatOptWin._ltLeftBar = leftBar
   local hLine = AccTex("OVERLAY",5, 1,HEADER_H, WIN_W-2,1, 0.55)
   chatOptWin._ltHeaderLine = hLine
-  local sbDiv = AccTex("OVERLAY",4, SIDEBAR_W+4,HEADER_H+2, 1,WIN_H-HEADER_H-3, 0.30)
-  chatOptWin._ltSidebarLine = sbDiv
+  if styleClassic then
+    local sbDiv = AccTex("OVERLAY",4, SIDEBAR_W+4,HEADER_H+2, 1,WIN_H-HEADER_H-3, 0.30)
+    chatOptWin._ltSidebarLine = sbDiv
+  end
 
   -- Corner cut top-right
   AccTex("OVERLAY",5, WIN_W-28,1, 26,1, 0.70)
@@ -2726,29 +2853,37 @@ NS.BuildChatOptionsWindow = function()
   local CX = SIDEBAR_W + 4
   local CY = HEADER_H + 2
   local CW = WIN_W - CX - 4
-  local CH = WIN_H - CY - 4
+  local CH = WIN_H - CY - 4 - NAV_DOCK_H
 
-  local function H(x,y,len,a)  AccTex("BACKGROUND",3, x,y, len,1, a or 0.10) end
-  local function V(x,y,len,a)  AccTex("BACKGROUND",3, x,y, 1,len, a or 0.10) end
-  local function Node(x,y,a)   AccTex("BACKGROUND",4, x-1,y-1, 4,4, a or 0.18) end
+  -- PCB textures tracked as {tex, alpha} so the "PCB lines" checkbox can toggle
+  -- visibility and the PCB color picker can override their color independent of accent.
+  local pcbTextures = {}
+  local function pcbIns(t,a) table.insert(pcbTextures,{tex=t,alpha=a}); return t end
+  local function PH(x,y,len,a)  a=a or 0.10; pcbIns(AccTex("BACKGROUND",3, x,y, len,1, a), a) end
+  local function PV(x,y,len,a)  a=a or 0.10; pcbIns(AccTex("BACKGROUND",3, x,y, 1,len, a), a) end
+  local H, V = PH, PV
+  local function Node(x,y,a)   a=a or 0.18; pcbIns(AccTex("BACKGROUND",4, x-1,y-1, 4,4, a), a) end
   local function Cap(x,y,h,a)
-    if h then AccTex("BACKGROUND",3, x,y-3,1,6,a or 0.15)
-    else      AccTex("BACKGROUND",3, x-3,y,6,1,a or 0.15) end
+    a = a or 0.15
+    if h then pcbIns(AccTex("BACKGROUND",3, x,y-3,1,6,a), a)
+    else      pcbIns(AccTex("BACKGROUND",3, x-3,y,6,1,a), a) end
   end
   local function Glow(x,y)
-    AccTex("BACKGROUND",4, x-2,y-2, 6,6, 0.12)
-    AccTex("BACKGROUND",5, x,  y,   2,2, 0.22)
+    pcbIns(AccTex("BACKGROUND",4, x-2,y-2, 6,6, 0.12), 0.12)
+    pcbIns(AccTex("BACKGROUND",5, x,  y,   2,2, 0.22), 0.22)
   end
 
-  -- ─── SIDEBAR traces ──────────────────────────────────────────────
+ if styleClassic then
+  -- ─── SIDEBAR traces (classic only — degenerate when SIDEBAR_W=0) ─
   local SX = 6
   V(SX,     CY+10,  400, 0.07); Node(SX,CY+80,0.12); Node(SX,CY+200,0.10); Node(SX,CY+340,0.09)
   H(SX,     CY+80,  SIDEBAR_W-14, 0.05); Cap(SX+SIDEBAR_W-14, CY+80, false, 0.10)
   H(SX,     CY+200, SIDEBAR_W-10, 0.05); Cap(SX+SIDEBAR_W-10, CY+200,false, 0.10)
   V(SX+SIDEBAR_W-22, CY+15, 120, 0.06); Node(SX+SIDEBAR_W-22,CY+70,0.10)
   H(SX+SIDEBAR_W-22, CY+70, 16,  0.05)
+ end -- styleClassic sidebar traces
 
-  -- ─── CONTENT area: 12 interlocking traces ─────────────────────────
+  -- ─── CONTENT area: 12 interlocking traces (both modes) ───────────
 
   -- T1: top strip with three branches
   local x1,y1 = CX+20, CY+14
@@ -2845,11 +2980,69 @@ NS.BuildChatOptionsWindow = function()
     Glow(hx+100,hy); Glow(hx+300,hy)
   end
 
+  -- Store PCB textures for runtime toggling + apply saved visibility state
+  chatOptWin._pcbTextures = pcbTextures
+  if DB("settingsPcbLines") == false then
+    for _,e in ipairs(pcbTextures) do e.tex:Hide() end
+  end
+  -- Apply custom PCB color override (no-op if settingsPcbColor is nil)
+  if NS.ApplyPcbColor then NS.ApplyPcbColor() end
+
+  -- ── COMMAND DECK accents (new mode only) ──────────────────────────
+  if not styleClassic then
+    -- Long L-brackets at content corners
+    local BR_LEN = 28
+    local function CornerL(corner,x,y,a)
+      -- corner "TL","TR","BL","BR"
+      local h = AccTex("OVERLAY",4, x,y, BR_LEN,1, a)
+      local v = AccTex("OVERLAY",4, x,y, 1,BR_LEN, a)
+      if corner=="TR" then
+        h:ClearAllPoints(); h:SetPoint("TOPRIGHT",chatOptWin,"TOPLEFT",x+BR_LEN,-y)
+        v:ClearAllPoints(); v:SetPoint("TOPRIGHT",chatOptWin,"TOPLEFT",x+BR_LEN,-y)
+      elseif corner=="BL" then
+        h:ClearAllPoints(); h:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT",x,-y)
+        v:ClearAllPoints(); v:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT",x,-(y-BR_LEN+1))
+      elseif corner=="BR" then
+        h:ClearAllPoints(); h:SetPoint("TOPRIGHT",chatOptWin,"TOPLEFT",x+BR_LEN,-y)
+        v:ClearAllPoints(); v:SetPoint("TOPRIGHT",chatOptWin,"TOPLEFT",x+BR_LEN,-(y-BR_LEN+1))
+      end
+    end
+    -- Content corners (just inside the header/dock boundaries)
+    local CT = HEADER_H + 8
+    local CB = WIN_H - NAV_DOCK_H - 8
+    local CL = 10
+    local CR = WIN_W - 10
+    CornerL("TL", CL, CT, 0.75)
+    CornerL("TR", CR-BR_LEN, CT, 0.75)
+    CornerL("BL", CL, CB, 0.75)
+    CornerL("BR", CR-BR_LEN, CB, 0.75)
+
+    -- Thin accent rule above the nav dock
+    AccTex("OVERLAY",5, 1, WIN_H-NAV_DOCK_H, WIN_W-2, 1, 0.55)
+
+    -- Diagonal dash clusters in top-left corner of content (futuristic decoration)
+    local dashX = CL + BR_LEN + 10
+    for i=0,3 do
+      AccTex("BACKGROUND",3, dashX+i*6, CT+2,     4,1, 0.20 - i*0.035)
+      AccTex("BACKGROUND",3, dashX+i*6, CT+6,     4,1, 0.16 - i*0.03)
+    end
+    -- And top-right mirror
+    for i=0,3 do
+      AccTex("BACKGROUND",3, CR-BR_LEN-14 - i*6, CT+2, 4,1, 0.20 - i*0.035)
+      AccTex("BACKGROUND",3, CR-BR_LEN-14 - i*6, CT+6, 4,1, 0.16 - i*0.03)
+    end
+
+    -- Center decorative hairline just under header line
+    AccTex("BACKGROUND",3, WIN_W/2 - 40, HEADER_H+4, 80, 1, 0.18)
+    AccTex("BACKGROUND",4, WIN_W/2 - 1,  HEADER_H+3, 2,  3, 0.35)
+  end
+
   -- ── Header background ──────────────────────────────────────────────
   local headerBg = chatOptWin:CreateTexture(nil,"BACKGROUND",nil,2)
   headerBg:SetPoint("TOPLEFT", chatOptWin,"TOPLEFT",  1,-1)
   headerBg:SetPoint("TOPRIGHT",chatOptWin,"TOPRIGHT", -1,-1)
-  headerBg:SetHeight(HEADER_H); headerBg:SetColorTexture(0.010,0.010,0.020,1)
+  headerBg:SetHeight(HEADER_H)
+  headerBg:SetColorTexture(styleClassic and 0.010 or 0.006, styleClassic and 0.010 or 0.006, styleClassic and 0.020 or 0.014, 1)
 
   -- ── Addon title (top-left in header) ──────────────────────────────
   local addonVersion = C_AddOns and C_AddOns.GetAddOnMetadata and
@@ -2857,20 +3050,78 @@ NS.BuildChatOptionsWindow = function()
   local thex = string.format("|cff%02x%02x%02x",ar*255,ag*255,ab*255)
 
   local titleFS = chatOptWin:CreateFontString(nil,"OVERLAY")
-  titleFS:SetFont(NS.FONT,14,"OUTLINE")
-  titleFS:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT",14,-8)
+  titleFS:SetFont(NS.FONT, styleClassic and 14 or 13, "OUTLINE")
+  titleFS:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT",14, styleClassic and -8 or -10)
   titleFS:SetText(thex.."LUCID|r|cffffffff".."UI|r")
   chatOptWin._ltTitleName = titleFS
-
-  local settingsFS = chatOptWin:CreateFontString(nil,"OVERLAY")
-  settingsFS:SetFont(NS.FONT,14,"OUTLINE")
-  settingsFS:SetPoint("CENTER",chatOptWin,"TOP",0,-HEADER_H/2)
-  settingsFS:SetTextColor(1,1,1,1); settingsFS:SetText("Settings")
 
   local verFS = chatOptWin:CreateFontString(nil,"OVERLAY")
   verFS:SetFont(NS.FONT,8,"")
   verFS:SetPoint("TOPLEFT",titleFS,"BOTTOMLEFT",0,-1)
   verFS:SetTextColor(0.33,0.33,0.42); verFS:SetText("v"..addonVersion)
+
+  local crumbSection, LayoutCrumb
+  if styleClassic then
+    -- Classic: small centered breadcrumb
+    local crumbFrame = CreateFrame("Frame",nil,chatOptWin)
+    crumbFrame:SetPoint("CENTER",chatOptWin,"TOP",0,-HEADER_H/2)
+    crumbFrame:SetSize(400,18); crumbFrame:SetFrameLevel(chatOptWin:GetFrameLevel()+5)
+
+    crumbSection = crumbFrame:CreateFontString(nil,"OVERLAY")
+    crumbSection:SetFont(NS.FONT,12,"OUTLINE")
+    crumbSection:SetTextColor(1,1,1,1); crumbSection:SetText("DISPLAY")
+    crumbSection:SetPoint("CENTER",crumbFrame,"CENTER",0,0)
+
+    local crumbTickL = crumbFrame:CreateTexture(nil,"OVERLAY",nil,4)
+    crumbTickL:SetSize(14,1); crumbTickL:SetColorTexture(ar,ag,ab,0.55)
+    local crumbTickR = crumbFrame:CreateTexture(nil,"OVERLAY",nil,4)
+    crumbTickR:SetSize(14,1); crumbTickR:SetColorTexture(ar,ag,ab,0.55)
+    table.insert(NS.chatOptAccentTextures,{tex=crumbTickL,alpha=0.55})
+    table.insert(NS.chatOptAccentTextures,{tex=crumbTickR,alpha=0.55})
+
+    LayoutCrumb = function()
+      crumbTickL:ClearAllPoints()
+      crumbTickL:SetPoint("RIGHT",crumbSection,"LEFT",-8,0)
+      crumbTickR:ClearAllPoints()
+      crumbTickR:SetPoint("LEFT",crumbSection,"RIGHT",8,0)
+    end
+  else
+    -- Command Deck: BIG section title, left-aligned, centered vertically in header
+    -- Divider bar between LUCIDUI wordmark and section title
+    local divider = chatOptWin:CreateTexture(nil,"OVERLAY",nil,4)
+    divider:SetSize(1,24); divider:SetPoint("LEFT",titleFS,"RIGHT",10,0)
+    divider:SetColorTexture(ar,ag,ab,0.40)
+    table.insert(NS.chatOptAccentTextures,{tex=divider,alpha=0.40})
+
+    -- BIG section title
+    crumbSection = chatOptWin:CreateFontString(nil,"OVERLAY")
+    crumbSection:SetFont(NS.FONT,20,"OUTLINE")
+    crumbSection:SetTextColor(1,1,1,1); crumbSection:SetText("DISPLAY")
+    crumbSection:SetPoint("LEFT",chatOptWin,"TOPLEFT",100,-HEADER_H/2+2)
+
+    -- [01] ordinal index to the left of big title
+    local crumbIdx = chatOptWin:CreateFontString(nil,"OVERLAY")
+    crumbIdx:SetFont(NS.FONT,9,"")
+    crumbIdx:SetTextColor(ar,ag,ab,0.85); crumbIdx:SetText("[01]")
+    crumbIdx:SetPoint("BOTTOMRIGHT",crumbSection,"BOTTOMLEFT",-6,2)
+    chatOptWin._crumbIdx = crumbIdx
+    table.insert(NS.chatOptAccentTextures,{tex=crumbIdx,isFS=true,alpha=0.85})
+
+    -- Short accent underline directly under the section title
+    local ttlUnder = chatOptWin:CreateTexture(nil,"OVERLAY",nil,4)
+    ttlUnder:SetSize(40,1); ttlUnder:SetColorTexture(ar,ag,ab,0.85)
+    ttlUnder:SetPoint("TOPLEFT",crumbSection,"BOTTOMLEFT",0,-3)
+    chatOptWin._ttlUnder = ttlUnder
+    table.insert(NS.chatOptAccentTextures,{tex=ttlUnder,alpha=0.85})
+
+    LayoutCrumb = function()
+      local w = crumbSection:GetStringWidth()
+      ttlUnder:SetWidth(math.max(40, w*0.45))
+    end
+  end
+  LayoutCrumb()
+  chatOptWin._crumbSection = crumbSection
+  chatOptWin._crumbLayout  = LayoutCrumb
 
   -- ── Header buttons (high framelevel layer) ──────────────────────────
   local btnLayer=CreateFrame("Frame",nil,chatOptWin)
@@ -2925,16 +3176,27 @@ NS.BuildChatOptionsWindow = function()
     seasonBtn:SetPoint("RIGHT",lastDevBtn,"LEFT",-4,0); seasonBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
   end
 
-  -- ── Sidebar background ─────────────────────────────────────────────
+  -- ── Sidebar / Dock background ──────────────────────────────────────
   local sbBg=chatOptWin:CreateTexture(nil,"BACKGROUND",nil,1)
-  sbBg:SetPoint("TOPLEFT",   chatOptWin,"TOPLEFT",   3,-(HEADER_H+2))
-  sbBg:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT",3, 1)
-  sbBg:SetWidth(SIDEBAR_W); sbBg:SetColorTexture(0.012,0.012,0.022,1)
+  if styleClassic then
+    sbBg:SetPoint("TOPLEFT",   chatOptWin,"TOPLEFT",   3,-(HEADER_H+2))
+    sbBg:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT",3, 1)
+    sbBg:SetWidth(SIDEBAR_W); sbBg:SetColorTexture(0.012,0.012,0.022,1)
+  else
+    sbBg:SetPoint("BOTTOMLEFT", chatOptWin,"BOTTOMLEFT", 1, 1)
+    sbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1, 1)
+    sbBg:SetHeight(NAV_DOCK_H); sbBg:SetColorTexture(0.006,0.006,0.014,1)
+  end
 
   -- ── Content background ─────────────────────────────────────────────
   local cbBg=chatOptWin:CreateTexture(nil,"BACKGROUND",nil,1)
-  cbBg:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    SIDEBAR_W+4,-(HEADER_H+2))
-  cbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1,1)
+  if styleClassic then
+    cbBg:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    SIDEBAR_W+4,-(HEADER_H+2))
+    cbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1,1)
+  else
+    cbBg:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    1,-(HEADER_H+2))
+    cbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1, NAV_DOCK_H+1)
+  end
   cbBg:SetColorTexture(0.025,0.025,0.038,1)
 
   -- ── Tabs ───────────────────────────────────────────────────────────
@@ -2958,13 +3220,31 @@ NS.BuildChatOptionsWindow = function()
     if not TabSetups[i].callback then table.remove(TabSetups, i) end
   end
 
-  local TAB_H=34; local containers={}; local tabs={}
+  local TAB_H = styleClassic and 34 or (NAV_DOCK_H - 10)
+  local DOCK_BTN_W = 74
+  local containers={}; local tabs={}
+
+  -- Count visible upfront so new-mode dock buttons can be centered horizontally
+  local visibleCount = 0
+  for _,s in ipairs(TabSetups) do
+    local hidden = s.hidden or (s.devOnly and not isDev)
+    if not hidden then visibleCount = visibleCount + 1 end
+  end
 
   local sidebar=CreateFrame("Frame",nil,chatOptWin)
-  sidebar:SetWidth(SIDEBAR_W)
-  sidebar:SetPoint("TOPLEFT",   chatOptWin,"TOPLEFT",   3,-(HEADER_H+2))
-  sidebar:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT",3, 1)
+  if styleClassic then
+    sidebar:SetWidth(SIDEBAR_W)
+    sidebar:SetPoint("TOPLEFT",   chatOptWin,"TOPLEFT",   3,-(HEADER_H+2))
+    sidebar:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT",3, 1)
+  else
+    sidebar:SetPoint("BOTTOMLEFT", chatOptWin,"BOTTOMLEFT", 1, 1)
+    sidebar:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1, 1)
+    sidebar:SetHeight(NAV_DOCK_H)
+  end
   sidebar:SetFrameLevel(chatOptWin:GetFrameLevel()+2)
+
+  -- Centered start offset for the dock (new mode only)
+  local dockStartX = (WIN_W - 2 - visibleCount*DOCK_BTN_W) / 2
 
   local function SelectTab(idx)
     for i,c in ipairs(containers) do
@@ -2973,6 +3253,7 @@ NS.BuildChatOptionsWindow = function()
       if btn then
         btn._selected=false
         if btn._label   then btn._label:SetTextColor(0.55,0.55,0.65) end
+        if btn._num     then btn._num:SetTextColor(0.30,0.30,0.40) end
         if btn._selLine  then btn._selLine:Hide() end
         if btn._selLineR then btn._selLineR:Hide() end
         if btn._selBg and not btn:IsMouseOver() then btn._selBg:Hide() end
@@ -2985,10 +3266,18 @@ NS.BuildChatOptionsWindow = function()
       btn._selected=true
       local cr,cg,cb=NS.ChatGetAccentRGB()
       if btn._label   then btn._label:SetTextColor(cr,cg,cb) end
+      if btn._num     then btn._num:SetTextColor(cr,cg,cb) end
       if btn._selLine  then btn._selLine:Show() end
       if btn._selLineR then btn._selLineR:Show() end
       if btn._selBg    then btn._selBg:Show() end
-      if btn._tabIcon  then btn._tabIcon:SetAlpha(0.8) end
+      if btn._tabIcon  then btn._tabIcon:SetAlpha(0.95) end
+    end
+    if chatOptWin._crumbSection and btn and btn._sectionName then
+      chatOptWin._crumbSection:SetText(btn._sectionName:upper())
+      if chatOptWin._crumbIdx and btn._num then
+        chatOptWin._crumbIdx:SetText("["..btn._num:GetText().."]")
+      end
+      if chatOptWin._crumbLayout then chatOptWin._crumbLayout() end
     end
   end
 
@@ -2999,8 +3288,13 @@ NS.BuildChatOptionsWindow = function()
       tc = CreateFrame("Frame", nil, chatOptWin)
     end
     tc:ClearAllPoints()
-    tc:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    SIDEBAR_W+4,-(CONT_Y))
-    tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1,1)
+    if styleClassic then
+      tc:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    SIDEBAR_W+4,-(CONT_Y))
+      tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1,1)
+    else
+      tc:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    10,-(HEADER_H+6))
+      tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-10, NAV_DOCK_H+6)
+    end
     tc:Hide()
 
     local tabBtn=CreateFrame("Button",nil,sidebar)
@@ -3009,59 +3303,127 @@ NS.BuildChatOptionsWindow = function()
     if setup.devOnly and not isDev then setup.hidden = true end
     if not setup.hidden then
       visIdx=visIdx+1
-      tabBtn:SetSize(SIDEBAR_W,TAB_H)
-      tabBtn:SetPoint("TOPLEFT",sidebar,"TOPLEFT",0,-(visIdx-1)*TAB_H)
+      tabBtn._sectionName = setup.name
 
-      local selBg=tabBtn:CreateTexture(nil,"BACKGROUND",nil,2); selBg:SetAllPoints()
-      selBg:SetColorTexture(ar,ag,ab,0.06); selBg:Hide(); tabBtn._selBg=selBg
-
-      tabBtn._selLine=nil  -- no left accent line
-
-      -- Right accent line
-      local selLineR=tabBtn:CreateTexture(nil,"OVERLAY",nil,5); selLineR:SetWidth(3)
-      selLineR:SetPoint("TOPRIGHT",   tabBtn,"TOPRIGHT",   0,-5)
-      selLineR:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",0, 5)
-      selLineR:SetColorTexture(ar,ag,ab,1); selLineR:Hide(); tabBtn._selLineR=selLineR
-      table.insert(NS.chatOptAccentTextures,{tex=selLineR,alpha=1})
-
-      -- Small corner tick on active tab (top-right)
-      local tabTick=tabBtn:CreateTexture(nil,"OVERLAY",nil,4); tabTick:SetSize(6,1)
-      tabTick:SetPoint("TOPRIGHT",tabBtn,"TOPRIGHT",0,-3); tabTick:SetColorTexture(ar,ag,ab,0.40)
-      table.insert(NS.chatOptAccentTextures,{tex=tabTick,alpha=0.40})
-
-      local label=tabBtn:CreateFontString(nil,"OVERLAY"); label:SetFont(NS.FONT,11,"")
-      label:SetPoint("LEFT",14,0); label:SetTextColor(0.55,0.55,0.65); label:SetText(setup.name)
-      tabBtn._label=label
-
-      -- Tab icon (right side)
       local TAB_ICONS={Display="Tab_Display",Appearance="Tab_Appearance",Text="Tab_Text",Advanced="Tab_Advanced",
         ["Chat Colors"]="Tab_ChatColors",Loot="Tab_Loot",QoL="Tab_QoL",LucidMeter="Tab_LucidMeter",
         Bags="Tab_Bags",Gold="Tab_Gold",["Mythic+"]="Tab_MythicPlus",["CD Tracker"]="Tab_CDTracker",
         LucidCDM="Tab_Resources"}
       local iconFile=TAB_ICONS[setup.name]
-      if iconFile then
-        local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(20,20)
-        ico:SetPoint("RIGHT",-8,0); ico:SetTexture("Interface/AddOns/LucidUI/Assets/"..iconFile..".png")
-        ico:SetAlpha(0.35); tabBtn._tabIcon=ico
-      end
 
-      tabBtn:SetScript("OnEnter",function()
-        if not tabBtn._selected then
-          label:SetTextColor(0.75,0.75,0.85); selBg:Show()
-          if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.55) end
+      if styleClassic then
+        -- ── Classic layout: vertical sidebar, label + right icon ──────
+        tabBtn:SetSize(SIDEBAR_W,TAB_H)
+        tabBtn:SetPoint("TOPLEFT",sidebar,"TOPLEFT",0,-(visIdx-1)*TAB_H)
+
+        local selBg=tabBtn:CreateTexture(nil,"BACKGROUND",nil,2); selBg:SetAllPoints()
+        selBg:SetColorTexture(ar,ag,ab,0.06); selBg:Hide(); tabBtn._selBg=selBg
+
+        local selLineR=tabBtn:CreateTexture(nil,"OVERLAY",nil,5); selLineR:SetWidth(3)
+        selLineR:SetPoint("TOPRIGHT",   tabBtn,"TOPRIGHT",   0,-5)
+        selLineR:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",0, 5)
+        selLineR:SetColorTexture(ar,ag,ab,1); selLineR:Hide(); tabBtn._selLineR=selLineR
+        table.insert(NS.chatOptAccentTextures,{tex=selLineR,alpha=1})
+
+        local tabTick=tabBtn:CreateTexture(nil,"OVERLAY",nil,4); tabTick:SetSize(6,1)
+        tabTick:SetPoint("TOPRIGHT",tabBtn,"TOPRIGHT",0,-3); tabTick:SetColorTexture(ar,ag,ab,0.40)
+        table.insert(NS.chatOptAccentTextures,{tex=tabTick,alpha=0.40})
+
+        local label=tabBtn:CreateFontString(nil,"OVERLAY"); label:SetFont(NS.FONT,11,"")
+        label:SetPoint("LEFT",14,0); label:SetTextColor(0.55,0.55,0.65); label:SetText(setup.name)
+        tabBtn._label=label
+
+        if iconFile then
+          local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(20,20)
+          ico:SetPoint("RIGHT",-8,0); ico:SetTexture("Interface/AddOns/LucidUI/Assets/"..iconFile..".png")
+          ico:SetAlpha(0.35); tabBtn._tabIcon=ico
         end
-      end)
-      tabBtn:SetScript("OnLeave",function()
-        if not tabBtn._selected then
-          label:SetTextColor(0.55,0.55,0.65); selBg:Hide()
-          if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.35) end
+
+        tabBtn:SetScript("OnEnter",function()
+          if not tabBtn._selected then
+            label:SetTextColor(0.75,0.75,0.85); selBg:Show()
+            if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.55) end
+          end
+        end)
+        tabBtn:SetScript("OnLeave",function()
+          if not tabBtn._selected then
+            label:SetTextColor(0.55,0.55,0.65); selBg:Hide()
+            if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.35) end
+          end
+        end)
+      else
+        -- ── Command Deck: horizontal dock tile (icon + 2-digit idx) ──
+        tabBtn:SetSize(DOCK_BTN_W, TAB_H)
+        tabBtn:SetPoint("LEFT", sidebar,"LEFT", dockStartX + (visIdx-1)*DOCK_BTN_W, 0)
+
+        local selBg=tabBtn:CreateTexture(nil,"BACKGROUND",nil,2)
+        selBg:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",3,-3)
+        selBg:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",-3,3)
+        selBg:SetColorTexture(ar,ag,ab,0.09); selBg:Hide(); tabBtn._selBg=selBg
+
+        -- Top L-brackets (both corners) for a tile feel
+        local brTL_h=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTL_h:SetSize(8,1)
+        brTL_h:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",3,-3); brTL_h:SetColorTexture(ar,ag,ab,0.22)
+        local brTL_v=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTL_v:SetSize(1,8)
+        brTL_v:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",3,-3); brTL_v:SetColorTexture(ar,ag,ab,0.22)
+        local brTR_h=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTR_h:SetSize(8,1)
+        brTR_h:SetPoint("TOPRIGHT",tabBtn,"TOPRIGHT",-3,-3); brTR_h:SetColorTexture(ar,ag,ab,0.22)
+        local brTR_v=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTR_v:SetSize(1,8)
+        brTR_v:SetPoint("TOPRIGHT",tabBtn,"TOPRIGHT",-3,-3); brTR_v:SetColorTexture(ar,ag,ab,0.22)
+        table.insert(NS.chatOptAccentTextures,{tex=brTL_h,alpha=0.22})
+        table.insert(NS.chatOptAccentTextures,{tex=brTL_v,alpha=0.22})
+        table.insert(NS.chatOptAccentTextures,{tex=brTR_h,alpha=0.22})
+        table.insert(NS.chatOptAccentTextures,{tex=brTR_v,alpha=0.22})
+
+        -- Bottom accent line (active indicator — stored in _selLineR slot)
+        local selLineB=tabBtn:CreateTexture(nil,"OVERLAY",nil,5)
+        selLineB:SetPoint("BOTTOMLEFT", tabBtn,"BOTTOMLEFT", 6, 4)
+        selLineB:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",-6, 4)
+        selLineB:SetHeight(2)
+        selLineB:SetColorTexture(ar,ag,ab,1); selLineB:Hide(); tabBtn._selLineR=selLineB
+        table.insert(NS.chatOptAccentTextures,{tex=selLineB,alpha=1})
+
+        -- 2-digit ordinal number top-left of tile
+        local num=tabBtn:CreateFontString(nil,"OVERLAY")
+        num:SetFont(NS.FONT,8,"")
+        num:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",8,-6)
+        num:SetTextColor(0.30,0.30,0.40)
+        num:SetText(string.format("%02d",visIdx))
+        tabBtn._num=num
+
+        -- Centered icon
+        if iconFile then
+          local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(24,24)
+          ico:SetPoint("CENTER",tabBtn,"CENTER",0,0)
+          ico:SetTexture("Interface/AddOns/LucidUI/Assets/"..iconFile..".png")
+          ico:SetAlpha(0.38); tabBtn._tabIcon=ico
         end
-      end)
+
+        tabBtn:SetScript("OnEnter",function()
+          if not tabBtn._selected then
+            num:SetTextColor(0.70,0.70,0.80); selBg:Show()
+            if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.78) end
+          end
+          GameTooltip:SetOwner(tabBtn,"ANCHOR_TOP",0,4)
+          GameTooltip:ClearLines()
+          local cr,cg,cb=NS.ChatGetAccentRGB()
+          GameTooltip:AddLine(setup.name,cr,cg,cb)
+          GameTooltip:Show()
+        end)
+        tabBtn:SetScript("OnLeave",function()
+          if not tabBtn._selected then
+            num:SetTextColor(0.30,0.30,0.40); selBg:Hide()
+            if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.38) end
+          end
+          GameTooltip:Hide()
+        end)
+      end
     else
       tabBtn:SetSize(1,1); tabBtn:SetPoint("TOPLEFT",sidebar,"TOPLEFT",-9999,0); tabBtn:Hide()
       tabBtn._label  =tabBtn:CreateFontString(nil,"OVERLAY")
       tabBtn._selLine=tabBtn:CreateTexture(nil,"OVERLAY")
       tabBtn._selBg  =tabBtn:CreateTexture(nil,"BACKGROUND")
+      tabBtn._sectionName = setup.name
     end
 
     local ci=i; tabBtn:SetScript("OnClick",function() SelectTab(ci) end)

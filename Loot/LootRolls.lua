@@ -399,7 +399,7 @@ local function BuildItemRow(parent, session, yOffset)
   passedLbl:SetFont(NS.FONT, 9, "")
   passedLbl:SetPoint("BOTTOMRIGHT", -6, 5)
   passedLbl:SetTextColor(0.45, 0.45, 0.45)
-  passedLbl:SetText("Passed")
+  passedLbl:SetText(L["Passed"])
   passedLbl:Hide()
 
   -- "Rolled" indicator (bottom right, shown when local player rolled need/greed/transmog)
@@ -407,7 +407,7 @@ local function BuildItemRow(parent, session, yOffset)
   rolledLbl:SetFont(NS.FONT, 9, "")
   rolledLbl:SetPoint("BOTTOMRIGHT", -6, 5)
   rolledLbl:SetTextColor(1, 0.82, 0, 1)
-  rolledLbl:SetText("Rolled")
+  rolledLbl:SetText(L["Rolled"])
   rolledLbl:Hide()
 
   -- Status line (winner or animated dots)
@@ -500,7 +500,7 @@ local function BuildItemRow(parent, session, yOffset)
     local sorted = SortedRollers(session.rollers)
     if #sorted > 0 then
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine("|cff3bd2edLoot Rolls|r")
+      GameTooltip:AddLine("|cff3bd2ed" .. L["Loot Rolls"] .. "|r")
 
       -- Determine winner (first non-pass roller, or explicit .winner flag)
       local winnerName = nil
@@ -526,7 +526,7 @@ local function BuildItemRow(parent, session, yOffset)
       end
     else
       GameTooltip:AddLine(" ")
-      GameTooltip:AddLine("|cff555555No rolls yet...|r")
+      GameTooltip:AddLine("|cff555555" .. L["No rolls yet"] .. "|r")
     end
     GameTooltip:Show()
     row:SetBackdropBorderColor(CYAN[1], CYAN[2], CYAN[3], 1)

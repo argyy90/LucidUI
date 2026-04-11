@@ -846,6 +846,10 @@ NS.DB_DEFAULTS = {
   mpEnabled            = false,
   mpTeleport           = false,
   mpWinPos3            = nil,
+  -- Settings window chrome
+  settingsSidebarStyle = "icons",  -- "icons" (HUD rail) or "classic" (text + icon)
+  settingsPcbLines     = true,     -- classic-mode PCB circuit traces in settings window
+  settingsPcbColor     = nil,      -- {r,g,b} override for PCB color, nil = follow accent
 }
 
 NS.DB = function(key)
@@ -1270,16 +1274,23 @@ local NON_ASCII_FALLBACK = "Fonts/ARIALN.TTF"
 NS.GetFontForText = function(text, preferredPath)
   preferredPath = preferredPath or NS.FONT
   if type(text) ~= "string" then return preferredPath end
+  -- Secret (addon-restricted) strings can't be inspected — fall back to preferred.
+  if issecretvalue and issecretvalue(text) then return preferredPath end
   -- Fast byte scan: any byte >= 0x80 is a multi-byte UTF-8 character.
-  for i = 1, #text do
-    if text:byte(i) >= 0x80 then return NON_ASCII_FALLBACK end
-  end
+  local ok, result = pcall(function()
+    for i = 1, #text do
+      if text:byte(i) >= 0x80 then return NON_ASCII_FALLBACK end
+    end
+    return preferredPath
+  end)
+  if ok then return result end
   return preferredPath
 end
 
 -- Quick check: does the given string contain non-ASCII characters?
 NS.HasNonAscii = function(text)
   if type(text) ~= "string" then return false end
+  if issecretvalue and issecretvalue(text) then return false end
   for i = 1, #text do
     if text:byte(i) >= 0x80 then return true end
   end

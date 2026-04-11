@@ -11,6 +11,7 @@
 -- Licensed under the GNU General Public License v3.
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.GoldTracker = NS.GoldTracker or {}
 local GT = NS.GoldTracker
 
@@ -107,13 +108,25 @@ function GT.SendTradeSummaryWhisper(e)
     return table.concat(parts, ", ")
   end
 
+  -- Format an integer with thousand separators (1000000 -> "1,000,000")
+  local function withCommas(n)
+    local s = tostring(math.floor(n))
+    local out, count = "", 0
+    for i = #s, 1, -1 do
+      out = s:sub(i, i) .. out
+      count = count + 1
+      if count % 3 == 0 and i > 1 then out = "," .. out end
+    end
+    return out
+  end
+
   local function goldStr(copper)
     if not copper or copper == 0 then return nil end
     local g = math.floor(copper / 10000)
     local s = math.floor((copper % 10000) / 100)
     local c = copper % 100
     local parts = {}
-    if g > 0 then parts[#parts+1] = g .. "g" end
+    if g > 0 then parts[#parts+1] = withCommas(g) .. "g" end
     if s > 0 then parts[#parts+1] = s .. "s" end
     if c > 0 or #parts == 0 then parts[#parts+1] = c .. "c" end
     return table.concat(parts, " ")
@@ -126,7 +139,7 @@ function GT.SendTradeSummaryWhisper(e)
     local gave = {}
     if pitems then gave[#gave+1] = pitems end
     if pgold > 0 then gave[#gave+1] = goldStr(pgold) end
-    msgs[#msgs+1] = partnerShort .. " received " .. table.concat(gave, " + ") .. " from " .. playerFull
+    msgs[#msgs+1] = partnerShort .. " received " .. table.concat(gave, " + ") .. " from " .. playerFull .. " in a trade."
   end
 
   local tgold = e.targetGold or 0
@@ -135,7 +148,7 @@ function GT.SendTradeSummaryWhisper(e)
     local got = {}
     if titems then got[#got+1] = titems end
     if tgold > 0 then got[#got+1] = goldStr(tgold) end
-    msgs[#msgs+1] = playerFull .. " received " .. table.concat(got, " + ") .. " from " .. partner
+    msgs[#msgs+1] = playerFull .. " received " .. table.concat(got, " + ") .. " from " .. partner .. " in a trade."
   end
 
   if #msgs == 0 then return end
@@ -478,7 +491,7 @@ local function BuildHistoryWindow()
     f:SetScript("OnDragStart",function(s) s:StartMoving() end)
     f:SetScript("OnDragStop",function(s) s:StopMovingOrSizing() end)
     local hdr=f:CreateFontString(nil,"OVERLAY"); hdr:SetFont(NS.FONT,10,"OUTLINE")
-    hdr:SetPoint("TOP",0,-6); hdr:SetText("Gold Tracker — CSV Export"); hdr:SetTextColor(ar,ag,ab)
+    hdr:SetPoint("TOP",0,-6); hdr:SetText(L["gt_csv_title"]); hdr:SetTextColor(ar,ag,ab)
     local cbtn=CreateFrame("Button",nil,f,"UIPanelCloseButton"); cbtn:SetPoint("TOPRIGHT",2,2); cbtn:SetScript("OnClick",function() f:Hide() end)
     local sf2=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
     sf2:SetPoint("TOPLEFT",10,-22); sf2:SetPoint("BOTTOMRIGHT",-28,10)
@@ -756,15 +769,15 @@ function GT.RenderGraph()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(capturedD.key, ar, ag, ab)
         if capturedD.gave > 0 then
-          GameTooltip:AddLine("Gave:     " .. (MoneyStr(capturedD.gave) or "0c"), 0.9, 0.3, 0.3)
+          GameTooltip:AddLine(L["Gave"] .. ":     " .. (MoneyStr(capturedD.gave) or "0c"), 0.9, 0.3, 0.3)
         end
         if capturedD.received > 0 then
-          GameTooltip:AddLine("Received: " .. (MoneyStr(capturedD.received) or "0c"), 0.3, 0.9, 0.3)
+          GameTooltip:AddLine(L["Received"] .. ": " .. (MoneyStr(capturedD.received) or "0c"), 0.3, 0.9, 0.3)
         end
         local net = capturedD.received - capturedD.gave
         if net ~= 0 then
           local nr, ng, nb = net > 0 and 0.3 or 0.9, net > 0 and 0.9 or 0.3, 0.3
-          GameTooltip:AddLine("Net:      " .. (net > 0 and "+" or "") .. (MoneyStr(math.abs(net)) or "0c"), nr, ng, nb)
+          GameTooltip:AddLine(L["Net"] .. ":      " .. (net > 0 and "+" or "") .. (MoneyStr(math.abs(net)) or "0c"), nr, ng, nb)
         end
         GameTooltip:Show()
       end)
@@ -794,7 +807,7 @@ function GT.RenderGraph()
     empty:SetFont(NS.FONT, 11, "")
     empty:SetPoint("CENTER", panel, "CENTER", 0, 0)
     empty:SetTextColor(0.35, 0.35, 0.45)
-    empty:SetText("No gold trades in this period")
+    empty:SetText(L["gt_no_trades_period"])
   end
 end
 
@@ -825,7 +838,7 @@ function GT.RefreshWindow()
     fs:SetFont(NS.FONT, 11, "")
     fs:SetPoint("CENTER", emptyHolder, "CENTER", 0, 0)
     fs:SetTextColor(0.40, 0.40, 0.50)
-    fs:SetText("No trades recorded yet.")
+    fs:SetText(L["gt_no_trades"])
     return
   end
 
@@ -925,7 +938,7 @@ function GT.RefreshWindow()
     local lblGave = card:CreateFontString(nil, "OVERLAY")
     lblGave:SetFont(NS.FONT, 9, "OUTLINE")
     lblGave:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -cy)
-    lblGave:SetTextColor(0.90, 0.32, 0.32, 1); lblGave:SetText("YOU GAVE")
+    lblGave:SetTextColor(0.90, 0.32, 0.32, 1); lblGave:SetText(L["YOU GAVE"])
 
     local lblGot = card:CreateFontString(nil, "OVERLAY")
     lblGot:SetFont(NS.FONT, 9, "OUTLINE")
@@ -933,7 +946,7 @@ function GT.RefreshWindow()
     lblGot:SetJustifyH("LEFT")
     card:HookScript("OnShow", function(self) lblGot:SetWidth(math.floor(self:GetWidth()/2) - 18) end)
     lblGot:SetWidth(math.floor((card:GetWidth()>0 and card:GetWidth() or 460)/2) - 18)
-    lblGot:SetTextColor(0.32, 0.90, 0.32, 1); lblGot:SetText("YOU RECEIVED")
+    lblGot:SetTextColor(0.32, 0.90, 0.32, 1); lblGot:SetText(L["YOU RECEIVED"])
     cy = cy + COL_LABEL_H
 
     -- Item rows
@@ -986,7 +999,7 @@ function GT.RefreshWindow()
         netLabel:SetFont(NS.FONT, 9, "OUTLINE")
         netLabel:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -10, CARD_PAD_BOT)
         netLabel:SetTextColor(nr2, ng2, nb2, 1)
-        netLabel:SetText("Net: " .. netTxt)
+        netLabel:SetText(L["Net"] .. ": " .. netTxt)
       end
     end
 
@@ -1042,7 +1055,7 @@ function GT.SetupSettings(parent)
   local function DBSet(k,v) NS.DBSet(k, v)     end
 
   -- ── Card: General ────────────────────────────────────────────────────────
-  local cGT = MakeCard(sc, "Trade Tracking")
+  local cGT = MakeCard(sc, L["Trade Tracking"])
 
   -- Enable + Whisper paired on one row
   local pairRow = CreateFrame("Frame", nil, cGT.inner); pairRow:SetHeight(26)
@@ -1058,14 +1071,14 @@ function GT.SetupSettings(parent)
   rh:SetPoint("TOPLEFT",    pairRow, "TOP",       2, 0)
   rh:SetPoint("BOTTOMRIGHT",pairRow, "BOTTOMRIGHT",0, 0)
 
-  local enableCB = NS.ChatGetCheckbox(lh, "Enable Gold Tracker", 26, function(state)
+  local enableCB = NS.ChatGetCheckbox(lh, L["Enable Gold Tracker"], 26, function(state)
     DBSet("gtEnabled", state); if state then DBSet("showCoinBtn", true); GT.EnableTracking() else GT.DisableTracking() end
     if NS.LayoutBarButtons then NS.LayoutBarButtons() end
   end, "Record every completed trade with items and gold")
   enableCB.option = "gtEnabled"
   enableCB:SetParent(lh); enableCB:ClearAllPoints(); enableCB:SetAllPoints(lh)
 
-  local whisperCB = NS.ChatGetCheckbox(rh, "Whisper on complete", 26, function(state)
+  local whisperCB = NS.ChatGetCheckbox(rh, L["Whisper on complete"], 26, function(state)
     DBSet("gtWhisper", state)
   end, "Send a whisper to the trade partner summarising what was exchanged")
   whisperCB.option = "gtWhisper"
@@ -1083,7 +1096,7 @@ function GT.SetupSettings(parent)
   oCut:SetPoint("TOPRIGHT",openBtn,"TOPRIGHT",0,-1)
   do local _ar,_ag,_ab=NS.ChatGetAccentRGB(); oCut:SetColorTexture(_ar,_ag,_ab,0.22); RegAccentGT(oCut,0.22) end
   local oFS = openBtn:CreateFontString(nil,"OVERLAY"); oFS:SetFont(NS.FONT,11,"")
-  oFS:SetPoint("CENTER",0,0); oFS:SetTextColor(0.75,0.75,0.85); oFS:SetText("Open Trade History")
+  oFS:SetPoint("CENTER",0,0); oFS:SetTextColor(0.75,0.75,0.85); oFS:SetText(L["Open Trade History"])
   openBtn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); openBtn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
   openBtn:SetScript("OnLeave",function() openBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   openBtn:SetScript("OnClick", function() GT.ShowWindow() end)
@@ -1092,7 +1105,7 @@ function GT.SetupSettings(parent)
   cGT:Finish(); Add(cGT); Add(Sep(sc), 9)
 
   -- ── Card: Statistics ─────────────────────────────────────────────────────
-  local cStats = MakeCard(sc, "Session Overview")
+  local cStats = MakeCard(sc, L["Session Overview"])
 
   local statsLines = {}
   for _, lbl in ipairs({"Trades recorded", "Total gold received", "Total gold given", "Net gold"}) do
@@ -1114,7 +1127,7 @@ function GT.SetupSettings(parent)
   cStats:Finish(); Add(cStats); Add(Sep(sc), 9)
 
   -- ── Card: Graph ─────────────────────────────────────────────────────────
-  local cGraph = MakeCard(sc, "Gold Flow")
+  local cGraph = MakeCard(sc, L["Gold Flow"])
 
   -- Dynamic days label + tiny range buttons placed in the card title bar
   local graphDays = 14   -- current selected range, shared with RenderInlineGraph
@@ -1231,7 +1244,7 @@ function GT.SetupSettings(parent)
       local fs = graphHolder:CreateFontString(nil, "OVERLAY")
       fs:SetFont(NS.FONT, 10, "")
       fs:SetPoint("CENTER"); fs:SetTextColor(0.35, 0.35, 0.45)
-      fs:SetText("No gold trades in this period")
+      fs:SetText(L["gt_no_trades_period"])
       return
     end
 
@@ -1329,11 +1342,11 @@ function GT.SetupSettings(parent)
         hit:SetScript("OnEnter", function(self)
           GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
           GameTooltip:SetText(cd.key, ar2, ag2, ab2)
-          if cd.gave     > 0 then GameTooltip:AddLine("Gave:      "..(MoneyStr(cd.gave)     or "0"), 0.9,0.3,0.3) end
-          if cd.received > 0 then GameTooltip:AddLine("Received: "..(MoneyStr(cd.received) or "0"), 0.3,0.9,0.3) end
+          if cd.gave     > 0 then GameTooltip:AddLine(L["Gave"] .. ":      "..(MoneyStr(cd.gave)     or "0"), 0.9,0.3,0.3) end
+          if cd.received > 0 then GameTooltip:AddLine(L["Received"] .. ": "..(MoneyStr(cd.received) or "0"), 0.3,0.9,0.3) end
           local net = cd.received - cd.gave
           if net ~= 0 then
-            GameTooltip:AddLine("Net: "..(net>0 and "+" or "")..(MoneyStr(math.abs(net)) or "0"),
+            GameTooltip:AddLine(L["Net"] .. ": "..(net>0 and "+" or "")..(MoneyStr(math.abs(net)) or "0"),
               net>0 and 0.3 or 0.9, net>0 and 0.9 or 0.3, 0.3)
           end
           GameTooltip:Show()

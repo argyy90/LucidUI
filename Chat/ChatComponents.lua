@@ -389,12 +389,16 @@ function NS.RefreshSettingsAccent()
   if NS.chatOptAccentTextures then
     for _, e in ipairs(NS.chatOptAccentTextures) do
       if e.isFS then
-        e.tex:SetTextColor(ar, ag, ab, 1)
+        e.tex:SetTextColor(ar, ag, ab, e.alpha or 1)
       else
         e.tex:SetColorTexture(ar, ag, ab, e.alpha or 1)
       end
     end
   end
+
+  -- Re-apply PCB custom color (overrides accent if settingsPcbColor is set,
+  -- otherwise re-applies accent to PCB textures — same result either way)
+  if NS.ApplyPcbColor then NS.ApplyPcbColor() end
 
   -- Settings dialog elements
   if NS.chatOptWin then

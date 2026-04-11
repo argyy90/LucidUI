@@ -2,6 +2,7 @@
 -- Custom player cast bar with channel and interrupt support.
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.CastBar = NS.CastBar or {}
 local CB = NS.CastBar
 local cbInitialized = false
@@ -450,12 +451,12 @@ function CB.SetupSettings(parent)
     R(card, row, 26)
   end
   -- ── General card ──
-  local cGen = MakeCard(sc, "General")
+  local cGen = MakeCard(sc, L["General"])
   local enRow = CreateFrame("Frame", nil, cGen.inner); enRow:SetHeight(26)
   -- Reset position button
   local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText(L["Reset"])
   resetBtn:SetScript("OnClick", function()
     OptSet("pos", nil)
     if bar then NS.AnchorToChain(bar, "CastBar") end
@@ -465,18 +466,18 @@ function CB.SetupSettings(parent)
   -- Unlock button
   local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
   lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText(L["Unlock"])
   local unlocked = false
   lockBtn:SetScript("OnClick", function()
     unlocked = not unlocked
-    lockFS:SetText(unlocked and "Lock" or "Unlock")
+    lockFS:SetText(unlocked and "Lock" or L["Unlock"])
     local r, g, b = NS.ChatGetAccentRGB()
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
     CreateBar(); ApplyBarStyle()
     if unlocked then
       bar:Show(); bar:SetAlpha(1)
       bar.bar:SetValue(0.65)
-      bar.spellText:SetText("Cast Bar"); bar.timerText:SetText("1.5")
+      bar.spellText:SetText(L["Cast Bar"]); bar.timerText:SetText("1.5")
       bar:EnableMouse(true); bar:RegisterForDrag("LeftButton")
       bar:SetScript("OnDragStart", function(s) s:StartMoving() end)
       bar:SetScript("OnDragStop", function(s)
@@ -485,7 +486,7 @@ function CB.SetupSettings(parent)
         if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
         NS.UpdateMoverPopup()
       end)
-      NS.ShowMoverPopup(bar, "Cast Bar", function(f)
+      NS.ShowMoverPopup(bar, L["Cast Bar"], function(f)
         local left, top = f:GetLeft(), f:GetTop()
         if left then OptSet("pos", {p="TOPLEFT", x=left, y=top - GetScreenHeight()}) end
       end, function()
@@ -503,20 +504,20 @@ function CB.SetupSettings(parent)
   lockBtn:SetScript("OnEnter", function() local r,g,b = NS.ChatGetAccentRGB(); lockBtn:SetBackdropBorderColor(r, g, b, 0.8) end)
   lockBtn:SetScript("OnLeave", function() if not unlocked then lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end end)
   R(cGen, enRow, 26)
-  local autoWCb = NS.ChatGetCheckbox(cGen.inner, "Auto Width (match Cooldowns)", 26, function(s)
+  local autoWCb = NS.ChatGetCheckbox(cGen.inner, L["Auto Width (match Cooldowns)"], 26, function(s)
     OptSet("autoWidth", s); CB.Refresh()
   end, "Automatically match width to Essential Cooldowns")
   R(cGen, autoWCb, 26); autoWCb:SetValue(Opt("autoWidth") ~= false)
   cGen:Finish(); Append(cGen, cGen:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Size card ──
-  local cSize = MakeCard(sc, "Size")
+  local cSize = MakeCard(sc, L["Size"])
   Slider(cSize, "Width", "width", 100, 400, "%spx", 220)
   Slider(cSize, "Height", "height", 10, 40, "%spx", 20)
   cSize:Finish(); Append(cSize, cSize:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Appearance card ──
-  local cApp = MakeCard(sc, "Appearance")
+  local cApp = MakeCard(sc, L["Appearance"])
   local barTexNames = {}
   local rawBars = NS.GetLSMStatusBars and NS.GetLSMStatusBars() or {}
   for _, b in ipairs(rawBars) do barTexNames[#barTexNames+1] = b.label end
@@ -536,12 +537,12 @@ function CB.SetupSettings(parent)
   TogglePair(cApp, "Show Icon", "showIcon", "Interrupt Shield", "interruptible")
   -- Dropdowns side by side
   local dLh, dRh = PairRow(cApp, 46)
-  local dd1 = NS.ChatGetDropdown(dLh, "Bar Texture",
+  local dd1 = NS.ChatGetDropdown(dLh, L["Bar Texture"],
     function(v) return (Opt("texture") or "Flat") == v end,
     function(v) OptSet("texture", v); CB.Refresh() end)
   dd1:Init(barTexNames, barTexNames, 200)
   dd1:SetParent(dLh); dd1:ClearAllPoints(); dd1:SetAllPoints(dLh)
-  local dd2 = NS.ChatGetDropdown(dRh, "Background",
+  local dd2 = NS.ChatGetDropdown(dRh, L["Background"],
     function(v) return (Opt("bgTexture") or "Flat") == v end,
     function(v) OptSet("bgTexture", v); CB.Refresh() end)
   dd2:Init(barTexNames, barTexNames, 200)
@@ -614,7 +615,7 @@ function CB.SetupSettings(parent)
   cApp:Finish(); Append(cApp, cApp:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Text card ──
-  local cTxt = MakeCard(sc, "Text")
+  local cTxt = MakeCard(sc, L["Text"])
   TogglePair(cTxt, "Show Timer", "showTimer", "Spell Name", "showSpellName")
   local fontNames, fontValues = {"Default"}, {"default"}
   for _, ft in ipairs(NS.GetLSMFonts()) do fontNames[#fontNames+1] = ft.label; fontValues[#fontValues+1] = ft.label end

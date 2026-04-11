@@ -11,6 +11,7 @@
 -- Licensed under the GNU General Public License v3.
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.MythicPlus = NS.MythicPlus or {}
 local MP = NS.MythicPlus
 MP._accentTextures = {}   -- {tex=..., alpha=..., isFS=...} registered at build time
@@ -545,9 +546,9 @@ local function BuildWindow()
   titleFS:SetText("|cff"..hex.."MYTHIC+|r |cffffffffTRACKER|r")
   MP.win._titleFS = titleFS
 
-  -- "M+ Rating" label above score
+  -- L["M+ Rating"] label above score
   local ratingLbl=MP.win:CreateFontString(nil,"OVERLAY"); ratingLbl:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
-  ratingLbl:SetPoint("TOP",MP.win,"TOP",0,-8); ratingLbl:SetTextColor(0.88,0.88,0.95); ratingLbl:SetText("M+ Rating")
+  ratingLbl:SetPoint("TOP",MP.win,"TOP",0,-8); ratingLbl:SetTextColor(0.88,0.88,0.95); ratingLbl:SetText(L["M+ Rating"])
 
   MP.win._scoreLbl=MP.win:CreateFontString(nil,"OVERLAY"); MP.win._scoreLbl:SetFont(STANDARD_TEXT_FONT,26,"OUTLINE")
   MP.win._scoreLbl:SetPoint("TOP",MP.win,"TOP",0,-16); MP.win._scoreLbl:SetTextColor(1,0.84,0)
@@ -560,7 +561,7 @@ local function BuildWindow()
   MP.win._totalLbl:SetPoint("TOPLEFT",MP.win._highestLbl,"BOTTOMLEFT",0,-2); MP.win._totalLbl:SetTextColor(0.65,0.65,0.72)
 
   -- Alt + Season buttons (left side, after title)
-  MP.win._altBtn=MkBtn(MP.win,"Player",110,20,BD); MP.win._altBtn:SetPoint("TOPLEFT",MP.win,"TOPLEFT",160,-10)
+  MP.win._altBtn=MkBtn(MP.win,L["Player"],110,20,BD); MP.win._altBtn:SetPoint("TOPLEFT",MP.win,"TOPLEFT",160,-10)
   MP.win._seasonBtn=MkBtn(MP.win,"Season",120,20,BD); MP.win._seasonBtn:SetPoint("LEFT",MP.win._altBtn,"RIGHT",5,0)
   local resetBtn=MkBtn(MP.win,"Reset Filters",90,20,BD); resetBtn:SetPoint("LEFT",MP.win._seasonBtn,"RIGHT",5,0)
   resetBtn:SetScript("OnClick",function() MP._filterMap=nil; MP._filterPlayer=nil; MP._selRun=nil; MP.Refresh() end)
@@ -683,7 +684,7 @@ local function BuildWindow()
   graphCard:SetSize(0,0) -- size from anchors
   local gHdr=graphCard:CreateFontString(nil,"OVERLAY"); gHdr:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
   gHdr:SetPoint("TOP",graphCard,"TOP",0,-6)
-  gHdr:SetJustifyH("CENTER"); gHdr:SetTextColor(1,0.82,0); gHdr:SetText("KEY LEVEL CHART  — Best timed runs per dungeon")
+  gHdr:SetJustifyH("CENTER"); gHdr:SetTextColor(1,0.82,0); gHdr:SetText(L["Key Level Chart"]:upper() .. "  — " .. L["mp_chart_subtitle"])
   local gHolder=CreateFrame("Frame",nil,graphCard)
   gHolder:SetPoint("TOPLEFT",graphCard,"TOPLEFT",8,-20); gHolder:SetPoint("BOTTOMRIGHT",graphCard,"BOTTOMRIGHT",-8,6)
   MP.win._gHolder=gHolder
@@ -699,13 +700,13 @@ local function BuildWindow()
   end)
 
   -- Footer checkboxes + buttons
-  local maskCB=NS.ChatGetCheckbox(MP.win,"Mask Names",18,function(s) MP._maskNames=s; MP.Refresh() end,"Anonymise player names to first 3 letters")
+  local maskCB=NS.ChatGetCheckbox(MP.win,L["Mask Names"],18,function(s) MP._maskNames=s; MP.Refresh() end,"Anonymise player names to first 3 letters")
   maskCB:ClearAllPoints(); maskCB:SetSize(130,18); maskCB:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",110,6)
-  local failCB=NS.ChatGetCheckbox(MP.win,"Hide Fails",18,function(s) MP._hideFails=s; MP.Refresh() end,"Hide depleted/abandoned runs from history")
+  local failCB=NS.ChatGetCheckbox(MP.win,L["Hide Fails"],18,function(s) MP._hideFails=s; MP.Refresh() end,"Hide depleted/abandoned runs from history")
   failCB:ClearAllPoints(); failCB:SetSize(120,18); failCB:SetPoint("LEFT",maskCB,"RIGHT",10,0)
 
   -- ── Tutorial button ───────────────────────────────────────────────────────
-  local tutBtn=MkBtn(MP.win,"Tutorial",90,20,BD)
+  local tutBtn=MkBtn(MP.win,L["Tutorial"],90,20,BD)
   tutBtn:SetPoint("BOTTOMLEFT",MP.win,"BOTTOMLEFT",8,5)
   local tutBorder=CreateFrame("Frame",nil,tutBtn,"BackdropTemplate")
   tutBorder:SetAllPoints(); tutBorder:SetFrameLevel(tutBtn:GetFrameLevel()-1)
@@ -757,7 +758,7 @@ local function BuildWindow()
     local step=COACH_STEPS[tutProgress+1]
     if not step then
       tutorialActive=false; tutProgress=0
-      tutBtn._lbl:SetText("Tutorial"); tutBorder:Hide()
+      tutBtn._lbl:SetText(L["Tutorial"]); tutBorder:Hide()
       return
     end
     local anchor=GetAnchorFrame(step.anchor)
@@ -801,7 +802,7 @@ local function BuildWindow()
     bFS:SetWordWrap(true)
     bFS:SetJustifyH("LEFT")
 
-    -- Auto-height + "Got it" button (after text height is known)
+    -- Auto-height + L["Got it"] button (after text height is known)
     C_Timer.After(0.01,function()
       if not f or not f:IsShown() then return end
       local th=bFS:GetStringHeight() or 40
@@ -813,7 +814,7 @@ local function BuildWindow()
       gotIt:SetBackdropColor(0.04,0.04,0.07,1)
       gotIt:SetBackdropBorderColor(ar,ag,ab,0.6)
       local gFS=gotIt:CreateFontString(nil,"OVERLAY")
-      gFS:SetFont(STANDARD_TEXT_FONT,10,""); gFS:SetPoint("CENTER"); gFS:SetTextColor(0.85,0.85,0.92); gFS:SetText("Got it")
+      gFS:SetFont(STANDARD_TEXT_FONT,10,""); gFS:SetPoint("CENTER"); gFS:SetTextColor(0.85,0.85,0.92); gFS:SetText(L["Got it"])
       gotIt:SetScript("OnEnter",function() gotIt:SetBackdropBorderColor(ar,ag,ab,1); gFS:SetTextColor(1,1,1) end)
       gotIt:SetScript("OnLeave",function() gotIt:SetBackdropBorderColor(ar,ag,ab,0.6); gFS:SetTextColor(0.85,0.85,0.92) end)
       gotIt:SetScript("OnClick",function()
@@ -910,7 +911,7 @@ local function BuildWindow()
 
   local function EnterTutorial()
     tutorialActive = true; tutProgress = 0
-    tutBtn._lbl:SetText("Exit Tutorial"); tutBorder:Show()
+    tutBtn._lbl:SetText(L["Exit Tutorial"]); tutBorder:Show()
     -- Save current state
     savedAlt = MP._selAlt; savedSeason = MP._selSeason
     savedFilter = MP._filterMap; savedPlayerFilter = MP._filterPlayer
@@ -923,7 +924,7 @@ local function BuildWindow()
 
   local function ExitTutorial()
     tutorialActive = false
-    tutBtn._lbl:SetText("Tutorial"); tutBorder:Hide()
+    tutBtn._lbl:SetText(L["Tutorial"]); tutBorder:Hide()
     ClearCoachMarks()
     ClearTutorialData()
     -- Restore previous state
@@ -1186,12 +1187,12 @@ local function DrawTiles(seasonData,runs)
       if MP._filterMap~=capID then tile.highlight:Show(); tile.border:Show() end
       GameTooltip:SetOwner(self2,"ANCHOR_TOP")
       GameTooltip:SetText(capName,1,1,1)
-      GameTooltip:AddLine("Left-click to filter",0.7,0.7,0.7)
+      GameTooltip:AddLine(L["Left-click to filter"],0.7,0.7,0.7)
       if tpEnabled then
         if C_SpellBook.IsSpellKnownOrInSpellBook(teleportSpell) then
-          GameTooltip:AddLine("Right-click to teleport",0.3,0.9,0.3)
+          GameTooltip:AddLine(L["Right-click to teleport"],0.3,0.9,0.3)
         else
-          GameTooltip:AddLine("Teleport not unlocked",0.5,0.5,0.5)
+          GameTooltip:AddLine(L["Teleport not unlocked"],0.5,0.5,0.5)
         end
       end
       GameTooltip:Show()
@@ -1215,15 +1216,15 @@ local function DrawAnalytics(teammates)
   hdr:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); hdr:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
   hdr:SetBackdrop(BD); hdr:SetBackdropColor(0.015,0.015,0.025,1); hdr:SetBackdropBorderColor(ar,ag,ab,0.22)
   local h1=hdr:CreateFontString(nil,"OVERLAY"); h1:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
-  h1:SetPoint("LEFT",hdr,"LEFT",4,0); h1:SetTextColor(ar,ag,ab); h1:SetText("Player")
+  h1:SetPoint("LEFT",hdr,"LEFT",4,0); h1:SetTextColor(ar,ag,ab); h1:SetText(L["Player"])
   local h2=hdr:CreateFontString(nil,"OVERLAY"); h2:SetFont(STANDARD_TEXT_FONT,9,"OUTLINE")
-  h2:SetPoint("RIGHT",hdr,"RIGHT",-4,0); h2:SetTextColor(ar,ag,ab); h2:SetText("Runs")
+  h2:SetPoint("RIGHT",hdr,"RIGHT",-4,0); h2:SetTextColor(ar,ag,ab); h2:SetText(L["Runs"])
   yOff=yOff+ROW+2
   if #teammates==0 then sc:SetHeight(60)
     local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,9,""); fs:SetPoint("TOPLEFT",sc,"TOPLEFT",6,-yOff)
     fs:SetPoint("RIGHT",sc,"RIGHT",-6,0)
     fs:SetTextColor(0.35,0.35,0.45); fs:SetWordWrap(true)
-    fs:SetText("No teammates yet.\nRoster is only tracked for runs\ncompleted while LucidUI is active."); return end
+    fs:SetText(L["mp_no_teammates"]); return end
   for _,tm in ipairs(teammates) do
     local row=CreateFrame("Button",nil,sc,"BackdropTemplate"); row:SetHeight(ROW)
     row:SetPoint("TOPLEFT",sc,"TOPLEFT",4,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
@@ -1264,7 +1265,7 @@ local function DrawHistory(runs,bestDates)
   yOff=yOff+20+2
   if #runs==0 then sc:SetHeight(40)
     local fs=sc:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,""); fs:SetPoint("TOP",sc,"TOP",0,-yOff)
-    fs:SetTextColor(0.35,0.35,0.45); fs:SetText("No runs match the current filters"); return end
+    fs:SetTextColor(0.35,0.35,0.45); fs:SetText(L["mp_no_runs_filter"]); return end
   for _,run in ipairs(runs) do
     local row=CreateFrame("Button",nil,sc,"BackdropTemplate"); row:SetHeight(ROW)
     row:SetPoint("TOPLEFT",sc,"TOPLEFT",8,-yOff); row:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-4,-yOff)
@@ -1415,7 +1416,7 @@ local function DrawDetails(run)
   delBtn:SetPoint("TOPRIGHT",sc,"TOPRIGHT",-3,-3); local BD2=MP.win._BD
   delBtn:SetBackdrop(BD2); delBtn:SetBackdropColor(0.08,0.02,0.02,1); delBtn:SetBackdropBorderColor(0.28,0.08,0.08,1)
   local dLbl=delBtn:CreateFontString(nil,"OVERLAY"); dLbl:SetFont(STANDARD_TEXT_FONT,9,""); dLbl:SetPoint("CENTER")
-  dLbl:SetTextColor(0.65,0.18,0.18); dLbl:SetText("Delete Run")
+  dLbl:SetTextColor(0.65,0.18,0.18); dLbl:SetText(L["Delete Run"])
   delBtn:SetScript("OnEnter",function() delBtn:SetBackdropBorderColor(1,0.25,0.25,1); dLbl:SetTextColor(1,0.35,0.35) end)
   delBtn:SetScript("OnLeave",function() delBtn:SetBackdropBorderColor(0.28,0.08,0.08,1); dLbl:SetTextColor(0.65,0.18,0.18) end)
   local capRun=run; delBtn:SetScript("OnClick",function()
@@ -1456,7 +1457,7 @@ local function DrawGraph(runs,seasonData)
     table.sort(graphRuns,function(a,b) return (a.date or 0)>(b.date or 0) end)
     local maxN=math.floor(CW2/28); while #graphRuns>maxN do table.remove(graphRuns) end end
   if #graphRuns==0 then local fs=holder:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,"")
-    fs:SetPoint("CENTER"); fs:SetTextColor(0.35,0.35,0.45); fs:SetText("No timed runs to display"); return end
+    fs:SetPoint("CENTER"); fs:SetTextColor(0.35,0.35,0.45); fs:SetText(L["mp_no_timed_runs"]); return end
   local maxLv=0; for _,r in ipairs(graphRuns) do if (r.level or 0)>maxLv then maxLv=r.level end end; if maxLv==0 then maxLv=1 end
   -- Grid
   for gi=1,4 do local yFrac=gi/4; local yPx=PB+math.floor(yFrac*CH)
@@ -1650,7 +1651,7 @@ function MP.SetupSettings(parent)
   local Sep=NS._SSep; local BD=NS._SBD
   local sc,Add=MakePage(container)
   local function DB(k) return NS.DB(k) end; local function DBSet(k,v) NS.DBSet(k,v) end
-  local cT=MakeCard(sc,"Mythic+ Tracking")
+  local cT=MakeCard(sc,L["Mythic+ Tracking"])
   -- Pair row: Enable + Teleport side by side
   local pairRow=CreateFrame("Frame",nil,cT.inner); pairRow:SetHeight(26)
   cT:Row(pairRow,26)
@@ -1659,10 +1660,10 @@ function MP.SetupSettings(parent)
   lh:SetPoint("TOPLEFT",pairRow,"TOPLEFT",0,0); lh:SetPoint("BOTTOMRIGHT",pairRow,"BOTTOM",-2,0)
   local rh=CreateFrame("Frame",nil,pairRow)
   rh:SetPoint("TOPLEFT",pairRow,"TOP",2,0); rh:SetPoint("BOTTOMRIGHT",pairRow,"BOTTOMRIGHT",0,0)
-  local enCB=NS.ChatGetCheckbox(lh,"Enable Mythic+ Tracking",26,function(s) DBSet("mpEnabled",s); if s then DBSet("showMPlusBtn",true); MP.EnableTracking() else MP.DisableTracking() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Auto-record every Mythic+ run")
+  local enCB=NS.ChatGetCheckbox(lh,L["Enable Mythic+ Tracking"],26,function(s) DBSet("mpEnabled",s); if s then DBSet("showMPlusBtn",true); MP.EnableTracking() else MP.DisableTracking() end; if NS.LayoutBarButtons then NS.LayoutBarButtons() end end,"Auto-record every Mythic+ run")
   enCB.option="mpEnabled"; enCB:SetParent(lh); enCB:ClearAllPoints(); enCB:SetAllPoints(lh)
   enCB:SetValue(NS.DB("mpEnabled") ~= false)
-  local tpCB=NS.ChatGetCheckbox(rh,"Dungeon Teleport",26,function(s) DBSet("mpTeleport",s); if MP.win and MP.win:IsShown() then MP.Refresh() end end,"Right-click a dungeon tile in the M+ window to teleport directly to that dungeon (requires a timed key)")
+  local tpCB=NS.ChatGetCheckbox(rh,L["Dungeon Teleport"],26,function(s) DBSet("mpTeleport",s); if MP.win and MP.win:IsShown() then MP.Refresh() end end,"Right-click a dungeon tile in the M+ window to teleport directly to that dungeon (requires a timed key)")
   tpCB.option="mpTeleport"; tpCB:SetParent(rh); tpCB:ClearAllPoints(); tpCB:SetAllPoints(rh)
   tpCB:SetValue(NS.DB("mpTeleport") ~= false)
   local openRow=CreateFrame("Frame",nil,cT.inner); openRow:SetHeight(32)
@@ -1671,12 +1672,12 @@ function MP.SetupSettings(parent)
   openBtn:SetBackdrop(BD); openBtn:SetBackdropColor(0.04,0.04,0.07,1); openBtn:SetBackdropBorderColor(0.12,0.12,0.20,1)
   local oCut=openBtn:CreateTexture(nil,"OVERLAY",nil,4); oCut:SetSize(10,1); oCut:SetPoint("TOPRIGHT",openBtn,"TOPRIGHT",0,-1)
   do local _ar,_ag,_ab=NS.ChatGetAccentRGB(); oCut:SetColorTexture(_ar,_ag,_ab,0.22) end
-  local oFS=openBtn:CreateFontString(nil,"OVERLAY"); oFS:SetFont(STANDARD_TEXT_FONT,11,""); oFS:SetPoint("CENTER"); oFS:SetTextColor(0.75,0.75,0.85); oFS:SetText("Open Mythic+ History")
+  local oFS=openBtn:CreateFontString(nil,"OVERLAY"); oFS:SetFont(STANDARD_TEXT_FONT,11,""); oFS:SetPoint("CENTER"); oFS:SetTextColor(0.75,0.75,0.85); oFS:SetText(L["Open Mythic+ History"])
   openBtn:SetScript("OnEnter",function() local cr,cg,cb=NS.ChatGetAccentRGB(); openBtn:SetBackdropBorderColor(cr,cg,cb,0.8) end)
   openBtn:SetScript("OnLeave",function() openBtn:SetBackdropBorderColor(0.12,0.12,0.20,1) end)
   openBtn:SetScript("OnClick",function() MP.ShowWindow() end)
   cT:Row(openRow,32); cT:Finish(); Add(cT); Add(Sep(sc),9)
-  local cS=MakeCard(sc,"Season Overview"); local statLines={}
+  local cS=MakeCard(sc,L["Season Overview"]); local statLines={}
   for _,lbl in ipairs({"Total runs","Timed","Depleted/Abandoned","Best key level","Total deaths","Overall M+ Score"}) do
     local holder=CreateFrame("Frame",nil,cS.inner); holder:SetHeight(22); cS:Row(holder,22)
     holder:SetPoint("LEFT",cS.inner,"LEFT",0,0); holder:SetPoint("RIGHT",cS.inner,"RIGHT",0,0)
@@ -1686,7 +1687,7 @@ function MP.SetupSettings(parent)
   cS:Finish(); Add(cS); Add(Sep(sc),9)
 
   -- ── Card: Key Level Chart ─────────────────────────────────────────────────
-  local cGraph = MakeCard(sc, "Key Level Chart")
+  local cGraph = MakeCard(sc, L["Key Level Chart"])
   local GRAPH_H = 160
   local graphHolder = CreateFrame("Frame", nil, cGraph.inner)
   graphHolder:SetHeight(GRAPH_H)
@@ -1724,7 +1725,7 @@ function MP.SetupSettings(parent)
     if #graphRuns==0 then
       local fs=graphHolder:CreateFontString(nil,"OVERLAY"); fs:SetFont(STANDARD_TEXT_FONT,10,"")
       fs:SetPoint("CENTER",graphHolder,"CENTER"); fs:SetTextColor(0.35,0.35,0.45)
-      fs:SetText("Complete Mythic+ keys to see stats here"); return
+      fs:SetText(L["mp_no_completed"]); return
     end
 
     local W=graphHolder:GetWidth() or 300

@@ -468,27 +468,28 @@ local function FormatChatMessage(event, arg1, arg2, arg3, arg4, arg5, arg6, arg7
   -- Boss/Monster messages: show message with NPC name as sender
   local isBossMonster = chatType:sub(1, 9) == "RAID_BOSS" or chatType:sub(1, 7) == "MONSTER"
 
-  -- Build sender name with class color
   local senderDisplay
-  if senderProtected then
-    senderDisplay = arg2
-  elseif isBossMonster then
+  if isBossMonster then
     senderDisplay = "|cffffff00" .. (arg2 or "") .. "|r"
   else
-    -- Player: shorten name and apply class color
+    -- Resolver runs even with a secret arg2; the GUID path routes through
+    -- C_ClassColor which accepts secret tokens at C++ level.
     local shortName = arg2
     if not senderProtected then
+      local stripped = arg2
+      if type(stripped) == "string" then
+        local okS, s = pcall(string.gsub, stripped, "|K.-|k", "???")
+        if okS and s then stripped = s end
+      end
       local ambigMode = NS.DB("chatShowRealm") and "none" or "short"
-      local ok, name = pcall(Ambiguate, arg2 or "", ambigMode)
+      local ok, name = pcall(Ambiguate, stripped or "", ambigMode)
       if ok and name then shortName = name end
     end
-    -- Try class color from GUID (pcall everything — GUID may be secret in instances)
-    local colored = false
-    if arg12 and NS.ChatGetColoredSender then
+    senderDisplay = shortName
+    if NS.ChatGetColoredSender then
       local ok, result = pcall(NS.ChatGetColoredSender, arg12, shortName)
-      if ok and result then senderDisplay = result; colored = true end
+      if ok and result then senderDisplay = result end
     end
-    if not colored then senderDisplay = shortName end
   end
 
   -- Build channel prefix
@@ -555,6 +556,14 @@ local function FormatChatMessage(event, arg1, arg2, arg3, arg4, arg5, arg6, arg7
   else
     body = string.format("%s%s: %s", prefix, senderDisplay, arg1 or "")
     if NS.ChatFormatURLs then body = NS.ChatFormatURLs(body) end
+  end
+
+  -- Strip Blizzard |K...|k redaction wrappers (cross-realm name hiding).
+  -- Chattynator does the same in Core/Messages.lua CleanStore. Only safe to
+  -- gsub if body is a non-secret string (secret strings would error).
+  if type(body) == "string" and not isSecretValue(body) then
+    local okK, stripped = pcall(string.gsub, body, "|K.-|k", "???")
+    if okK and stripped then body = stripped end
   end
 
   return body, cr, cg, cb
@@ -704,11 +713,15 @@ end
 -- ── AddToDisplay ─────────────────────────────────────────────────────
 
 AddToDisplay = function(index, msg, r, g, b, event, channelName, unixTime)
-  if not msg then msg = "" end
+  if not msg then return end
   local protected = issecretvalue and issecretvalue(msg)
   if not protected then
     local ok, safe = pcall(string.format, "%s", msg)
     if ok then msg = safe end
+    -- Drop empty / whitespace-only messages: they render as zero-height
+    -- FontStrings and collapse the anchor chain, causing adjacent messages
+    -- to overlap visually (particularly visible after /reload history restore).
+    if type(msg) ~= "string" or msg:match("^%s*$") then return end
   end
   local d = customDisplays[index]
   if not d then return end
@@ -1158,10 +1171,10 @@ RebuildTabButtons = function()
           local isManagedTab = tabData[capturedI] and
             (tabData[capturedI]._isLootTab or tabData[capturedI]._isWhisperTab or tabData[capturedI]._isCombatLogTab)
           if not isManagedTab then
-            root:CreateButton("Rename", function()
+            root:CreateButton(L["Rename"], function()
               if not StaticPopupDialogs["LUI_CHAT_RENAME_TAB"] then
                 StaticPopupDialogs["LUI_CHAT_RENAME_TAB"] = {
-                  text = "Enter new tab name:",
+                  text = L["popup_tab_rename"],
                   button1 = ACCEPT, button2 = CANCEL,
                   hasEditBox = true, maxLetters = 32,
                   OnAccept = function(dialog)
@@ -1193,14 +1206,14 @@ RebuildTabButtons = function()
           end
 
           -- Filter (opens Tab Settings tab in settings dialog)
-          root:CreateButton("Filter", function()
+          root:CreateButton(L["Filter"], function()
             if NS.OpenChatTabSettings then
               NS.OpenChatTabSettings(capturedI)
             end
           end)
 
           -- Tab Color
-          root:CreateButton("Tab Color", function()
+          root:CreateButton(L["Tab Color"], function()
             local td2 = tabData[capturedI]
             local ar2, ag2, ab2 = GetAccentColor()
             local r0, g0, b0
@@ -1229,7 +1242,7 @@ RebuildTabButtons = function()
 
           -- Reset tab color
           if tabData[capturedI] and tabData[capturedI].colorHex then
-            root:CreateButton("Reset Color", function()
+            root:CreateButton(L["Reset Color"], function()
               tabData[capturedI].colorHex = nil
               RefreshButtonVisuals()
               SaveTabData()
@@ -1697,6 +1710,7 @@ NS.ChatShowCopyWindow = function()
   local lines = {}
   local td = tabData[activeTab]
   local flt = td and td.eventSet
+  local isSecret = issecretvalue
 
   for _, entry in ipairs(h) do
     if entry.msg then
@@ -1720,19 +1734,29 @@ NS.ChatShowCopyWindow = function()
         show = false
       end
       if show then
-        local clean = entry.msg
-          :gsub("|H.-|h(.-)|h", "%1")  -- strip hyperlinks, keep text
-          :gsub("|T.-|t", ""):gsub("|A.-|a", ""):gsub("|K.-|k", ""):gsub("|n", "\n")  -- strip textures/atlas
-        -- Strip timestamp prefix (already adding our own)
-        clean = clean
-          :gsub("^|cff%x%x%x%x%x%x%d?%d?:?%d%d:?%d?%d?[APMapm ]*|r ", "")
-          :gsub("^%d?%d?:?%d%d:?%d?%d?[APMapm ]* ", "")
-        -- Keep |cff color codes for colored display
-        local ts = entry.t and date("%H:%M:%S", entry.t) or ""
-        -- Wrap line with message color if no color codes present
-        local colorHex = string.format("%02x%02x%02x", (entry.r or 1) * 255, (entry.g or 1) * 255, (entry.b or 1) * 255)
-        local coloredLine = "|cff" .. colorHex .. ((ts ~= "" and (ts .. " ") or "") .. clean) .. "|r"
-        lines[#lines+1] = coloredLine
+        -- Secret-safe path: if msg is a secret value (message received during
+        -- combat restrictions), skip all string operations — display a marker
+        -- instead. Lua gsub/match/concat on secrets error.
+        if isSecret and isSecret(entry.msg) then
+          local ts = entry.t and date("%H:%M:%S", entry.t) or ""
+          lines[#lines+1] = (ts ~= "" and (ts .. " ") or "") .. "<protected message>"
+        else
+          local ok, clean = pcall(function()
+            local c = entry.msg
+              :gsub("|H.-|h(.-)|h", "%1")  -- strip hyperlinks, keep text
+              :gsub("|T.-|t", ""):gsub("|A.-|a", ""):gsub("|K.-|k", ""):gsub("|n", "\n")  -- strip textures/atlas
+            -- Strip timestamp prefix (already adding our own)
+            c = c
+              :gsub("^|cff%x%x%x%x%x%x%d?%d?:?%d%d:?%d?%d?[APMapm ]*|r ", "")
+              :gsub("^%d?%d?:?%d%d:?%d?%d?[APMapm ]* ", "")
+            return c
+          end)
+          if ok and clean then
+            local ts = entry.t and date("%H:%M:%S", entry.t) or ""
+            local colorHex = string.format("%02x%02x%02x", (entry.r or 1) * 255, (entry.g or 1) * 255, (entry.b or 1) * 255)
+            lines[#lines+1] = "|cff" .. colorHex .. ((ts ~= "" and (ts .. " ") or "") .. clean) .. "|r"
+          end
+        end
       end
     end
   end
@@ -1821,12 +1845,14 @@ NS.ChatShowCopyWindow = function()
     if not frame:IsShown() then return end
     editBox:SetWidth(sf:GetWidth())
     editBox:SetText(text)
-    editBox:SetCursorPosition(#text)
+    -- Avoid #text (may fail on secret-tainted strings). Use -1 which
+    -- positions the cursor at the end without needing a length check.
+    pcall(editBox.SetCursorPosition, editBox, -1)
     C_Timer.After(0, function()
       if not frame:IsShown() then return end
       local maxScroll = sf:GetVerticalScrollRange()
       if maxScroll and maxScroll > 0 then sf:SetVerticalScroll(maxScroll) end
-      editBox:HighlightText()
+      pcall(editBox.HighlightText, editBox)
     end)
   end)
 
@@ -2059,9 +2085,9 @@ local function CreateMinimapButton()
   btn:SetScript("OnEnter", function()
     GameTooltip:SetOwner(btn, "ANCHOR_LEFT")
     GameTooltip:SetText("LucidUI")
-    GameTooltip:AddLine("Left-click: Settings", 0.7, 0.7, 0.7)
-    GameTooltip:AddLine("Right-click: Settings", 0.7, 0.7, 0.7)
-    GameTooltip:AddLine("Drag: Move button", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(L["Left-click: Settings"], 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(L["Right-click: Settings"], 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(L["Drag: Move button"], 0.7, 0.7, 0.7)
     GameTooltip:Show()
   end)
   btn:SetScript("OnLeave", function() GameTooltip:Hide() end)

@@ -3,6 +3,7 @@
 -- to restyle and reposition buff icon and buff bar frames.
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.BuffBar = NS.BuffBar or {}
 local BB = NS.BuffBar
 
@@ -679,12 +680,12 @@ function BB.SetupSettings(parent)
   end
 
   -- General
-  local cGen = MakeCard(sc, "General")
+  local cGen = MakeCard(sc, L["General"])
   local enRow = CreateFrame("Frame", nil, cGen.inner); enRow:SetHeight(26)
   -- Reset button
   local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText(L["Reset"])
   resetBtn:SetScript("OnClick", function()
     OptSet("buffIconPos", nil); OptSet("buffBarPos", nil)
     local iconC = containers["BuffIconCooldownViewer"]
@@ -697,11 +698,11 @@ function BB.SetupSettings(parent)
   -- Unlock button
   local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
   lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText(L["Unlock"])
   local unlocked = false
   lockBtn:SetScript("OnClick", function()
     unlocked = not unlocked; BB._unlocked = unlocked
-    lockFS:SetText(unlocked and "Lock" or "Unlock")
+    lockFS:SetText(unlocked and "Lock" or L["Unlock"])
     local r, g, b = NS.ChatGetAccentRGB()
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
     for _, vn in ipairs({VIEWER_BUFF_ICON, VIEWER_BUFF_BAR}) do
@@ -810,7 +811,7 @@ function BB.SetupSettings(parent)
   cGen:Finish(); Append(cGen, cGen:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- Buff Icons
-  local cIco = MakeCard(sc, "Buff Icons")
+  local cIco = MakeCard(sc, L["Buff Icons"])
   Slider(cIco, "Icon Size", "buffIconSize", 16, 60, "%spx", 36)
   Slider(cIco, "Spacing", "buffIconSpacing", 0, 10, "%spx", 2)
   Slider(cIco, "Icons Per Row", "buffIconsPerRow", 4, 20, "%s", 12)
@@ -818,7 +819,7 @@ function BB.SetupSettings(parent)
   cIco:Finish(); Append(cIco, cIco:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- Buff Bars
-  local cBar = MakeCard(sc, "Buff Bars")
+  local cBar = MakeCard(sc, L["Buff Bars"])
   Slider(cBar, "Width", "buffBarWidth", 80, 400, "%spx", 200)
   Slider(cBar, "Height", "buffBarHeight", 10, 40, "%spx", 20)
   Slider(cBar, "Spacing", "buffBarSpacing", 0, 8, "%spx", 2)
@@ -827,13 +828,13 @@ function BB.SetupSettings(parent)
   cBar:Finish(); Append(cBar, cBar:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- Appearance
-  local cApp = MakeCard(sc, "Appearance")
+  local cApp = MakeCard(sc, L["Appearance"])
   local barTexNames = {}
   local rawBars = NS.GetLSMStatusBars and NS.GetLSMStatusBars() or {}
   for _, b in ipairs(rawBars) do barTexNames[#barTexNames+1] = b.label end
   if #barTexNames == 0 then barTexNames = {"Flat"} end
-  DropdownPair(cApp, "Bar Texture", barTexNames, barTexNames, "buffBarTexture", "Flat",
-    "Background", barTexNames, barTexNames, "buffBarBgTexture", "Flat", 200)
+  DropdownPair(cApp, L["Bar Texture"], barTexNames, barTexNames, "buffBarTexture", "Flat",
+    L["Background"], barTexNames, barTexNames, "buffBarBgTexture", "Flat", 200)
   local fontNames, fontValues = {"Default"}, {"default"}
   for _, ft in ipairs(NS.GetLSMFonts()) do fontNames[#fontNames+1] = ft.label; fontValues[#fontValues+1] = ft.label end
   Dropdown(cApp, "Font", fontNames, fontValues, "buffBarFont", "default", 200)

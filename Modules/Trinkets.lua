@@ -3,6 +3,7 @@
 -- Anchors to player unitframe with cooldown display
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.Trinkets = NS.Trinkets or {}
 local TR = NS.Trinkets
 
@@ -448,16 +449,16 @@ function TR.SetupSettings(parent)
     local enRow = CreateFrame("Frame", nil, card.inner); enRow:SetHeight(26)
     local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
     resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-    local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+    local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText(L["Reset"])
     resetBtn:SetScript("OnClick", function() OptSet(posKey, nil); OptSet(offXKey, 0); OptSet(offYKey, 0); TR.Refresh() end)
     resetBtn:SetScript("OnEnter", function() local r,g,b = NS.ChatGetAccentRGB(); resetBtn:SetBackdropBorderColor(r, g, b, 0.8) end)
     resetBtn:SetScript("OnLeave", function() resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end)
     local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
     lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-    local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+    local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText(L["Unlock"])
     local unlocked = false
     lockBtn:SetScript("OnClick", function()
-      unlocked = not unlocked; lockFS:SetText(unlocked and "Lock" or "Unlock")
+      unlocked = not unlocked; lockFS:SetText(unlocked and "Lock" or L["Unlock"])
       local r, g, b = NS.ChatGetAccentRGB()
       if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
       local b2 = barGetter()
@@ -511,7 +512,7 @@ function TR.SetupSettings(parent)
   end
 
   -- ── Trinkets card ──
-  local cTrk = MakeCard(sc, "Trinkets")
+  local cTrk = MakeCard(sc, L["Trinkets"])
   MakeUnlockReset(cTrk, "trkPos", "trkAnchor", "trkOffX", "trkOffY", trkContainer, function() return trkContainer end)
   Toggle(cTrk, "Show Passive Trinkets", "trkShowPassive", "Show trinkets without on-use effect")
   Dropdown(cTrk, "Anchor Point", anchorLabels, anchorValues, "trkAnchor", "TOPLEFT", "trkPos")
@@ -525,7 +526,7 @@ function TR.SetupSettings(parent)
   cTrk:Finish(); Append(cTrk, cTrk:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Racials card ──
-  local cRac = MakeCard(sc, "Racials / Items")
+  local cRac = MakeCard(sc, L["Racials / Items"])
   MakeUnlockReset(cRac, "racPos", "racAnchor", "racOffX", "racOffY", racContainer, function() return racContainer end)
   Toggle(cRac, "Show Items at Zero Stacks", "racShowZeroStacks", "Show items even when you have none")
   Dropdown(cRac, "Anchor Point", anchorLabels, anchorValues, "racAnchor", "BOTTOMLEFT", "racPos")
@@ -540,12 +541,12 @@ function TR.SetupSettings(parent)
   cRac:Finish(); Append(cRac, cRac:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Display card ──
-  local cShared = MakeCard(sc, "Display")
+  local cShared = MakeCard(sc, L["Display"])
   Toggle(cShared, "Cooldown Text", "showCooldownText", "Show cooldown timer on icons")
   cShared:Finish(); Append(cShared, cShared:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Custom Spells card ──
-  local cCustom = MakeCard(sc, "Custom Spells")
+  local cCustom = MakeCard(sc, L["Custom Spells"])
 
   -- Add row
   local addRow = CreateFrame("Frame", nil, cCustom.inner); addRow:SetHeight(30)
@@ -555,10 +556,10 @@ function TR.SetupSettings(parent)
   local addBtn = CreateFrame("Button", nil, addRow, "BackdropTemplate")
   addBtn:SetSize(50, 20); addBtn:SetPoint("LEFT", eb, "RIGHT", 4, 0)
   addBtn:SetBackdrop(SBD); addBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); addBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local addFS = addBtn:CreateFontString(nil, "OVERLAY"); addFS:SetFont(NS.FONT, 9, ""); addFS:SetPoint("CENTER"); addFS:SetTextColor(0.65, 0.65, 0.75); addFS:SetText("Add")
+  local addFS = addBtn:CreateFontString(nil, "OVERLAY"); addFS:SetFont(NS.FONT, 9, ""); addFS:SetPoint("CENTER"); addFS:SetTextColor(0.65, 0.65, 0.75); addFS:SetText(L["Add"])
   local hint = addRow:CreateFontString(nil, "OVERLAY")
   hint:SetFont(NS.FONT, 9, ""); hint:SetPoint("LEFT", addBtn, "RIGHT", 8, 0)
-  hint:SetTextColor(0.4, 0.4, 0.5); hint:SetText("Spell or Item ID")
+  hint:SetTextColor(0.4, 0.4, 0.5); hint:SetText(L["Spell or Item ID"])
   R(cCustom, addRow, 26)
 
   -- Dynamic list container (height 0 baseline — grows with items)

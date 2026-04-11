@@ -16,11 +16,11 @@ function DM.SetupSettings(parent)
   local function DBSet(k,v) NS.DBSet(k, v)       end
 
   -- ── Card: General ────────────────────────────────────────────────
-  local cGen = MakeCard(sc, "General")
+  local cGen = MakeCard(sc, L["General"])
 
   -- Enable checkbox + Per-Spec dropdown on same row
   local enRow = CreateFrame("Frame", nil, cGen.inner); enRow:SetHeight(26)
-  local enableCB = NS.ChatGetCheckbox(enRow, "Enable LucidMeter", 26, function(state)
+  local enableCB = NS.ChatGetCheckbox(enRow, L["Enable LucidMeter"], 26, function(state)
     DBSet("dmEnabled", state)
     if state then
       if DM.RegisterEvents then DM.RegisterEvents() end
@@ -154,7 +154,7 @@ function DM.SetupSettings(parent)
     "Show %","dmShowPercent",function(s) DBSet("dmShowPercent",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end,"Percentage of total",
     "Server name","dmShowRealm",function(s) DBSet("dmShowRealm",s); if DM.UpdateDisplay then DM.UpdateDisplay() end end,"Show realm for others")
 
-  local resetDD = NS.ChatGetDropdown(cGen.inner,"Auto Reset",
+  local resetDD = NS.ChatGetDropdown(cGen.inner,L["Auto Reset"],
     function(v) return (DB("dmAutoReset") or "off")==v end,
     function(v) DBSet("dmAutoReset",v) end)
   resetDD:Init({"Off","Enter Instance","Leave Instance","Both"},{"off","enter","leave","both"})
@@ -163,9 +163,9 @@ function DM.SetupSettings(parent)
   cGen:Finish(); Add(cGen); Add(Sep(sc),9)
 
   -- ── Card: Click-Through ──────────────────────────────────────────
-  local cCT = MakeCard(sc, "Click-Through")
+  local cCT = MakeCard(sc, L["Click-Through"])
   local ctRow = CreateFrame("Frame", nil, cCT.inner); ctRow:SetHeight(26)
-  local ctL = NS.ChatGetCheckbox(ctRow, "Enable click-through", 26, function(s)
+  local ctL = NS.ChatGetCheckbox(ctRow, L["Enable click-through"], 26, function(s)
     DBSet("dmClickThrough",s)
     if DM.windows then for _,w in ipairs(DM.windows) do local combat=DB("dmClickThroughCombat"); local act=s and(not combat or DM.inCombat); w.frame:EnableMouse(not act) end end
   end, "Clicks pass through the meter window")
@@ -174,7 +174,7 @@ function DM.SetupSettings(parent)
   ctL:SetPoint("TOPLEFT", ctRow,"TOPLEFT", 0,0)
   ctL:SetPoint("TOPRIGHT",ctRow,"TOP",    -4,0)
   ctL:SetHeight(26)
-  local ctR = NS.ChatGetCheckbox(ctRow, "In combat only", 26, function(s)
+  local ctR = NS.ChatGetCheckbox(ctRow, L["In combat only"], 26, function(s)
     DBSet("dmClickThroughCombat",s)
     if DM.windows then for _,w in ipairs(DM.windows) do local en=DB("dmClickThrough"); local act=en and(not s or DM.inCombat); w.frame:EnableMouse(not act) end end
   end, "Only during combat")
@@ -187,10 +187,10 @@ function DM.SetupSettings(parent)
   cCT:Row(ctRow, 26); cCT:Finish(); Add(cCT); Add(Sep(sc),9)
 
   -- ── Card: Text & Colors ──────────────────────────────────────────
-  local cText = MakeCard(sc, "Text & Colors")
+  local cText = MakeCard(sc, L["Text & Colors"])
 
   local fontShadow
-  fontShadow = NS.ChatGetSlider(cText.inner,"Font Shadow",0,3,"%.1f",function(value)
+  fontShadow = NS.ChatGetSlider(cText.inner,L["Font Shadow"],0,3,"%.1f",function(value)
     DBSet("dmFontShadow",value)
     if DM.UpdateDisplay then DM.UpdateDisplay() end
     if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then
@@ -200,7 +200,7 @@ function DM.SetupSettings(parent)
   end)
   fontShadow.option="dmFontShadow"; R(cText, fontShadow, 40)
 
-  local textOutline = NS.ChatGetCheckbox(cText.inner,"Text Outline",26,function(s)
+  local textOutline = NS.ChatGetCheckbox(cText.inner,L["Text Outline"],26,function(s)
     DBSet("dmTextOutline",s)
     if DM.UpdateDisplay then DM.UpdateDisplay() end
     if DM.windows then local fp=NS.GetFontPath(NS.DB("dmFont")); local fts=NS.DB("dmTitleFontSize") or 10; local fl=s and "OUTLINE" or ""
@@ -272,7 +272,7 @@ function DM.SetupSettings(parent)
   cText:Finish(); Add(cText); Add(Sep(sc),9)
 
   -- ── Card: Windows ────────────────────────────────────────────────
-  local cWin = MakeCard(sc, "Windows")
+  local cWin = MakeCard(sc, L["Windows"])
   local winBtnRow=CreateFrame("Frame",nil,cWin.inner); winBtnRow:SetHeight(32)
 
   local function SBtn(par,txt,w)
@@ -338,9 +338,9 @@ function DM.SetupSettings(parent)
   cWin:Row(winBtnRow,32); cWin:Finish(); Add(cWin); Add(Sep(sc),9)
 
   -- ── Card: Appearance ────────────────────────────────────────────
-  local cApp = MakeCard(sc, "Appearance")
+  local cApp = MakeCard(sc, L["Appearance"])
 
-  local fontDD=NS.ChatGetDropdown(cApp.inner,"Font",
+  local fontDD=NS.ChatGetDropdown(cApp.inner,L["Font"],
     function(v) return (DB("dmFont") or "Friz Quadrata")==v end,
     function(v) DBSet("dmFont",v); local fp=NS.GetFontPath(v); if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp,NS.DB("dmTitleFontSize") or 10,"") end end end; if DM.UpdateDisplay then DM.UpdateDisplay() end end)
   fontDD:Init({"Friz Quadrata"},{"Friz Quadrata"},20*15); R(cApp,fontDD,50)
@@ -353,21 +353,21 @@ function DM.SetupSettings(parent)
     triRow:SetPoint("LEFT",cApp.inner,"LEFT",0,0); triRow:SetPoint("RIGHT",cApp.inner,"RIGHT",0,0)
     -- Icon Mode (left third)
     local h1 = CreateFrame("Frame",nil,triRow)
-    iconDD = NS.ChatGetDropdown(h1,"Icon Mode",
+    iconDD = NS.ChatGetDropdown(h1,L["Icon Mode"],
       function(v) return (DB("dmIconMode") or "spec")==v end,
       function(v) DBSet("dmIconMode",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
     iconDD:Init({"Spec","Class","None"},{"spec","class","none"})
     iconDD:ClearAllPoints(); iconDD:SetAllPoints(h1)
     -- Values (middle third)
     local h2 = CreateFrame("Frame",nil,triRow)
-    valDD = NS.ChatGetDropdown(h2,"Values",
+    valDD = NS.ChatGetDropdown(h2,L["Values"],
       function(v) return (DB("dmValueFormat") or "both")==v end,
       function(v) DBSet("dmValueFormat",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
     valDD:Init({"Total | DPS","Total","DPS"},{"both","total","persec"})
     valDD:ClearAllPoints(); valDD:SetAllPoints(h2)
     -- Bar Highlight (right third)
     local h3 = CreateFrame("Frame",nil,triRow)
-    highlightDD = NS.ChatGetDropdown(h3,"Bar Highlight",
+    highlightDD = NS.ChatGetDropdown(h3,L["Bar Highlight"],
       function(v) return (DB("dmBarHighlight") or "none")==v end,
       function(v) DBSet("dmBarHighlight",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
     highlightDD:Init({"None","Border","Bar"},{"none","border","bar"})
@@ -392,13 +392,13 @@ function DM.SetupSettings(parent)
     cApp:Row(pairRow,50)
     pairRow:SetPoint("LEFT",cApp.inner,"LEFT",0,0); pairRow:SetPoint("RIGHT",cApp.inner,"RIGHT",0,0)
     local ph1 = CreateFrame("Frame",nil,pairRow)
-    barTexDD = NS.ChatGetDropdown(ph1,"Bar Texture",
+    barTexDD = NS.ChatGetDropdown(ph1,L["Bar Texture"],
       function(v) return (DB("dmBarTexture") or "Flat")==v end,
       function(v) DBSet("dmBarTexture",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
     barTexDD:Init(barTexNames,barTexValues,20*15)
     barTexDD:ClearAllPoints(); barTexDD:SetAllPoints(ph1)
     local ph2 = CreateFrame("Frame",nil,pairRow)
-    barBgDD = NS.ChatGetDropdown(ph2,"Bar Background",
+    barBgDD = NS.ChatGetDropdown(ph2,L["Bar Background"],
       function(v) return (DB("dmBarBgTexture") or "Flat")==v end,
       function(v) DBSet("dmBarBgTexture",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end)
     barBgDD:Init(barTexNames,barTexValues,20*15)
@@ -432,21 +432,21 @@ function DM.SetupSettings(parent)
   cApp:Finish(); Add(cApp); Add(Sep(sc),9)
 
   -- ── Card: Bars ───────────────────────────────────────────────────
-  local cBars = MakeCard(sc, "Bars")
+  local cBars = MakeCard(sc, L["Bars"])
   local barHeight,barSpacing,barFontSize,titleFontSize,barBright
-  barHeight    = NS.ChatGetSlider(cBars.inner,"Bar Height",   12, 28, "%dpx",function(v) DBSet("dmBarHeight",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barHeight.option="dmBarHeight"; R(cBars,barHeight,40)
-  barSpacing   = NS.ChatGetSlider(cBars.inner,"Bar Spacing",   0,  4, "%dpx",function(v) DBSet("dmBarSpacing",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barSpacing.option="dmBarSpacing"; R(cBars,barSpacing,40)
-  barFontSize  = NS.ChatGetSlider(cBars.inner,"Bar Font Size",  8, 16, "%dpt",function(v) DBSet("dmFontSize",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barFontSize.option="dmFontSize"; R(cBars,barFontSize,40)
-  titleFontSize= NS.ChatGetSlider(cBars.inner,"Title Font Size",8, 16, "%dpt",function(v) DBSet("dmTitleFontSize",v); local fp=NS.GetFontPath(NS.DB("dmFont")); if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp,v,"") end end end end); titleFontSize.option="dmTitleFontSize"; R(cBars,titleFontSize,40)
-  barBright    = NS.ChatGetSlider(cBars.inner,"Bar Brightness",10,100,"%d%%", function(v) DBSet("dmBarBrightness",v/100); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barBright.option="dmBarBrightness"; barBright._isPercent=true; R(cBars,barBright,40)
+  barHeight    = NS.ChatGetSlider(cBars.inner,L["Bar Height"],   12, 28, "%dpx",function(v) DBSet("dmBarHeight",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barHeight.option="dmBarHeight"; R(cBars,barHeight,40)
+  barSpacing   = NS.ChatGetSlider(cBars.inner,L["Bar Spacing"],   0,  4, "%dpx",function(v) DBSet("dmBarSpacing",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barSpacing.option="dmBarSpacing"; R(cBars,barSpacing,40)
+  barFontSize  = NS.ChatGetSlider(cBars.inner,L["Bar Font Size"],  8, 16, "%dpt",function(v) DBSet("dmFontSize",v); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barFontSize.option="dmFontSize"; R(cBars,barFontSize,40)
+  titleFontSize= NS.ChatGetSlider(cBars.inner,L["Title Font Size"],8, 16, "%dpt",function(v) DBSet("dmTitleFontSize",v); local fp=NS.GetFontPath(NS.DB("dmFont")); if DM.windows then for _,w in ipairs(DM.windows) do if w.titleText then w.titleText:SetFont(fp,v,"") end end end end); titleFontSize.option="dmTitleFontSize"; R(cBars,titleFontSize,40)
+  barBright    = NS.ChatGetSlider(cBars.inner,L["Bar Brightness"],10,100,"%d%%", function(v) DBSet("dmBarBrightness",v/100); if DM.UpdateDisplay then DM.UpdateDisplay() end end); barBright.option="dmBarBrightness"; barBright._isPercent=true; R(cBars,barBright,40)
   cBars:Finish(); Add(cBars); Add(Sep(sc),9)
 
   -- ── Card: Transparency & Performance ────────────────────────────
-  local cTP = MakeCard(sc, "Transparency & Performance")
+  local cTP = MakeCard(sc, L["Transparency & Performance"])
   local bgAlpha, titleAlpha, updateInt
-  bgAlpha   = NS.ChatGetSlider(cTP.inner,"Window",    0,100,"%d%%",function(v) DBSet("dmBgAlpha",v/100); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._bodyBg then w.frame._bodyBg:SetAlpha(v/100) end end end end); bgAlpha.option="dmBgAlpha"; bgAlpha._isPercent=true; R(cTP,bgAlpha,40)
-  titleAlpha= NS.ChatGetSlider(cTP.inner,"Title Bar", 0,100,"%d%%",function(v) DBSet("dmTitleAlpha",v/100); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._titleBg then w.frame._titleBg:SetAlpha(v/100) end end end end); titleAlpha.option="dmTitleAlpha"; titleAlpha._isPercent=true; R(cTP,titleAlpha,40)
-  updateInt = NS.ChatGetSlider(cTP.inner,"Update Interval",100,2000,"%dms",function(v) DBSet("dmUpdateInterval",v/1000) end); updateInt.option="dmUpdateInterval"; R(cTP,updateInt,40)
+  bgAlpha   = NS.ChatGetSlider(cTP.inner,L["Window"],    0,100,"%d%%",function(v) DBSet("dmBgAlpha",v/100); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._bodyBg then w.frame._bodyBg:SetAlpha(v/100) end end end end); bgAlpha.option="dmBgAlpha"; bgAlpha._isPercent=true; R(cTP,bgAlpha,40)
+  titleAlpha= NS.ChatGetSlider(cTP.inner,L["Title Bar"], 0,100,"%d%%",function(v) DBSet("dmTitleAlpha",v/100); if DM.windows then for _,w in ipairs(DM.windows) do if w.frame._titleBg then w.frame._titleBg:SetAlpha(v/100) end end end end); titleAlpha.option="dmTitleAlpha"; titleAlpha._isPercent=true; R(cTP,titleAlpha,40)
+  updateInt = NS.ChatGetSlider(cTP.inner,L["Update Interval"],100,2000,"%dms",function(v) DBSet("dmUpdateInterval",v/1000) end); updateInt.option="dmUpdateInterval"; R(cTP,updateInt,40)
   cTP:Finish(); Add(cTP)
 
   -- ── OnShow ───────────────────────────────────────────────────────

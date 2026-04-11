@@ -2,6 +2,7 @@
 -- Class resource bars: primary, secondary, and optional mana
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.Resources = NS.Resources or {}
 local RES = NS.Resources
 local resInitialized = false
@@ -859,12 +860,12 @@ function RES.SetupSettings(parent)
   end
 
   -- ── General card ──
-  local cGen = MakeCard(sc, "General")
+  local cGen = MakeCard(sc, L["General"])
   local enRow = CreateFrame("Frame", nil, cGen.inner); enRow:SetHeight(26)
   -- Reset position button
   local resetBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); resetBtn:SetSize(50, 20); resetBtn:SetPoint("RIGHT", -8, 0)
   resetBtn:SetBackdrop(SBD); resetBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); resetBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText("Reset")
+  local resetFS = resetBtn:CreateFontString(nil, "OVERLAY"); resetFS:SetFont(NS.FONT, 9, ""); resetFS:SetPoint("CENTER"); resetFS:SetTextColor(0.65, 0.65, 0.75); resetFS:SetText(L["Reset"])
   resetBtn:SetScript("OnClick", function()
     OptSet("pos", nil)
     if mainBar then NS.AnchorToChain(mainBar, "Resources") end
@@ -874,11 +875,11 @@ function RES.SetupSettings(parent)
   -- Unlock button
   local lockBtn = CreateFrame("Button", nil, enRow, "BackdropTemplate"); lockBtn:SetSize(70, 20); lockBtn:SetPoint("RIGHT", resetBtn, "LEFT", -4, 0)
   lockBtn:SetBackdrop(SBD); lockBtn:SetBackdropColor(0.04, 0.04, 0.07, 1); lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1)
-  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText("Unlock")
+  local lockFS = lockBtn:CreateFontString(nil, "OVERLAY"); lockFS:SetFont(NS.FONT, 9, ""); lockFS:SetPoint("CENTER"); lockFS:SetTextColor(0.65, 0.65, 0.75); lockFS:SetText(L["Unlock"])
   local unlocked = false
   lockBtn:SetScript("OnClick", function()
     unlocked = not unlocked
-    lockFS:SetText(unlocked and "Lock" or "Unlock")
+    lockFS:SetText(unlocked and "Lock" or L["Unlock"])
     local r, g, b = NS.ChatGetAccentRGB()
     if unlocked then lockBtn:SetBackdropBorderColor(r, g, b, 0.8) else lockBtn:SetBackdropBorderColor(0.12, 0.12, 0.20, 1) end
     CreateMainBar(); CreateSecBar(); ApplyStyle()
@@ -886,7 +887,7 @@ function RES.SetupSettings(parent)
       RES._unlocked = true
       mainBar:Show(); mainBar:SetAlpha(1)
       mainBar.bar:Show(); mainBar.bar:SetValue(0.6)
-      mainBar.text:SetText("Primary Resource")
+      mainBar.text:SetText(L["Primary Resource"])
       mainBar:EnableMouse(true); mainBar:RegisterForDrag("LeftButton")
       mainBar:SetScript("OnDragStart", function(s) s:StartMoving() end)
       mainBar:SetScript("OnDragStop", function(s)
@@ -898,7 +899,7 @@ function RES.SetupSettings(parent)
       if secBar then
         secBar:Show(); secBar:SetAlpha(1)
         secBar.bar:Show(); secBar.bar:SetValue(0.7)
-        secBar.text:SetText("Secondary Resource")
+        secBar.text:SetText(L["Secondary Resource"])
       end
       NS.ShowMoverPopup(mainBar, "Resources", function(f)
         local left, top = f:GetLeft(), f:GetTop()
@@ -923,13 +924,13 @@ function RES.SetupSettings(parent)
   R(cGen, enRow, 26)
 
   -- Auto Width toggle
-  local autoWCb = NS.ChatGetCheckbox(cGen.inner, "Auto Width (match Cooldowns)", 26, function(s)
+  local autoWCb = NS.ChatGetCheckbox(cGen.inner, L["Auto Width (match Cooldowns)"], 26, function(s)
     OptSet("autoWidth", s); RES.Refresh()
   end, "Automatically match width to Essential Cooldowns")
   R(cGen, autoWCb, 26); autoWCb:SetValue(Opt("autoWidth") ~= false)
 
   -- Mana toggle (auto-detected default)
-  local manaCb = NS.ChatGetCheckbox(cGen.inner, "Show Mana Bar", 26, function(s)
+  local manaCb = NS.ChatGetCheckbox(cGen.inner, L["Show Mana Bar"], 26, function(s)
     OptSet("showMana", s)
     RES.Refresh(); NS.RefreshAnchorChain()
   end, "Show a mana bar (auto-enabled for healer/caster specs)")
@@ -938,7 +939,7 @@ function RES.SetupSettings(parent)
   cGen:Finish(); Append(cGen, cGen:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Size card ──
-  local cSize = MakeCard(sc, "Size")
+  local cSize = MakeCard(sc, L["Size"])
   Slider(cSize, "Width", "width", 80, 400, "%spx", 220)
   Slider(cSize, "Primary Height", "height", 6, 40, "%spx", 14)
   Slider(cSize, "Secondary Height", "secHeight", 6, 40, "%spx", 14)
@@ -946,17 +947,17 @@ function RES.SetupSettings(parent)
   cSize:Finish(); Append(cSize, cSize:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Appearance card ──
-  local cApp = MakeCard(sc, "Appearance")
+  local cApp = MakeCard(sc, L["Appearance"])
   local barTexNames = {}
   local rawBars = NS.GetLSMStatusBars and NS.GetLSMStatusBars() or {}
   for _, b in ipairs(rawBars) do barTexNames[#barTexNames+1] = b.label end
   if #barTexNames == 0 then barTexNames = {"Flat"} end
-  DropdownPair(cApp, "Bar Texture", barTexNames, barTexNames, "texture", "Flat",
-    "Background", barTexNames, barTexNames, "bgTexture", "Flat", 200)
+  DropdownPair(cApp, L["Bar Texture"], barTexNames, barTexNames, "texture", "Flat",
+    L["Background"], barTexNames, barTexNames, "bgTexture", "Flat", 200)
   cApp:Finish(); Append(cApp, cApp:GetHeight()); Append(NS._SSep(sc), 9)
 
   -- ── Text card ──
-  local cTxt = MakeCard(sc, "Text")
+  local cTxt = MakeCard(sc, L["Text"])
   TogglePair(cTxt, "Primary Value", "showText", "Secondary Value", "showSecText")
   local fontNames, fontValues = {"Default"}, {"default"}
   for _, ft in ipairs(NS.GetLSMFonts()) do fontNames[#fontNames+1] = ft.label; fontValues[#fontValues+1] = ft.label end

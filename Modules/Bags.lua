@@ -2,6 +2,7 @@
 -- All-in-one bag replacement
 
 local NS = LucidUINS
+local L  = LucidUIL
 NS.Bags = NS.Bags or {}
 local B = NS.Bags
 
@@ -425,13 +426,13 @@ local function UpdateSlot(slot)
         if bindType == BIND_EQUIP then
           local isWuE = C_Item.IsBoundToAccountUntilEquip and C_Item.IsBoundToAccountUntilEquip(itemLoc)
           if isWuE then
-            slot._bindText:SetText("WuE"); slot._bindText:SetTextColor(0.0, 0.8, 1)
+            slot._bindText:SetText(L["WuE"]); slot._bindText:SetTextColor(0.0, 0.8, 1)
           else
-            slot._bindText:SetText("BOE"); slot._bindText:SetTextColor(0.1, 1, 0.1)
+            slot._bindText:SetText(L["BOE"]); slot._bindText:SetTextColor(0.1, 1, 0.1)
           end
           slot._bindText:Show(); showBind = true
         elseif bindType == BIND_USE then
-          slot._bindText:SetText("BOU"); slot._bindText:SetTextColor(1, 0.8, 0.2)
+          slot._bindText:SetText(L["BOU"]); slot._bindText:SetTextColor(1, 0.8, 0.2)
           slot._bindText:Show(); showBind = true
         end
       end
@@ -607,7 +608,7 @@ local function LayoutBags()
     local rtitle = rw:CreateFontString(nil, "OVERLAY")
     rtitle:SetFont(NS.FONT, 10, "")
     rtitle:SetPoint("TOPLEFT", 6, -4)
-    rtitle:SetTextColor(CYAN[1], CYAN[2], CYAN[3]); rtitle:SetText("Reagents")
+    rtitle:SetTextColor(CYAN[1], CYAN[2], CYAN[3]); rtitle:SetText(L["Reagents"])
     rw._title = rtitle
     local rcontent = CreateFrame("Frame", nil, rw)
     rcontent:SetPoint("TOPLEFT", 4, -18)
@@ -783,7 +784,7 @@ local function BuildBagFrame()
   local title = bagFrame:CreateFontString(nil, "OVERLAY")
   title:SetFont(NS.FONT, 12, "")
   title:SetPoint("LEFT", titleBg, "LEFT", 8, 0)
-  title:SetTextColor(cr, cg, cb); title:SetText("Bags")
+  title:SetTextColor(cr, cg, cb); title:SetText(L["Bags"])
   bagFrame._title = title
 
   local closeBtn = CreateFrame("Button", nil, bagFrame)
@@ -1232,9 +1233,9 @@ function B.SetupSettings(parent)
   local sc, Add = MakePage(container)
 
   -- ── Card: Enable ──────────────────────────────────────────────────
-  local cEn = MakeCard(sc, "LucidUI Bags")
+  local cEn = MakeCard(sc, L["LucidUI Bags"])
   local enableCB
-  enableCB = NS.ChatGetCheckbox(cEn.inner, "Enable LucidUI Bags", 26, function(state)
+  enableCB = NS.ChatGetCheckbox(cEn.inner, L["Enable LucidUI Bags"], 26, function(state)
     DBSet("bagEnabled", state)
     StaticPopupDialogs["LUCIDUI_BAGS_RELOAD"] = {
       text    = "LucidUI Bags requires a UI reload to " .. (state and "activate" or "deactivate") .. ".\n\nReload now?",
@@ -1247,7 +1248,7 @@ function B.SetupSettings(parent)
   end, "Replace default bags (requires reload)")
   enableCB.option = "bagEnabled"; R(cEn, enableCB, 26)
   local hideBagBarCB
-  hideBagBarCB = NS.ChatGetCheckbox(cEn.inner, "Hide Default Bag Bar", 26, function(state)
+  hideBagBarCB = NS.ChatGetCheckbox(cEn.inner, L["Hide Default Bag Bar"], 26, function(state)
     DBSet("bagHideDefaultBar", state)
     NS.ShowReloadPopup("LucidUI: Bag bar visibility changed. Reload to apply.")
   end, "Hide the default WoW bag bar (requires reload)")
@@ -1255,14 +1256,14 @@ function B.SetupSettings(parent)
   cEn:Finish(); Add(cEn); Add(Sep(sc), 9)
 
   -- ── Card: Layout ──────────────────────────────────────────────────
-  local cLayout = MakeCard(sc, "Layout")
+  local cLayout = MakeCard(sc, L["Layout"])
   local iconSize = NS.ChatGetSlider(cLayout.inner, "Icon Size",  20, 64, "%dpx", function(v) DBSet("bagIconSize", v);    B.RefreshLayout() end); iconSize.option    = "bagIconSize";    R(cLayout, iconSize, 40)
   local spacing  = NS.ChatGetSlider(cLayout.inner, "Spacing",     0, 12, "%dpx", function(v) DBSet("bagSpacing", v);     B.RefreshLayout() end); spacing.option     = "bagSpacing";     R(cLayout, spacing, 40)
   local columns  = NS.ChatGetSlider(cLayout.inner, "Columns",      4, 20, "%d",   function(v) DBSet("bagColumns", v);     B.RefreshLayout() end); columns.option     = "bagColumns";     R(cLayout, columns, 40)
   cLayout:Finish(); Add(cLayout); Add(Sep(sc), 9)
 
   -- ── Card: Display flags ───────────────────────────────────────────
-  local cDisp = MakeCard(sc, "Display")
+  local cDisp = MakeCard(sc, L["Display"])
   local function DCB(lbl, key, cb, tip)
     local w = NS.ChatGetCheckbox(cDisp.inner, lbl, 26, cb, tip); w.option = key; R(cDisp, w, 26); return w
   end
@@ -1288,7 +1289,7 @@ function B.SetupSettings(parent)
   cDisp:Finish(); Add(cDisp); Add(Sep(sc), 9)
 
   -- ── Card: Splitting ───────────────────────────────────────────────
-  local cSplit = MakeCard(sc, "Splitting")
+  local cSplit = MakeCard(sc, L["Splitting"])
   local splitReagent = DCB and nil  -- reuse pattern via local helper
   local function SPair(lbl1,key1,cb1,tip1, lbl2,key2,cb2,tip2)
     local row=CreateFrame("Frame",nil,cSplit.inner); row:SetHeight(26)
@@ -1306,7 +1307,7 @@ function B.SetupSettings(parent)
   cSplit:Finish(); Add(cSplit); Add(Sep(sc), 9)
 
   -- ── Card: Auto Open ───────────────────────────────────────────────
-  local cAuto = MakeCard(sc, "Auto Open")
+  local cAuto = MakeCard(sc, L["Auto Open"])
   local function APair(lbl1,key1,tip1, lbl2,key2,tip2)
     local row=CreateFrame("Frame",nil,cAuto.inner); row:SetHeight(26)
     cAuto:Row(row,26); row:SetPoint("LEFT",cAuto.inner,"LEFT",0,0); row:SetPoint("RIGHT",cAuto.inner,"RIGHT",0,0)
@@ -1322,9 +1323,9 @@ function B.SetupSettings(parent)
   cAuto:Finish(); Add(cAuto); Add(Sep(sc), 9)
 
   -- ── Card: Font & Opacity ──────────────────────────────────────────
-  local cFont = MakeCard(sc, "Font & Opacity")
+  local cFont = MakeCard(sc, L["Font & Opacity"])
 
-  local ilvlPosDD = NS.ChatGetDropdown(cFont.inner, "Item Level Position",
+  local ilvlPosDD = NS.ChatGetDropdown(cFont.inner, L["Item Level Position"],
     function(v) return (DB("bagIlvlPos") or "BOTTOMLEFT")==v end,
     function(v) DBSet("bagIlvlPos",v); B.RefreshLayout() end)
   ilvlPosDD:Init({"Bottom Left","Bottom Right","Center Bottom"},{"BOTTOMLEFT","BOTTOMRIGHT","BOTTOM"})
@@ -1332,7 +1333,7 @@ function B.SetupSettings(parent)
 
   local ilvlSize = NS.ChatGetSlider(cFont.inner,"Item Level Font Size",6,16,"%dpt",function(v) DBSet("bagIlvlSize",v); B.RefreshLayout() end); ilvlSize.option="bagIlvlSize"; R(cFont, ilvlSize, 40)
 
-  local countPosDD = NS.ChatGetDropdown(cFont.inner, "Count Position",
+  local countPosDD = NS.ChatGetDropdown(cFont.inner, L["Count Position"],
     function(v) return (DB("bagCountPos") or "BOTTOMRIGHT")==v end,
     function(v) DBSet("bagCountPos",v); B.RefreshLayout() end)
   countPosDD:Init({"Top Left","Top Right","Bottom Left","Bottom Right"},{"TOPLEFT","TOPRIGHT","BOTTOMLEFT","BOTTOMRIGHT"})

@@ -3,7 +3,8 @@
 -- All shared state lives in LucidUINS (NS).
 
 local ADDON_NAME = "LucidUI"
-local NS   = LucidUINS
+local NS = LucidUINS
+local L  = LucidUIL
 local CYAN = NS.CYAN
 
 local function BuildWindow()
@@ -43,7 +44,7 @@ local function BuildWindow()
   NS.titleText:SetFont(NS.FONT, 15)
   NS.titleText:SetPoint("LEFT", 6, 0)
   NS.titleText:SetTextColor(1, 1, 1, 1)
-  NS.titleText:SetText("Loot Tracker")
+  NS.titleText:SetText(L["Loot Tracker"])
 
   -- Accent line under title bar
   local accentLine = NS.win:CreateTexture(nil, "ARTWORK")

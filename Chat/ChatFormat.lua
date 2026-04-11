@@ -2,6 +2,7 @@
 -- Timestamp formatting, class colors, channel shortening, URL detection.
 
 local NS = LucidUINS
+local L  = LucidUIL
 
 -- ── Timestamp ─────────────────────────────────────────────────────────
 
@@ -24,36 +25,176 @@ NS.ChatFormatTimestamp = function(unixTime)
 end
 
 -- ── Class Colors ──────────────────────────────────────────────────────
+-- During M+/raid boss combat, chat event args arrive as "secret values":
+-- a Blizzard wrapper that errors on any Lua comparison, boolean test,
+-- concatenation, string method, or table index. All existence checks here
+-- use `type(v) == "string"` and the critical GUID→class→color path is
+-- wrapped in pcall, matching Chattynator's approach.
 
-local function SafeAmbiguate(name, mode)
-  if Ambiguate then
-    local ok, r = pcall(Ambiguate, name, mode)
-    if ok and r then return r end
-  end
-  return (name:match("^([^%-]+)") or name)
-end
+local function isSecret(v) return issecretvalue and issecretvalue(v) end
 
+local CLASS_HEX = {
+  DEATHKNIGHT = "C41F3B", DEMONHUNTER = "A330C9", DRUID   = "FF7D0A",
+  EVOKER      = "33937F", HUNTER      = "ABD473", MAGE    = "3FC7EB",
+  MONK        = "00FF96", PALADIN     = "F58CBA", PRIEST  = "FFFFFF",
+  ROGUE       = "FFF569", SHAMAN      = "0070DE", WARLOCK = "8788EE",
+  WARRIOR     = "C79C6E",
+}
+
+-- Wraps name with a |cffRRGGBB...|r color code. Used by the cache path for
+-- non-secret class tokens. Returns name unchanged if class is secret or
+-- unknown — the GUID path via C_ClassColor handles secret tokens instead.
 local function ApplyClassColor(englishClass, name)
-  if C_ClassColor then
-    local ok, color = pcall(C_ClassColor.GetClassColor, englishClass)
-    if ok and color and color.WrapTextInColorCode then return color:WrapTextInColorCode(name) end
+  if type(englishClass) ~= "string" or type(name) ~= "string" then return name end
+  if isSecret(englishClass) then return name end
+  local hex = CLASS_HEX[englishClass]
+  if type(hex) ~= "string" then return name end
+  if isSecret(name) then
+    return string.format("|cff%s%s|r", hex, name)
   end
-  local rc = RAID_CLASS_COLORS and RAID_CLASS_COLORS[englishClass]
-  if rc then return string.format("|cff%02x%02x%02x%s|r", rc.r*255, rc.g*255, rc.b*255, name) end
-  return name
+  return "|cff" .. hex .. name .. "|r"
 end
+
+-- Two-tier name → class cache.
+-- selfCache wins over classCache to avoid short-name collisions with another
+-- group member who happens to share the player's base name.
+local classCache = {}
+local selfCache = {}
+local function _validClass(c)
+  if type(c) ~= "string" then return false end
+  if isSecret(c) then return false end
+  return CLASS_HEX[c] ~= nil
+end
+local function cacheInsert(name, class, isSelf)
+  if type(name) ~= "string" or isSecret(name) then return end
+  if not _validClass(class) then return end
+  local lname = name:lower()
+  if isSelf then
+    selfCache[lname] = class
+    local short = name:match("^([^%-]+)")
+    if type(short) == "string" and short ~= name then
+      selfCache[short:lower()] = class
+    end
+  else
+    if classCache[lname] == nil then classCache[lname] = class end
+    local short = name:match("^([^%-]+)")
+    if type(short) == "string" and short ~= name then
+      local lshort = short:lower()
+      if classCache[lshort] == nil then classCache[lshort] = class end
+    end
+  end
+end
+local function cacheLookup(name)
+  if type(name) ~= "string" or isSecret(name) then return nil end
+  local lname = name:lower()
+  local c = selfCache[lname] or classCache[lname]
+  if c then return c end
+  local short = name:match("^([^%-]+)")
+  if type(short) == "string" and short ~= name then
+    local lshort = short:lower()
+    return selfCache[lshort] or classCache[lshort]
+  end
+  return nil
+end
+
+local function RefreshRosterCache()
+  local function tryAddUnit(unit, isSelf)
+    if not UnitExists(unit) then return end
+    local ok, _, englishClass = pcall(UnitClass, unit)
+    if not (ok and _validClass(englishClass)) then return end
+    local ok2, uName, uRealm = pcall(UnitName, unit)
+    if not (ok2 and uName) or isSecret(uName) then return end
+    cacheInsert(uName, englishClass, isSelf)
+    if uRealm and uRealm ~= "" and not isSecret(uRealm) then
+      cacheInsert(uName .. "-" .. uRealm, englishClass, isSelf)
+    end
+  end
+  tryAddUnit("player", true)
+
+  local ok, _, englishClass = pcall(UnitClass, "player")
+  if ok and _validClass(englishClass) then
+    local okf, name, realm = pcall(UnitFullName, "player")
+    if okf and name and not isSecret(name) then
+      cacheInsert(name, englishClass, true)
+      if realm and realm ~= "" and not isSecret(realm) then
+        cacheInsert(name .. "-" .. realm, englishClass, true)
+      elseif NS and NS.characterFullName then
+        cacheInsert(NS.characterFullName, englishClass, true)
+      end
+    end
+  end
+
+  if IsInRaid() then
+    for i = 1, (GetNumGroupMembers() or 0) do tryAddUnit("raid" .. i, false) end
+  elseif IsInGroup() then
+    for i = 1, 4 do tryAddUnit("party" .. i, false) end
+  end
+end
+
+local _cacheFrame = CreateFrame("Frame")
+_cacheFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+_cacheFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+_cacheFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+_cacheFrame:RegisterEvent("CHALLENGE_MODE_START")
+_cacheFrame:SetScript("OnEvent", function(_, ev)
+  if ev == "CHALLENGE_MODE_START" then
+    -- Final refresh just before M+ restrictions kick in.
+    C_Timer.After(0, RefreshRosterCache)
+  else
+    RefreshRosterCache()
+  end
+end)
 
 NS.ChatGetColoredSender = function(guid, name)
   if NS.DB("chatClassColors") == false then return name end
-  if not guid or guid == "" then return name end
-  if issecretvalue and issecretvalue(guid) then return name end
-  if UnitClassFromGUID then
-    local ok, _, englishClass = pcall(UnitClassFromGUID, guid)
-    if ok and englishClass then return ApplyClassColor(englishClass, name) end
+  if type(name) ~= "string" then return name end
+
+  -- 1) Name cache — populated from roster events out of combat.
+  local cachedClass = cacheLookup(name)
+  if cachedClass then
+    return ApplyClassColor(cachedClass, name)
   end
-  -- GetPlayerInfoByGUID returns: localizedClass, englishClass, race, localizedRace, gender, name, realm
-  local ok, _, englishClass = pcall(GetPlayerInfoByGUID, guid)
-  if ok and englishClass then return ApplyClassColor(englishClass, name) end
+
+  -- 2) GUID path via C_ClassColor. Chattynator-style: pass the (possibly
+  --    secret) class token through C_ClassColor.GetClassColor which accepts
+  --    secrets at C++ level, then :WrapTextInColorCode to produce the final
+  --    |cff..|r wrapped name. pcall catches any secret-value boolean errors
+  --    from the GetPlayerInfoByGUID return.
+  local guidType = type(guid)
+  if guidType == "string" or guidType == "userdata" then
+    local okWrap, wrapped = pcall(function()
+      if not GetPlayerInfoByGUID then return nil end
+      local _, englishClass = GetPlayerInfoByGUID(guid)
+      if not englishClass then return nil end
+      local ccFunc = C_ClassColor and C_ClassColor.GetClassColor
+      if not ccFunc then return nil end
+      local classColor = ccFunc(englishClass)
+      if not classColor or not classColor.WrapTextInColorCode then return nil end
+      return classColor:WrapTextInColorCode(name)
+    end)
+    if okWrap and wrapped then return wrapped end
+  end
+
+  -- 3) Opportunistic roster scan — fills the cache for next time.
+  if IsInGroup() then
+    local prefix, max = IsInRaid() and "raid" or "party", IsInRaid() and 40 or 4
+    for i = 1, max do
+      local unit = prefix .. i
+      if UnitExists(unit) then
+        local ok, _, uClass = pcall(UnitClass, unit)
+        if ok and _validClass(uClass) then
+          local ok2, uName = pcall(UnitName, unit)
+          if ok2 and type(uName) == "string" and not isSecret(uName) then
+            cacheInsert(uName, uClass)
+          end
+        end
+      end
+    end
+  end
+
+  local retryClass = cacheLookup(name)
+  if retryClass then return ApplyClassColor(retryClass, name) end
+
   return name
 end
 
@@ -144,7 +285,7 @@ NS.ShowURLCopyBox = function(url)
   label:SetFont(NS.FONT, 9, "")
   label:SetPoint("TOPLEFT", 8, -6)
   label:SetTextColor(0.5, 0.5, 0.6)
-  label:SetText("Copy URL (Ctrl+A, Ctrl+C)")
+  label:SetText(L["Copy URL"])
 
   local eb = CreateFrame("EditBox", nil, f, "BackdropTemplate")
   eb:SetPoint("TOPLEFT", 6, -20)

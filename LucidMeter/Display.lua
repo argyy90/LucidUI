@@ -1,5 +1,6 @@
 -- LucidMeter — Display UI with bars and class colors (multi-window)
 local NS = LucidUINS
+local L  = LucidUIL
 local DM = NS.LucidMeter
 local CYAN = NS.CYAN
 
@@ -712,7 +713,7 @@ local function CreateWindow(windowID, config)
   local reportBtn = MakeTitleIcon(titleBar, 16, "Interface/AddOns/LucidUI/Assets/Waves.png")
   reportBtn:SetPoint("RIGHT", settingsBtn, "LEFT", -1, 0)
   reportBtn:HookScript("OnEnter", function(self)
-    OpenMenuAbove(self, {{text = "Report Results", func = function() DM.OpenReportWindow(w) end}})
+    OpenMenuAbove(self, {{text = L["Report Results"], func = function() DM.OpenReportWindow(w) end}})
   end)
 
   -- ── Reset button ───────────────────────────────────────────────────
@@ -721,11 +722,11 @@ local function CreateWindow(windowID, config)
   resetBtn:HookScript("OnEnter", function(self)
     local hasSnap = w.snappedTo and next(w.snappedTo)
     local items = {
-      {text = "|TInterface/AddOns/LucidUI/Assets/X_red.png:12:12|t  Reset All Windows", func = function() DM.Reset() end},
+      {text = "|TInterface/AddOns/LucidUI/Assets/X_red.png:12:12|t  " .. L["Reset All Windows"], func = function() DM.Reset() end},
     }
     if hasSnap then
       items[#items + 1] = {divider = true}
-      items[#items + 1] = {text = "|TInterface/AddOns/LucidUI/Assets/X_orange.png:12:12|t  Unsnap Window", func = function()
+      items[#items + 1] = {text = "|TInterface/AddOns/LucidUI/Assets/X_orange.png:12:12|t  " .. L["Unsnap Window"], func = function()
         BreakSnap(w)
         HideAllSnapLines()
         SaveSnapRelations()
@@ -859,7 +860,7 @@ local function CreateWindow(windowID, config)
   totalBarLabel:SetFont(NS.GetFontPath(NS.DB("dmFont")), NS.DB("dmFontSize") or 11, "")
   totalBarLabel:SetPoint("LEFT", 4, 0)
   totalBarLabel:SetTextColor(0.7, 0.7, 0.7)
-  totalBarLabel:SetText("Total")
+  totalBarLabel:SetText(L["Total"])
   local totalBarValue = totalBarFrame:CreateFontString(nil, "OVERLAY")
   totalBarValue:SetFont(NS.GetFontPath(NS.DB("dmFont")), NS.DB("dmFontSize") or 11, "")
   totalBarValue:SetPoint("RIGHT", -4, 0)
@@ -1627,7 +1628,7 @@ function DM.ShowSpellBreakdown(bar)
     local cr2, cg2, cb2 = GetClassColor(bar._sourceClass)
     GameTooltip:AddLine(name, cr2, cg2, cb2)
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("|cffff8800Spell breakdown unavailable|r")
+    GameTooltip:AddLine("|cffff8800" .. L["Spell breakdown unavailable"] .. "|r")
     GameTooltip:Show()
     return
   end
@@ -1638,8 +1639,8 @@ function DM.ShowSpellBreakdown(bar)
     local cr2, cg2, cb2 = GetClassColor(bar._sourceClass)
     GameTooltip:AddLine(name, cr2, cg2, cb2)
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("|cffff8800Spell breakdown is restricted|r")
-    GameTooltip:AddLine("|cff808080during combat by the game client.|r")
+    GameTooltip:AddLine("|cffff8800" .. L["Spell breakdown restricted"] .. "|r")
+    GameTooltip:AddLine("|cff808080" .. L["Spell breakdown restricted_2"] .. "|r")
     GameTooltip:Show()
     return
   end
@@ -1829,7 +1830,7 @@ function DM.OpenReportWindow(w)
   local title = titleBar:CreateFontString(nil, "OVERLAY")
   title:SetFont(NS.FONT, 10, "")
   title:SetPoint("LEFT", 8, 0)
-  title:SetText("|cff" .. aHex .. ">|r Report Results")
+  title:SetText("|cff" .. aHex .. ">|r " .. L["Report Results"])
   title:SetTextColor(0.85, 0.85, 0.85)
 
   local closeBtn = CreateFrame("Button", nil, titleBar)
@@ -1861,7 +1862,7 @@ function DM.OpenReportWindow(w)
   local chanLabel = reportWin:CreateFontString(nil, "OVERLAY")
   chanLabel:SetFont(NS.FONT, 10, "")
   chanLabel:SetPoint("TOPLEFT", PAD, yOff)
-  chanLabel:SetText("|cff808080Channel|r")
+  chanLabel:SetText("|cff808080" .. L["Channel"] .. "|r")
 
   yOff = yOff - 16
   local chanBtn = CreateFrame("Button", nil, reportWin, "BackdropTemplate")
@@ -1928,7 +1929,7 @@ function DM.OpenReportWindow(w)
   local whisperLabel = reportWin:CreateFontString(nil, "OVERLAY")
   whisperLabel:SetFont(NS.FONT, 10, "")
   whisperLabel:SetPoint("TOPLEFT", PAD, yOff)
-  whisperLabel:SetText("|cff808080Whisper Target|r")
+  whisperLabel:SetText("|cff808080" .. L["Whisper Target"] .. "|r")
 
   yOff = yOff - 16
   local whisperBox = CreateFrame("EditBox", nil, reportWin, "BackdropTemplate")
@@ -1958,7 +1959,7 @@ function DM.OpenReportWindow(w)
   local linesLabel2 = linesRow:CreateFontString(nil, "OVERLAY")
   linesLabel2:SetFont(NS.FONT, 10, "")
   linesLabel2:SetPoint("LEFT", 0, 0)
-  linesLabel2:SetText("|cff808080Lines:|r")
+  linesLabel2:SetText("|cff808080" .. L["Lines:"] .. "|r")
 
   local linesNumText = linesRow:CreateFontString(nil, "OVERLAY")
   linesNumText:SetFont(NS.FONT, 11, "")
@@ -2006,7 +2007,7 @@ function DM.OpenReportWindow(w)
   sendBtn:SetBackdropBorderColor(ar, ag, ab, 1)
   local sendLbl = sendBtn:CreateFontString(nil, "OVERLAY")
   sendLbl:SetFont(NS.FONT, 11, "")
-  sendLbl:SetPoint("CENTER"); sendLbl:SetText("Send"); sendLbl:SetTextColor(1, 1, 1)
+  sendLbl:SetPoint("CENTER"); sendLbl:SetText(L["Send"]); sendLbl:SetTextColor(1, 1, 1)
   sendBtn:SetScript("OnEnter", function() sendBtn:SetBackdropColor(ar * 0.4, ag * 0.4, ab * 0.4, 1) end)
   sendBtn:SetScript("OnLeave", function() sendBtn:SetBackdropColor(ar * 0.25, ag * 0.25, ab * 0.25, 1) end)
   sendBtn:SetScript("OnClick", function()
