@@ -86,10 +86,13 @@ local function LBracket(parent,corner,size,a)
 end
 
 -- MakeCard: branches on layout style
---  classic → cyberpunk boxy card (L-brackets, double left bar, diamond title)
---  icons   → flat "data section" (no box, title row with accent rule)
+--  classic → cyberpunk boxy card (L-brackets, double left bar, "> TITLE")
+--  neon    → solid dark fill with accent-filled tab header, dark text inside
+--  icons   → minimal: title + thick 2px accent underline, nothing else
 local function MakeCard(sc,title)
-  local styleClassic = ((NS.DB and NS.DB("settingsSidebarStyle")) or "icons") == "classic"
+  local style = (NS.DB and NS.DB("settingsSidebarStyle")) or "icons"
+  local styleClassic = style == "classic"
+  local styleNeon    = style == "neon"
   local ar,ag,ab = NS.ChatGetAccentRGB()
   local TPAD, BPAD, IPAD
   local card
@@ -135,51 +138,103 @@ local function MakeCard(sc,title)
       table.insert(NS.chatOptAccentTextures,{tex=fs,isFS=true,alpha=1})
       DashRow(card,"OVERLAY",12,20, 18,6,5, 0.18)
     end
+  elseif styleNeon then
+    -- ── Neon HUD: dark fill with asymmetric accent frame decorations ─
+    TPAD = title and 24 or 12; BPAD = 12; IPAD = 18
+    card = CreateFrame("Frame",nil,sc,"BackdropTemplate")
+    card:SetBackdrop(BD)
+    card:SetBackdropColor(0.025,0.025,0.045,1)
+    card:SetBackdropBorderColor(0.025,0.025,0.045,1)
+
+    -- Accent texture helper (tracks for color refresh)
+    local function NA(layer,sub,w,h,a,anchor,relPt,xOff,yOff)
+      local t = card:CreateTexture(nil,layer,nil,sub)
+      t:SetSize(w,h)
+      t:SetPoint(anchor,card,relPt,xOff,yOff)
+      t:SetColorTexture(ar,ag,ab,a)
+      table.insert(NS.chatOptAccentTextures,{tex=t,alpha=a})
+      return t
+    end
+    -- Stair-step diagonal cut (5 steps, 2px each) — fakes a diagonal line
+    local function StairCut(corner)
+      local steps = 5
+      for i=0,steps-1 do
+        local sz = 2
+        if corner == "TR" then
+          NA("OVERLAY",5, sz,sz, 0.85, "TOPRIGHT","TOPRIGHT", -i*sz, -i*sz)
+        elseif corner == "TL" then
+          NA("OVERLAY",5, sz,sz, 0.85, "TOPLEFT","TOPLEFT", i*sz, -i*sz)
+        end
+      end
+    end
+
+    -- ── TOP edge: full accent line ───────────────────────────────────
+    NA("OVERLAY",4, 0,1, 0.85, "TOPLEFT","TOPLEFT", 0,0):SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,0)
+    -- Top-right diagonal corner cut (notched HUD look)
+    StairCut("TR")
+
+    -- ── TOP-LEFT: long horizontal bracket arm + short vertical drop ──
+    NA("OVERLAY",4, 1,8, 1, "TOPLEFT","TOPLEFT", 0,0)        -- vertical drop
+    NA("OVERLAY",5, 30,1, 1, "TOPLEFT","TOPLEFT", 0,0)       -- horizontal arm
+    NA("OVERLAY",5, 4,1,  1, "TOPLEFT","TOPLEFT", 30,-4)     -- small descender tick
+
+    -- ── BOTTOM edge: dimmer accent line ──────────────────────────────
+    NA("OVERLAY",4, 0,1, 0.55, "BOTTOMLEFT","BOTTOMLEFT", 12,0):SetPoint("BOTTOMRIGHT",card,"BOTTOMRIGHT",0,0)
+
+    -- ── BOTTOM-LEFT: vertical LED tick cluster ───────────────────────
+    for i=0,2 do
+      NA("OVERLAY",5, 2,4, 0.85 - i*0.20, "BOTTOMLEFT","BOTTOMLEFT", 2 + i*4, 2)
+    end
+
+    -- ── BOTTOM-RIGHT: short L-bracket ────────────────────────────────
+    NA("OVERLAY",5, 12,1, 1, "BOTTOMRIGHT","BOTTOMRIGHT", 0,0)
+    NA("OVERLAY",5, 1,12, 1, "BOTTOMRIGHT","BOTTOMRIGHT", 0,0)
+
+    -- ── RIGHT edge: 3 small horizontal tally marks ───────────────────
+    for i=0,2 do
+      NA("OVERLAY",4, 5,1, 0.55 - i*0.10, "RIGHT","RIGHT", 0, -8 + i*8)
+    end
+
+    if title then
+      -- Title sits after the top-left bracket arm with a small filled
+      -- accent square indicator before it
+      local indicator = NA("OVERLAY",5, 4,4, 1, "TOPLEFT","TOPLEFT", 8, -10)
+      local fs = card:CreateFontString(nil,"OVERLAY")
+      fs:SetFont(NS.FONT,10,"OUTLINE")
+      fs:SetPoint("LEFT", indicator, "RIGHT", 6, 0)
+      fs:SetTextColor(0.96,0.96,1,1)
+      fs:SetShadowColor(0,0,0,0.9)
+      fs:SetShadowOffset(1,-1)
+      fs:SetText(title:upper())
+      card._titleFS = fs
+
+      -- Trailing thin accent line after the title text
+      local trail = card:CreateTexture(nil,"OVERLAY",nil,4)
+      trail:SetHeight(1)
+      trail:SetPoint("LEFT", fs, "RIGHT", 6, 0)
+      trail:SetPoint("RIGHT", card, "RIGHT", -20, 0)
+      trail:SetColorTexture(ar,ag,ab,0.30)
+      table.insert(NS.chatOptAccentTextures,{tex=trail,alpha=0.30})
+    end
   else
-    -- ── Command Deck: flat "data section" ────────────────────────────
-    TPAD = title and 22 or 4; BPAD = 4; IPAD = 14
+    -- ── Minimal: title + thick underline, nothing else ───────────────
+    TPAD = title and 22 or 4; BPAD = 4; IPAD = 16
     card = CreateFrame("Frame",nil,sc)
 
     if title then
-      local dot = card:CreateTexture(nil,"OVERLAY",nil,5)
-      dot:SetSize(3,3)
-      dot:SetPoint("TOPLEFT",card,"TOPLEFT",4,-8)
-      dot:SetColorTexture(ar,ag,ab,1)
-      table.insert(NS.chatOptAccentTextures,{tex=dot,alpha=1})
-
-      local leadLine = card:CreateTexture(nil,"OVERLAY",nil,4)
-      leadLine:SetSize(6,1)
-      leadLine:SetPoint("LEFT",dot,"RIGHT",2,0)
-      leadLine:SetColorTexture(ar,ag,ab,0.55)
-      table.insert(NS.chatOptAccentTextures,{tex=leadLine,alpha=0.55})
-
       local fs = card:CreateFontString(nil,"OVERLAY")
-      fs:SetFont(NS.FONT,10,"OUTLINE")
-      fs:SetPoint("LEFT",leadLine,"RIGHT",6,1)
+      fs:SetFont(NS.FONT,11,"OUTLINE")
+      fs:SetPoint("TOPLEFT",card,"TOPLEFT",4,-4)
       fs:SetTextColor(0.92,0.92,0.98,1)
       fs:SetText(title:upper())
       card._titleFS = fs
 
       local rule = card:CreateTexture(nil,"OVERLAY",nil,4)
-      rule:SetHeight(1)
-      rule:SetPoint("LEFT",fs,"RIGHT",10,0)
-      rule:SetPoint("RIGHT",card,"RIGHT",-12,0)
-      rule:SetColorTexture(ar,ag,ab,0.28)
-      table.insert(NS.chatOptAccentTextures,{tex=rule,alpha=0.28})
-
-      local endTick = card:CreateTexture(nil,"OVERLAY",nil,5)
-      endTick:SetSize(1,5)
-      endTick:SetPoint("RIGHT",card,"RIGHT",-12,0)
-      endTick:SetColorTexture(ar,ag,ab,0.85)
-      table.insert(NS.chatOptAccentTextures,{tex=endTick,alpha=0.85})
-
-      for i=0,2 do
-        local d = card:CreateTexture(nil,"OVERLAY",nil,3)
-        d:SetSize(3,1)
-        d:SetPoint("RIGHT",card,"RIGHT",-4 - i*5, 0)
-        d:SetColorTexture(ar,ag,ab,0.32 - i*0.08)
-        table.insert(NS.chatOptAccentTextures,{tex=d,alpha=0.32-i*0.08})
-      end
+      rule:SetHeight(2)
+      rule:SetPoint("TOPLEFT", card, "TOPLEFT",   4,-18)
+      rule:SetPoint("TOPRIGHT",card, "TOPRIGHT", -4,-18)
+      rule:SetColorTexture(ar,ag,ab,0.75)
+      table.insert(NS.chatOptAccentTextures,{tex=rule,alpha=0.75})
     end
   end
 
@@ -306,8 +361,8 @@ local function SetupDisplay(parent)
   DD(c4,L["Layout style"].."  |cff555555(reload)|r",
     function(v) return (DB("settingsSidebarStyle") or "icons")==v end,
     function(v) DBSet("settingsSidebarStyle",v); StaticPopup_Show("LUCIDUI_CHAT_RELOAD") end,
-    {L["Command Deck"],L["Classic (sidebar)"]},
-    {"icons","classic"})
+    {L["Command Deck"],L["Classic (sidebar)"],"Neon"},
+    {"icons","classic","neon"})
   c4:Finish(); Add(c4)
   return container
 end
@@ -2805,11 +2860,29 @@ NS.BuildChatOptionsWindow = function()
   local ar,ag,ab = NS.ChatGetAccentRGB()
   local sidebarStyle = DB("settingsSidebarStyle") or "icons"
   local styleClassic = (sidebarStyle == "classic")
-  local WIN_W = styleClassic and 940 or 940
-  local WIN_H = styleClassic and 656 or 656
-  local HEADER_H = styleClassic and 42 or 62
-  local NAV_DOCK_H = styleClassic and 0 or 60
-  local SIDEBAR_W = styleClassic and 152 or 0
+  local styleNeon    = (sidebarStyle == "neon")
+  local styleIcons   = (not styleClassic and not styleNeon)
+
+  -- Per-style window geometry + nav layout.
+  -- Classic: left sidebar, PCB traces, boxy cards (baseline).
+  -- Icons (Journal): top nav strip, wider window, no sidebar, no dock.
+  -- Neon (HUD): right sidebar, compact window, no PCB (corner glows instead).
+  local WIN_W, WIN_H, HEADER_H
+  local SIDEBAR_W, NAV_DOCK_H, TOP_NAV_H
+  local NAV_POS  -- "left" | "right" | "top"
+  if styleClassic then
+    WIN_W, WIN_H, HEADER_H = 940, 656, 42
+    SIDEBAR_W, NAV_DOCK_H, TOP_NAV_H = 152, 0, 0
+    NAV_POS = "left"
+  elseif styleNeon then
+    WIN_W, WIN_H, HEADER_H = 880, 620, 40
+    SIDEBAR_W, NAV_DOCK_H, TOP_NAV_H = 108, 0, 0
+    NAV_POS = "right"
+  else
+    WIN_W, WIN_H, HEADER_H = 1020, 624, 56
+    SIDEBAR_W, NAV_DOCK_H, TOP_NAV_H = 0, 0, 42
+    NAV_POS = "top"
+  end
   local CONT_Y=HEADER_H+2
 
   -- ── Root window ────────────────────────────────────────────────────
@@ -2840,8 +2913,17 @@ NS.BuildChatOptionsWindow = function()
   local hLine = AccTex("OVERLAY",5, 1,HEADER_H, WIN_W-2,1, 0.55)
   chatOptWin._ltHeaderLine = hLine
   if styleClassic then
+    -- Left sidebar divider
     local sbDiv = AccTex("OVERLAY",4, SIDEBAR_W+4,HEADER_H+2, 1,WIN_H-HEADER_H-3, 0.30)
     chatOptWin._ltSidebarLine = sbDiv
+  elseif styleNeon then
+    -- Right sidebar divider
+    local sbDiv = AccTex("OVERLAY",4, WIN_W-SIDEBAR_W-4,HEADER_H+2, 1,WIN_H-HEADER_H-3, 0.30)
+    chatOptWin._ltSidebarLine = sbDiv
+  else
+    -- Icons/Journal: rule under the top nav strip
+    local tnDiv = AccTex("OVERLAY",4, 1,HEADER_H+TOP_NAV_H, WIN_W-2,1, 0.40)
+    chatOptWin._ltTopNavLine = tnDiv
   end
 
   -- Corner cut top-right
@@ -2849,15 +2931,17 @@ NS.BuildChatOptionsWindow = function()
   AccTex("OVERLAY",5, WIN_W-2, 1,  1,14,0.70)
   AccTex("OVERLAY",5, WIN_W-18,3, 14,1, 0.35)
 
-  -- ── PCB CIRCUIT TRACES ─────────────────────────────────────────────
+  -- ── PCB CIRCUIT TRACES (classic only) ─────────────────────────────
+  -- Icons (Journal) and Neon (HUD) skip PCB entirely — they have their own
+  -- decoration style. pcbTextures stays as an empty list so the PCB color
+  -- picker / toggle remain no-ops in those styles.
+  local pcbTextures = {}
   local CX = SIDEBAR_W + 4
   local CY = HEADER_H + 2
   local CW = WIN_W - CX - 4
   local CH = WIN_H - CY - 4 - NAV_DOCK_H
 
-  -- PCB textures tracked as {tex, alpha} so the "PCB lines" checkbox can toggle
-  -- visibility and the PCB color picker can override their color independent of accent.
-  local pcbTextures = {}
+ if styleClassic then
   local function pcbIns(t,a) table.insert(pcbTextures,{tex=t,alpha=a}); return t end
   local function PH(x,y,len,a)  a=a or 0.10; pcbIns(AccTex("BACKGROUND",3, x,y, len,1, a), a) end
   local function PV(x,y,len,a)  a=a or 0.10; pcbIns(AccTex("BACKGROUND",3, x,y, 1,len, a), a) end
@@ -2979,6 +3063,7 @@ NS.BuildChatOptionsWindow = function()
     V(hx+100,hy,10,0.06); V(hx+300,hy,10,0.06); V(hx+500,hy,10,0.06)
     Glow(hx+100,hy); Glow(hx+300,hy)
   end
+ end -- if styleClassic for PCB traces
 
   -- Store PCB textures for runtime toggling + apply saved visibility state
   chatOptWin._pcbTextures = pcbTextures
@@ -2988,12 +3073,10 @@ NS.BuildChatOptionsWindow = function()
   -- Apply custom PCB color override (no-op if settingsPcbColor is nil)
   if NS.ApplyPcbColor then NS.ApplyPcbColor() end
 
-  -- ── COMMAND DECK accents (new mode only) ──────────────────────────
-  if not styleClassic then
-    -- Long L-brackets at content corners
+  -- ── ICONS (Journal) decorative L-brackets + dash clusters ────────
+  if styleIcons then
     local BR_LEN = 28
     local function CornerL(corner,x,y,a)
-      -- corner "TL","TR","BL","BR"
       local h = AccTex("OVERLAY",4, x,y, BR_LEN,1, a)
       local v = AccTex("OVERLAY",4, x,y, 1,BR_LEN, a)
       if corner=="TR" then
@@ -3007,9 +3090,8 @@ NS.BuildChatOptionsWindow = function()
         v:ClearAllPoints(); v:SetPoint("TOPRIGHT",chatOptWin,"TOPLEFT",x+BR_LEN,-(y-BR_LEN+1))
       end
     end
-    -- Content corners (just inside the header/dock boundaries)
-    local CT = HEADER_H + 8
-    local CB = WIN_H - NAV_DOCK_H - 8
+    local CT = HEADER_H + TOP_NAV_H + 8
+    local CB = WIN_H - 8
     local CL = 10
     local CR = WIN_W - 10
     CornerL("TL", CL, CT, 0.75)
@@ -3017,24 +3099,49 @@ NS.BuildChatOptionsWindow = function()
     CornerL("BL", CL, CB, 0.75)
     CornerL("BR", CR-BR_LEN, CB, 0.75)
 
-    -- Thin accent rule above the nav dock
-    AccTex("OVERLAY",5, 1, WIN_H-NAV_DOCK_H, WIN_W-2, 1, 0.55)
-
-    -- Diagonal dash clusters in top-left corner of content (futuristic decoration)
+    -- Dash clusters at content corners
     local dashX = CL + BR_LEN + 10
     for i=0,3 do
       AccTex("BACKGROUND",3, dashX+i*6, CT+2,     4,1, 0.20 - i*0.035)
       AccTex("BACKGROUND",3, dashX+i*6, CT+6,     4,1, 0.16 - i*0.03)
     end
-    -- And top-right mirror
     for i=0,3 do
       AccTex("BACKGROUND",3, CR-BR_LEN-14 - i*6, CT+2, 4,1, 0.20 - i*0.035)
       AccTex("BACKGROUND",3, CR-BR_LEN-14 - i*6, CT+6, 4,1, 0.16 - i*0.03)
     end
 
-    -- Center decorative hairline just under header line
     AccTex("BACKGROUND",3, WIN_W/2 - 40, HEADER_H+4, 80, 1, 0.18)
     AccTex("BACKGROUND",4, WIN_W/2 - 1,  HEADER_H+3, 2,  3, 0.35)
+  end
+
+  -- ── NEON (HUD) corner glows — the only decoration, minimal ───────
+  if styleNeon then
+    local function Glow(corner)
+      local size1, size2, size3 = 14, 8, 4
+      local a1, a2, a3 = 0.10, 0.18, 0.35
+      local bg = AccTex("BACKGROUND",4, 0,0, size1,size1, a1)
+      local md = AccTex("BACKGROUND",5, 0,0, size2,size2, a2)
+      local tp = AccTex("OVERLAY",   3, 0,0, size3,size3, a3)
+      bg:ClearAllPoints(); md:ClearAllPoints(); tp:ClearAllPoints()
+      if corner == "TL" then
+        bg:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT", 3,-3)
+        md:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT", 6,-6)
+        tp:SetPoint("TOPLEFT",chatOptWin,"TOPLEFT", 8,-8)
+      elseif corner == "TR" then
+        bg:SetPoint("TOPRIGHT",chatOptWin,"TOPRIGHT",-3,-3)
+        md:SetPoint("TOPRIGHT",chatOptWin,"TOPRIGHT",-6,-6)
+        tp:SetPoint("TOPRIGHT",chatOptWin,"TOPRIGHT",-8,-8)
+      elseif corner == "BL" then
+        bg:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT", 3,3)
+        md:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT", 6,6)
+        tp:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT", 8,8)
+      else
+        bg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-3,-3)
+        md:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-6,-6)
+        tp:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-8,-8)
+      end
+    end
+    Glow("TL"); Glow("TR"); Glow("BL"); Glow("BR")
   end
 
   -- ── Header background ──────────────────────────────────────────────
@@ -3176,16 +3283,23 @@ NS.BuildChatOptionsWindow = function()
     seasonBtn:SetPoint("RIGHT",lastDevBtn,"LEFT",-4,0); seasonBtn:SetPoint("TOP",btnLayer,"TOP",0,-10)
   end
 
-  -- ── Sidebar / Dock background ──────────────────────────────────────
+  -- ── Sidebar / Dock / Top-nav background ───────────────────────────
   local sbBg=chatOptWin:CreateTexture(nil,"BACKGROUND",nil,1)
   if styleClassic then
+    -- Left sidebar background
     sbBg:SetPoint("TOPLEFT",   chatOptWin,"TOPLEFT",   3,-(HEADER_H+2))
     sbBg:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT",3, 1)
     sbBg:SetWidth(SIDEBAR_W); sbBg:SetColorTexture(0.012,0.012,0.022,1)
+  elseif styleNeon then
+    -- Right sidebar background
+    sbBg:SetPoint("TOPRIGHT",   chatOptWin,"TOPRIGHT",   -3,-(HEADER_H+2))
+    sbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-3, 1)
+    sbBg:SetWidth(SIDEBAR_W); sbBg:SetColorTexture(0.010,0.010,0.018,1)
   else
-    sbBg:SetPoint("BOTTOMLEFT", chatOptWin,"BOTTOMLEFT", 1, 1)
-    sbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1, 1)
-    sbBg:SetHeight(NAV_DOCK_H); sbBg:SetColorTexture(0.006,0.006,0.014,1)
+    -- Icons/Journal: top nav strip background (below header)
+    sbBg:SetPoint("TOPLEFT", chatOptWin,"TOPLEFT",  1,-(HEADER_H+1))
+    sbBg:SetPoint("TOPRIGHT",chatOptWin,"TOPRIGHT",-1,-(HEADER_H+1))
+    sbBg:SetHeight(TOP_NAV_H); sbBg:SetColorTexture(0.008,0.008,0.016,1)
   end
 
   -- ── Content background ─────────────────────────────────────────────
@@ -3193,9 +3307,12 @@ NS.BuildChatOptionsWindow = function()
   if styleClassic then
     cbBg:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    SIDEBAR_W+4,-(HEADER_H+2))
     cbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1,1)
-  else
+  elseif styleNeon then
     cbBg:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    1,-(HEADER_H+2))
-    cbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1, NAV_DOCK_H+1)
+    cbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-(SIDEBAR_W+4),1)
+  else
+    cbBg:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    1,-(HEADER_H+TOP_NAV_H+2))
+    cbBg:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1, 1)
   end
   cbBg:SetColorTexture(0.025,0.025,0.038,1)
 
@@ -3220,11 +3337,17 @@ NS.BuildChatOptionsWindow = function()
     if not TabSetups[i].callback then table.remove(TabSetups, i) end
   end
 
-  local TAB_H = styleClassic and 34 or (NAV_DOCK_H - 10)
+  local TAB_H
+  if styleClassic then
+    TAB_H = 34
+  elseif styleNeon then
+    TAB_H = 30
+  else
+    TAB_H = TOP_NAV_H - 8
+  end
   local DOCK_BTN_W = 74
   local containers={}; local tabs={}
 
-  -- Count visible upfront so new-mode dock buttons can be centered horizontally
   local visibleCount = 0
   for _,s in ipairs(TabSetups) do
     local hidden = s.hidden or (s.devOnly and not isDev)
@@ -3236,14 +3359,18 @@ NS.BuildChatOptionsWindow = function()
     sidebar:SetWidth(SIDEBAR_W)
     sidebar:SetPoint("TOPLEFT",   chatOptWin,"TOPLEFT",   3,-(HEADER_H+2))
     sidebar:SetPoint("BOTTOMLEFT",chatOptWin,"BOTTOMLEFT",3, 1)
+  elseif styleNeon then
+    sidebar:SetWidth(SIDEBAR_W)
+    sidebar:SetPoint("TOPRIGHT",   chatOptWin,"TOPRIGHT",   -3,-(HEADER_H+2))
+    sidebar:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-3, 1)
   else
-    sidebar:SetPoint("BOTTOMLEFT", chatOptWin,"BOTTOMLEFT", 1, 1)
-    sidebar:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1, 1)
-    sidebar:SetHeight(NAV_DOCK_H)
+    sidebar:SetPoint("TOPLEFT", chatOptWin,"TOPLEFT",  1,-(HEADER_H+1))
+    sidebar:SetPoint("TOPRIGHT",chatOptWin,"TOPRIGHT",-1,-(HEADER_H+1))
+    sidebar:SetHeight(TOP_NAV_H)
   end
   sidebar:SetFrameLevel(chatOptWin:GetFrameLevel()+2)
 
-  -- Centered start offset for the dock (new mode only)
+  -- Centered start offset for horizontal top nav (icons only)
   local dockStartX = (WIN_W - 2 - visibleCount*DOCK_BTN_W) / 2
 
   local function SelectTab(idx)
@@ -3252,7 +3379,11 @@ NS.BuildChatOptionsWindow = function()
       local btn=tabs[i]
       if btn then
         btn._selected=false
-        if btn._label   then btn._label:SetTextColor(0.55,0.55,0.65) end
+        if btn._label then
+          local ic = btn._labelInactiveColor
+          if ic then btn._label:SetTextColor(ic[1],ic[2],ic[3])
+          else btn._label:SetTextColor(0.55,0.55,0.65) end
+        end
         if btn._num     then btn._num:SetTextColor(0.30,0.30,0.40) end
         if btn._selLine  then btn._selLine:Hide() end
         if btn._selLineR then btn._selLineR:Hide() end
@@ -3265,7 +3396,11 @@ NS.BuildChatOptionsWindow = function()
     if btn then
       btn._selected=true
       local cr,cg,cb=NS.ChatGetAccentRGB()
-      if btn._label   then btn._label:SetTextColor(cr,cg,cb) end
+      if btn._label then
+        local ac = btn._labelActiveColor
+        if ac then btn._label:SetTextColor(ac[1],ac[2],ac[3])
+        else btn._label:SetTextColor(cr,cg,cb) end
+      end
       if btn._num     then btn._num:SetTextColor(cr,cg,cb) end
       if btn._selLine  then btn._selLine:Show() end
       if btn._selLineR then btn._selLineR:Show() end
@@ -3291,9 +3426,12 @@ NS.BuildChatOptionsWindow = function()
     if styleClassic then
       tc:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    SIDEBAR_W+4,-(CONT_Y))
       tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-1,1)
-    else
+    elseif styleNeon then
       tc:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    10,-(HEADER_H+6))
-      tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-10, NAV_DOCK_H+6)
+      tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-(SIDEBAR_W+10), 6)
+    else
+      tc:SetPoint("TOPLEFT",    chatOptWin,"TOPLEFT",    10,-(HEADER_H+TOP_NAV_H+6))
+      tc:SetPoint("BOTTOMRIGHT",chatOptWin,"BOTTOMRIGHT",-10, 6)
     end
     tc:Hide()
 
@@ -3351,8 +3489,8 @@ NS.BuildChatOptionsWindow = function()
             if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.35) end
           end
         end)
-      else
-        -- ── Command Deck: horizontal dock tile (icon + 2-digit idx) ──
+      elseif styleIcons then
+        -- ── Icons/Journal: horizontal top-nav pill button ─────────────
         tabBtn:SetSize(DOCK_BTN_W, TAB_H)
         tabBtn:SetPoint("LEFT", sidebar,"LEFT", dockStartX + (visIdx-1)*DOCK_BTN_W, 0)
 
@@ -3361,40 +3499,24 @@ NS.BuildChatOptionsWindow = function()
         selBg:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",-3,3)
         selBg:SetColorTexture(ar,ag,ab,0.09); selBg:Hide(); tabBtn._selBg=selBg
 
-        -- Top L-brackets (both corners) for a tile feel
-        local brTL_h=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTL_h:SetSize(8,1)
-        brTL_h:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",3,-3); brTL_h:SetColorTexture(ar,ag,ab,0.22)
-        local brTL_v=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTL_v:SetSize(1,8)
-        brTL_v:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",3,-3); brTL_v:SetColorTexture(ar,ag,ab,0.22)
-        local brTR_h=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTR_h:SetSize(8,1)
-        brTR_h:SetPoint("TOPRIGHT",tabBtn,"TOPRIGHT",-3,-3); brTR_h:SetColorTexture(ar,ag,ab,0.22)
-        local brTR_v=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); brTR_v:SetSize(1,8)
-        brTR_v:SetPoint("TOPRIGHT",tabBtn,"TOPRIGHT",-3,-3); brTR_v:SetColorTexture(ar,ag,ab,0.22)
-        table.insert(NS.chatOptAccentTextures,{tex=brTL_h,alpha=0.22})
-        table.insert(NS.chatOptAccentTextures,{tex=brTL_v,alpha=0.22})
-        table.insert(NS.chatOptAccentTextures,{tex=brTR_h,alpha=0.22})
-        table.insert(NS.chatOptAccentTextures,{tex=brTR_v,alpha=0.22})
-
-        -- Bottom accent line (active indicator — stored in _selLineR slot)
+        -- Bottom accent line (active indicator)
         local selLineB=tabBtn:CreateTexture(nil,"OVERLAY",nil,5)
-        selLineB:SetPoint("BOTTOMLEFT", tabBtn,"BOTTOMLEFT", 6, 4)
-        selLineB:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",-6, 4)
+        selLineB:SetPoint("BOTTOMLEFT", tabBtn,"BOTTOMLEFT", 6, 2)
+        selLineB:SetPoint("BOTTOMRIGHT",tabBtn,"BOTTOMRIGHT",-6, 2)
         selLineB:SetHeight(2)
         selLineB:SetColorTexture(ar,ag,ab,1); selLineB:Hide(); tabBtn._selLineR=selLineB
         table.insert(NS.chatOptAccentTextures,{tex=selLineB,alpha=1})
 
-        -- 2-digit ordinal number top-left of tile
         local num=tabBtn:CreateFontString(nil,"OVERLAY")
         num:SetFont(NS.FONT,8,"")
-        num:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",8,-6)
+        num:SetPoint("TOPLEFT",tabBtn,"TOPLEFT",8,-4)
         num:SetTextColor(0.30,0.30,0.40)
         num:SetText(string.format("%02d",visIdx))
         tabBtn._num=num
 
-        -- Centered icon
         if iconFile then
-          local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(24,24)
-          ico:SetPoint("CENTER",tabBtn,"CENTER",0,0)
+          local ico=tabBtn:CreateTexture(nil,"OVERLAY",nil,3); ico:SetSize(20,20)
+          ico:SetPoint("CENTER",tabBtn,"CENTER",0,-1)
           ico:SetTexture("Interface/AddOns/LucidUI/Assets/"..iconFile..".png")
           ico:SetAlpha(0.38); tabBtn._tabIcon=ico
         end
@@ -3404,7 +3526,7 @@ NS.BuildChatOptionsWindow = function()
             num:SetTextColor(0.70,0.70,0.80); selBg:Show()
             if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.78) end
           end
-          GameTooltip:SetOwner(tabBtn,"ANCHOR_TOP",0,4)
+          GameTooltip:SetOwner(tabBtn,"ANCHOR_BOTTOM",0,-4)
           GameTooltip:ClearLines()
           local cr,cg,cb=NS.ChatGetAccentRGB()
           GameTooltip:AddLine(setup.name,cr,cg,cb)
@@ -3416,6 +3538,51 @@ NS.BuildChatOptionsWindow = function()
             if tabBtn._tabIcon then tabBtn._tabIcon:SetAlpha(0.38) end
           end
           GameTooltip:Hide()
+        end)
+      else
+        -- ── Neon/HUD: vertical right sidebar, filled pill button ──────
+        tabBtn:SetSize(SIDEBAR_W-6, TAB_H)
+        tabBtn:SetPoint("TOP",sidebar,"TOP",0,-(visIdx-1)*(TAB_H+2) - 8)
+
+        -- Solid accent fill: shown only when selected (managed by SelectTab)
+        local selBg=tabBtn:CreateTexture(nil,"BACKGROUND",nil,2)
+        selBg:SetAllPoints()
+        selBg:SetColorTexture(ar,ag,ab,0.85); selBg:Hide(); tabBtn._selBg=selBg
+        table.insert(NS.chatOptAccentTextures,{tex=selBg,alpha=0.85})
+
+        -- Dim accent tint: shown only on hover while not selected
+        local hoverBg=tabBtn:CreateTexture(nil,"BACKGROUND",nil,1)
+        hoverBg:SetAllPoints()
+        hoverBg:SetColorTexture(ar,ag,ab,0.18); hoverBg:Hide()
+        table.insert(NS.chatOptAccentTextures,{tex=hoverBg,alpha=0.18})
+
+        -- Accent bar on LEFT edge of the tab (active indicator)
+        local selLineL=tabBtn:CreateTexture(nil,"OVERLAY",nil,5); selLineL:SetWidth(3)
+        selLineL:SetPoint("TOPLEFT",   tabBtn,"TOPLEFT",   -6,0)
+        selLineL:SetPoint("BOTTOMLEFT",tabBtn,"BOTTOMLEFT",-6,0)
+        selLineL:SetColorTexture(ar,ag,ab,1); selLineL:Hide(); tabBtn._selLineR=selLineL
+        table.insert(NS.chatOptAccentTextures,{tex=selLineL,alpha=1})
+
+        -- Label only, left-aligned, no icon (minimal HUD feel)
+        local label=tabBtn:CreateFontString(nil,"OVERLAY"); label:SetFont(NS.FONT,10,"OUTLINE")
+        label:SetPoint("LEFT",8,0); label:SetTextColor(0.55,0.55,0.65); label:SetText(setup.name)
+        label:SetShadowColor(0,0,0,0.85); label:SetShadowOffset(1,-1)
+        tabBtn._label=label
+        -- White on accent fill when selected, gray on dark when idle
+        tabBtn._labelActiveColor   = {1,1,1}
+        tabBtn._labelInactiveColor = {0.55,0.55,0.65}
+
+        tabBtn:SetScript("OnEnter",function()
+          if not tabBtn._selected then
+            label:SetTextColor(0.92,0.92,0.98)
+            hoverBg:Show()
+          end
+        end)
+        tabBtn:SetScript("OnLeave",function()
+          if not tabBtn._selected then
+            label:SetTextColor(0.55,0.55,0.65)
+          end
+          hoverBg:Hide()
         end)
       end
     else
